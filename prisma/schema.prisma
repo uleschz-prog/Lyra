@@ -8,14 +8,29 @@ datasource db {
 }
 
 enum Role {
-  MEMBER
   ADMIN
+  MEMBER
+}
+
+enum PackageType {
+  NONE
+  FREE
+  STARTED
+  PRO
+  FOUNDER
+  CORPORATE
+  VEGA
+  POLARIS
+  LYRA_MASTER
 }
 
 enum Rank {
-  SOCIO
-  LIDER
-  MAESTRO
+  ASTRA
+  NOVA
+  ALPHA
+  PULSAR
+  VEGA
+  CONSTELLATION
 }
 
 enum TransactionKind {
@@ -23,6 +38,7 @@ enum TransactionKind {
   CREDIT_PURCHASE
   CREDIT_SPEND
   ADJUSTMENT
+  REBUY
 }
 
 /// Cierre de la red: cada fila une a un afiliado con un ancestro y la distancia entre ambos.
@@ -41,26 +57,155 @@ model NetworkRelation {
 }
 
 model User {
-  id        String   @id @default(cuid())
-  email     String   @unique
-  name      String
-  avatar    String?
-  role      Role     @default(MEMBER)
-  rank      Rank     @default(SOCIO)
-  sponsorId String?
-  createdAt DateTime @default(now())
+  id                   String      @id @default(uuid())
+  name                 String
+  email                String      @unique
+  username             String      @unique
+  password             String
+  role                 Role        @default(MEMBER)
+  package              PackageType @default(NONE)
+  pendingPackage       PackageType?
+  rank                 Rank        @default(ASTRA)
+  sponsorId            String?
+  referralCode         String      @unique
+  credits              Int         @default(0)
+  walletBalance        Float       @default(0)
+  isSubscriptionExempt Boolean     @default(false)
+  activationCredits    Int         @default(0)
+  activatedWithCode    Boolean     @default(false)
+  suspendedUntil       DateTime?
+  alphaFastTrackUntil  DateTime?
+  avatar               String?
+  createdAt            DateTime    @default(now())
+  updatedAt            DateTime    @updatedAt
 
-  sponsor  User?  @relation("Sponsorship", fields: [sponsorId], references: [id], onDelete: SetNull)
-  downline User[] @relation("Sponsorship")
+  sponsor   User?  @relation("Sponsorship", fields: [sponsorId], references: [id], onDelete: SetNull)
+  referrals User[] @relation("Sponsorship")
 
   descendantLinks NetworkRelation[] @relation("DescendantLinks")
   ancestorLinks   NetworkRelation[] @relation("AncestorLinks")
 
-  wallet       CreditWallet?
-  transactions Transaction[]
+  wallet          CreditWallet?
+  transactions    Transaction[]
+  projects        Project[]
+  creations       CreationPiece[]
+  activationCodes ActivationCode[] @relation("ActivationOwner")
+  activation      ActivationCode?  @relation("ActivationUsedBy")
 
   @@index([sponsorId])
   @@index([rank])
+}
+
+/// Código prepagado con créditos de activación. La cuenta que lo usa no genera puntos.
+model ActivationCode {
+  id        String      @id @default(cuid())
+  code      String      @unique
+  packageId PackageType
+  price     Int
+  ownerId   String
+  usedById  String?     @unique
+  usedAt    DateTime?
+  createdAt DateTime    @default(now())
+
+  owner  User  @relation("ActivationOwner", fields: [ownerId], references: [id], onDelete: Cascade)
+  usedBy User? @relation("ActivationUsedBy", fields: [usedById], references: [id], onDelete: SetNull)
+
+  @@index([ownerId, createdAt])
+}
+
+model CreationPiece {
+  id        String   @id @default(cuid())
+  userId    String
+  area      String
+  kind      String
+  title     String
+  body      String   @db.Text
+  media     String?  @db.Text
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, area, createdAt])
+}
+
+model Project {
+  id        String   @id @default(cuid())
+  userId    String
+  title     String
+  idea      String
+  kind      String   @default("app")
+  published Boolean  @default(false)
+  ui        Json?
+  createdAt DateTime @default(now())
+
+  user   User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tables ProjectTable[]
+  agents ProjectAgent[]
+  flows  ProjectFlow[]
+  runs   ProjectRun[]
+
+  @@index([userId, createdAt])
+}
+
+/// Catálogo de las tablas creadas para un proyecto. Las filas viven en el esquema projects.
+model ProjectTable {
+  id        String   @id @default(cuid())
+  projectId String
+  name      String
+  physical  String   @unique
+  columns   String[]
+  createdAt DateTime @default(now())
+
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@unique([projectId, name])
+  @@index([projectId])
+}
+
+model ProjectAgent {
+  id          String   @id @default(cuid())
+  projectId   String
+  name        String
+  instruction String
+  status      String   @default("running")
+  createdAt   DateTime @default(now())
+
+  project Project      @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  runs    ProjectRun[]
+
+  @@unique([projectId, name])
+  @@index([projectId])
+}
+
+model ProjectFlow {
+  id        String   @id @default(cuid())
+  projectId String
+  name      String
+  tableName String
+  agentName String
+  status    String   @default("running")
+  createdAt DateTime @default(now())
+
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@unique([projectId, name])
+  @@index([projectId, tableName])
+}
+
+model ProjectRun {
+  id        String   @id @default(cuid())
+  projectId String
+  agentId   String
+  agentName String
+  flowName  String
+  input     String
+  output    String
+  createdAt DateTime @default(now())
+
+  project Project      @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  agent   ProjectAgent @relation(fields: [agentId], references: [id], onDelete: Cascade)
+
+  @@index([projectId, createdAt])
 }
 
 model Course {
@@ -68,7 +213,7 @@ model Course {
   title           String
   description     String
   videoUrl        String?
-  rankRequirement Rank     @default(SOCIO)
+  rankRequirement Rank     @default(ASTRA)
   createdAt       DateTime @default(now())
   lessons         Lesson[]
 }
@@ -79,7 +224,7 @@ model Lesson {
   title           String
   description     String
   videoUrl        String
-  rankRequirement Rank   @default(SOCIO)
+  rankRequirement Rank   @default(ASTRA)
   position        Int    @default(0)
 
   course Course @relation(fields: [courseId], references: [id], onDelete: Cascade)
@@ -116,6 +261,7 @@ model Transaction {
   creditDelta Int             @default(0)
   kind        TransactionKind
   description String
+  externalRef String?         @unique
   createdAt   DateTime        @default(now())
 
   user   User         @relation(fields: [userId], references: [id], onDelete: Cascade)

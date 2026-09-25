@@ -1,10 +1,5 @@
-import type {
-  Course,
-  DemoAgent,
-  DemoUser,
-  NetworkNode,
-  WalletTransaction,
-} from "@/lib/types";
+import { constellationAgents } from "@/config/constellation";
+import type { Course, DemoUser, NetworkNode, WalletTransaction } from "@/lib/types";
 
 export const demoUser: DemoUser = {
   id: "usr_elena",
@@ -12,7 +7,7 @@ export const demoUser: DemoUser = {
   email: "elena.voss@lyra.app",
   avatar: null,
   role: "MEMBER",
-  rank: "LIDER",
+  rank: "ALPHA",
   sponsorId: "usr_aurora",
 };
 
@@ -27,9 +22,9 @@ export const demoTransactions: WalletTransaction[] = [
   },
   {
     id: "txn_credit_pack",
-    description: "Paquete de créditos · Estudio IA",
-    amountUsd: 49,
-    creditDelta: 500,
+    description: "Plan Started · 1,500 créditos",
+    amountUsd: 99,
+    creditDelta: 1500,
     kind: "CREDIT_PURCHASE",
     createdAt: "2026-09-12T18:30:00.000Z",
   },
@@ -70,7 +65,7 @@ export const networkTree: NetworkNode = {
       id: "usr_mateo",
       name: "Mateo Ruiz",
       email: "mateo.ruiz@lyra.app",
-      rank: "SOCIO",
+      rank: "ASTRA",
       depth: 1,
       personalVolume: 420,
       sponsorName: "Elena Voss",
@@ -79,7 +74,7 @@ export const networkTree: NetworkNode = {
           id: "usr_ana",
           name: "Ana Sol",
           email: "ana.sol@lyra.app",
-          rank: "SOCIO",
+          rank: "ASTRA",
           depth: 2,
           personalVolume: 160,
           sponsorName: "Mateo Ruiz",
@@ -89,7 +84,7 @@ export const networkTree: NetworkNode = {
           id: "usr_leo",
           name: "Leo Kim",
           email: "leo.kim@lyra.app",
-          rank: "SOCIO",
+          rank: "ASTRA",
           depth: 2,
           personalVolume: 90,
           sponsorName: "Mateo Ruiz",
@@ -101,7 +96,7 @@ export const networkTree: NetworkNode = {
       id: "usr_sofia",
       name: "Sofía Chen",
       email: "sofia.chen@lyra.app",
-      rank: "LIDER",
+      rank: "ALPHA",
       depth: 1,
       personalVolume: 980,
       sponsorName: "Elena Voss",
@@ -110,7 +105,7 @@ export const networkTree: NetworkNode = {
           id: "usr_nora",
           name: "Nora Díaz",
           email: "nora.diaz@lyra.app",
-          rank: "SOCIO",
+          rank: "ASTRA",
           depth: 2,
           personalVolume: 240,
           sponsorName: "Sofía Chen",
@@ -122,7 +117,7 @@ export const networkTree: NetworkNode = {
       id: "usr_ivan",
       name: "Iván Hale",
       email: "ivan.hale@lyra.app",
-      rank: "SOCIO",
+      rank: "ASTRA",
       depth: 1,
       personalVolume: 310,
       sponsorName: "Elena Voss",
@@ -132,7 +127,7 @@ export const networkTree: NetworkNode = {
       id: "usr_lina",
       name: "Lina Ortega",
       email: "lina.ortega@lyra.app",
-      rank: "MAESTRO",
+      rank: "VEGA",
       depth: 1,
       personalVolume: 2120,
       sponsorName: "Elena Voss",
@@ -141,7 +136,7 @@ export const networkTree: NetworkNode = {
           id: "usr_gael",
           name: "Gael Mora",
           email: "gael.mora@lyra.app",
-          rank: "LIDER",
+          rank: "ALPHA",
           depth: 2,
           personalVolume: 760,
           sponsorName: "Lina Ortega",
@@ -152,48 +147,7 @@ export const networkTree: NetworkNode = {
   ],
 };
 
-export const agents: DemoAgent[] = [
-  {
-    id: "prospector",
-    name: "Agente Prospector",
-    description: "Perfila un contacto y deja listo el primer mensaje de la red.",
-    category: "Prospección",
-    promptTemplate:
-      "Actúa como prospector senior de LYRA. A partir del contexto, entrega perfil del contacto, gancho de dos líneas y el siguiente paso.",
-    creditCost: 12,
-    uses: 186,
-  },
-  {
-    id: "copywriter",
-    name: "Agente Copywriter",
-    description: "Escribe piezas breves para historias, correo y páginas de captura.",
-    category: "Contenido",
-    promptTemplate:
-      "Actúa como copywriter de LYRA. Redacta gancho, cuerpo y llamado a la acción sin promesas de ingreso.",
-    creditCost: 8,
-    uses: 142,
-  },
-  {
-    id: "closer",
-    name: "Agente Closer",
-    description: "Ordena el seguimiento cuando la conversación ya mostró interés.",
-    category: "Ventas",
-    promptTemplate:
-      "Actúa como closer consultivo. Resume la objeción, propone una respuesta sobria y cierra con una pregunta de avance.",
-    creditCost: 15,
-    uses: 97,
-  },
-  {
-    id: "mentor",
-    name: "Agente Mentor",
-    description: "Convierte una lección de la academia en un plan de siete días.",
-    category: "Academia",
-    promptTemplate:
-      "Actúa como mentor de la academia LYRA. Convierte el tema en un plan de siete días con una práctica diaria.",
-    creditCost: 6,
-    uses: 121,
-  },
-];
+export const agents = constellationAgents;
 
 export const courses: Course[] = [
   {
@@ -202,22 +156,22 @@ export const courses: Course[] = [
     description:
       "Cómo se lee un árbol, qué significa cada rango y cómo presentar LYRA sin improvisar.",
     videoUrl: "lyra://academy/fundamentos/intro",
-    rankRequirement: "SOCIO",
+    rankRequirement: "ASTRA",
     lessons: [
       {
         id: "les_fund_1",
         title: "El mapa de la red",
         description: "Sponsor, directos y profundidad. La lectura mínima antes de invitar.",
         videoUrl: "lyra://academy/fundamentos/mapa",
-        rankRequirement: "SOCIO",
+        rankRequirement: "ASTRA",
         completed: true,
       },
       {
         id: "les_fund_2",
         title: "Rangos y acceso",
-        description: "Socio, Líder y Maestro: qué abre cada nivel en la academia.",
+        description: "Started $99, Pro $499 y Founder $1,000. Un crédito equivale a $1.",
         videoUrl: "lyra://academy/fundamentos/rangos",
-        rankRequirement: "SOCIO",
+        rankRequirement: "ASTRA",
         completed: true,
       },
       {
@@ -225,7 +179,7 @@ export const courses: Course[] = [
         title: "La primera conversación",
         description: "Estructura de tres minutos para presentar la academia y el estudio.",
         videoUrl: "lyra://academy/fundamentos/conversacion",
-        rankRequirement: "SOCIO",
+        rankRequirement: "ASTRA",
         completed: false,
       },
     ],
@@ -236,14 +190,14 @@ export const courses: Course[] = [
     description:
       "Usa el Estudio IA para preparar mensajes y deja el criterio de la conversación en tus manos.",
     videoUrl: "lyra://academy/prospeccion/intro",
-    rankRequirement: "SOCIO",
+    rankRequirement: "ASTRA",
     lessons: [
       {
         id: "les_pros_1",
         title: "Brief para el Prospector",
         description: "Qué contexto sí sirve y qué ruido no debes pegar en el chat.",
         videoUrl: "lyra://academy/prospeccion/brief",
-        rankRequirement: "SOCIO",
+        rankRequirement: "ASTRA",
         completed: true,
       },
       {
@@ -251,7 +205,7 @@ export const courses: Course[] = [
         title: "Créditos y criterio",
         description: "Cuándo vale la consulta y cuándo conviene escribirlo tú.",
         videoUrl: "lyra://academy/prospeccion/creditos",
-        rankRequirement: "SOCIO",
+        rankRequirement: "ASTRA",
         completed: false,
       },
       {
@@ -259,7 +213,7 @@ export const courses: Course[] = [
         title: "Seguimiento de 48 horas",
         description: "Qué hacer después del primer mensaje si no hay respuesta.",
         videoUrl: "lyra://academy/prospeccion/seguimiento",
-        rankRequirement: "SOCIO",
+        rankRequirement: "ASTRA",
         completed: false,
       },
     ],
@@ -270,22 +224,22 @@ export const courses: Course[] = [
     description:
       "Ritmo semanal para acompañar directos sin convertir el grupo en un tablero de presión.",
     videoUrl: "lyra://academy/liderazgo/intro",
-    rankRequirement: "LIDER",
+    rankRequirement: "ALPHA",
     lessons: [
       {
         id: "les_lid_1",
         title: "La reunión de línea",
         description: "Agenda de 25 minutos: academia, bloqueos y un solo compromiso.",
         videoUrl: "lyra://academy/liderazgo/reunion",
-        rankRequirement: "LIDER",
+        rankRequirement: "ALPHA",
         completed: true,
       },
       {
         id: "les_lid_2",
         title: "Leer el árbol",
-        description: "Dónde está el volumen y dónde falta actividad real.",
+        description: "Dónde hay actividad y dónde hace falta presencia.",
         videoUrl: "lyra://academy/liderazgo/arbol",
-        rankRequirement: "LIDER",
+        rankRequirement: "ALPHA",
         completed: false,
       },
       {
@@ -293,7 +247,7 @@ export const courses: Course[] = [
         title: "Duplicar sin guion rígido",
         description: "Qué se transfiere a un socio nuevo y qué queda en tu criterio.",
         videoUrl: "lyra://academy/liderazgo/duplicar",
-        rankRequirement: "LIDER",
+        rankRequirement: "ALPHA",
         completed: false,
       },
     ],
@@ -304,14 +258,14 @@ export const courses: Course[] = [
     description:
       "Diseño de sistemas de equipo, compensación y formación de líderes de líderes.",
     videoUrl: "lyra://academy/maestria/intro",
-    rankRequirement: "MAESTRO",
+    rankRequirement: "VEGA",
     lessons: [
       {
         id: "les_mae_1",
         title: "Arquitectura del equipo",
         description: "Cómo repartir mentoría cuando la línea ya tiene varios líderes.",
         videoUrl: "lyra://academy/maestria/arquitectura",
-        rankRequirement: "MAESTRO",
+        rankRequirement: "VEGA",
         completed: false,
       },
       {
@@ -319,7 +273,7 @@ export const courses: Course[] = [
         title: "Comisiones y narrativa",
         description: "Explicar el dinero con precisión, sin convertirlo en la promesa.",
         videoUrl: "lyra://academy/maestria/comisiones",
-        rankRequirement: "MAESTRO",
+        rankRequirement: "VEGA",
         completed: false,
       },
       {
@@ -327,7 +281,7 @@ export const courses: Course[] = [
         title: "Formar formadores",
         description: "El paso de operador a quien enseña el sistema completo.",
         videoUrl: "lyra://academy/maestria/formadores",
-        rankRequirement: "MAESTRO",
+        rankRequirement: "VEGA",
         completed: false,
       },
     ],

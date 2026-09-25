@@ -4,15 +4,9 @@ import { ChevronDown } from "lucide-react";
 import { useMemo, useState } from "react";
 
 import { Badge } from "@/components/ui/badge";
-import { formatUsd, initials, rankLabel } from "@/lib/format";
-import type { NetworkNode, Rank } from "@/lib/types";
+import { formatUsd, initials, rankBadge, rankLabel } from "@/lib/format";
+import type { NetworkNode } from "@/lib/types";
 import { cn } from "@/lib/utils";
-
-const rankVariant: Record<Rank, "default" | "violet" | "cyan"> = {
-  SOCIO: "default",
-  LIDER: "violet",
-  MAESTRO: "cyan",
-};
 
 function collect(node: NetworkNode): NetworkNode[] {
   return [node, ...node.children.flatMap(collect)];
@@ -45,24 +39,26 @@ function NodeCard({
   return (
     <div
       className={cn(
-        "flex items-center gap-3 rounded-2xl border bg-lyra-card px-3 py-3 text-left shadow-[0_0_15px_rgba(124,58,237,0.12)]",
-        selected ? "border-lyra-violet/60" : "border-lyra-border",
+        "relative flex items-center gap-3 overflow-hidden rounded-xl border bg-surface/80 px-3 py-3 text-left backdrop-blur-md transition-colors",
+        selected
+          ? "border-accent-purple"
+          : "border-border hover:border-[#C9C3BA]",
       )}
     >
       <button type="button" onClick={() => onSelect(node.id)} className="flex min-w-0 flex-1 items-center gap-3">
-        <span className="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-gradient-to-br from-lyra-violet/30 to-lyra-cyan/20 text-xs font-medium text-white">
+        <span className="grid h-9 w-9 shrink-0 place-items-center rounded-lg border border-border bg-[#F4F1EC] text-xs text-[#1E1E24]">
           {initials(node.name)}
         </span>
         <span className="min-w-0">
           <span className="flex items-center gap-2">
-            <span className="truncate text-sm text-white">{node.name}</span>
+            <span className="truncate text-sm text-[#1E1E24]">{node.name}</span>
             {node.depth === 0 ? (
               <span className="text-[10px] uppercase tracking-[0.16em] text-lyra-cyan">Tú</span>
             ) : null}
           </span>
           <span className="mt-1 flex items-center gap-2">
-            <Badge variant={rankVariant[node.rank]}>{rankLabel[node.rank]}</Badge>
-            <span className="text-xs text-zinc-500">
+            <Badge variant={rankBadge(node.rank)}>{rankLabel[node.rank]}</Badge>
+            <span className="text-xs text-[#8A8680]">
               {node.children.length === 1
                 ? "1 directo"
                 : `${node.children.length} directos`}
@@ -76,7 +72,7 @@ function NodeCard({
           aria-expanded={open}
           aria-label={open ? `Contraer la línea de ${node.name}` : `Expandir la línea de ${node.name}`}
           onClick={() => onToggle(node.id)}
-          className="grid h-8 w-8 shrink-0 place-items-center rounded-lg text-zinc-400 hover:bg-white/5 hover:text-white"
+          className="grid h-8 w-8 shrink-0 place-items-center rounded-lg text-[#5C5854] hover:bg-[#F4F1EC] hover:text-[#1E1E24]"
         >
           <ChevronDown className={cn("h-4 w-4 transition-transform", open && "rotate-180")} />
         </button>
@@ -152,10 +148,10 @@ export function GenealogyTree({ root }: { root: NetworkNode }) {
           ].map(([label, value]) => (
             <div
               key={label}
-              className="rounded-2xl border border-lyra-border bg-lyra-card px-4 py-3 shadow-[0_0_15px_rgba(124,58,237,0.12)]"
+              className="rounded-2xl border border-border bg-surface/80 backdrop-blur-md transition-colors hover:border-border-bright px-4 py-3"
             >
-              <dt className="text-[10px] uppercase tracking-[0.2em] text-zinc-500">{label}</dt>
-              <dd className="mt-1 font-mono text-xl tabular-nums text-white">{value}</dd>
+              <dt className="text-[10px] uppercase tracking-[0.2em] text-[#8A8680]">{label}</dt>
+              <dd className="mt-1 text-xl tabular-nums text-[#1E1E24]">{value}</dd>
             </div>
           ))}
         </dl>
@@ -170,34 +166,34 @@ export function GenealogyTree({ root }: { root: NetworkNode }) {
         </ul>
       </section>
 
-      <aside className="h-fit rounded-2xl border border-lyra-border bg-lyra-card p-5 shadow-[0_0_15px_rgba(124,58,237,0.15)]">
+      <aside className="h-fit rounded-2xl border border-border bg-surface/80 backdrop-blur-md transition-colors hover:border-border-bright p-5">
         <p className="text-[10px] uppercase tracking-[0.22em] text-lyra-cyan">Ficha</p>
-        <h2 className="mt-3 text-xl tracking-wide text-white">{selected.name}</h2>
+        <h2 className="mt-3 text-xl tracking-wide text-[#1E1E24]">{selected.name}</h2>
         <div className="mt-3">
-          <Badge variant={rankVariant[selected.rank]}>{rankLabel[selected.rank]}</Badge>
+          <Badge variant={rankBadge(selected.rank)}>{rankLabel[selected.rank]}</Badge>
         </div>
         <dl className="mt-6 space-y-4 text-sm">
           <div>
-            <dt className="text-zinc-500">Correo</dt>
-            <dd className="mt-1 text-zinc-200">{selected.email}</dd>
+            <dt className="text-[#8A8680]">Correo</dt>
+            <dd className="mt-1 text-[#1E1E24]">{selected.email}</dd>
           </div>
           <div>
-            <dt className="text-zinc-500">Patrocinador</dt>
-            <dd className="mt-1 text-zinc-200">{selected.sponsorName}</dd>
+            <dt className="text-[#8A8680]">Patrocinador</dt>
+            <dd className="mt-1 text-[#1E1E24]">{selected.sponsorName}</dd>
           </div>
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <dt className="text-zinc-500">Nivel</dt>
-              <dd className="mt-1 font-mono text-zinc-100">{selected.depth}</dd>
+              <dt className="text-[#8A8680]">Nivel</dt>
+              <dd className="mt-1 text-[#1E1E24]">{selected.depth}</dd>
             </div>
             <div>
-              <dt className="text-zinc-500">Directos</dt>
-              <dd className="mt-1 font-mono text-zinc-100">{selected.children.length}</dd>
+              <dt className="text-[#8A8680]">Directos</dt>
+              <dd className="mt-1 text-[#1E1E24]">{selected.children.length}</dd>
             </div>
           </div>
           <div>
-            <dt className="text-zinc-500">Volumen personal</dt>
-            <dd className="mt-1 font-mono text-white">{formatUsd(selected.personalVolume)}</dd>
+            <dt className="text-[#8A8680]">Volumen personal</dt>
+            <dd className="mt-1 text-[#1E1E24]">{formatUsd(selected.personalVolume)}</dd>
           </div>
         </dl>
       </aside>

@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import { Toaster } from "sonner";
 
@@ -15,6 +15,12 @@ const geistMono = Geist_Mono({
   subsets: ["latin"],
 });
 
+export const viewport: Viewport = {
+  width: "device-width",
+  initialScale: 1,
+  viewportFit: "cover",
+};
+
 export const metadata: Metadata = {
   title: {
     default: brand.name,
@@ -29,17 +35,17 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
       lang="es"
       className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
     >
-      <body className="min-h-full bg-lyra-dark font-sans text-zinc-100">
+      <body className="min-h-full bg-background font-sans text-foreground">
         {children}
         <Toaster
-          theme="dark"
+          theme="light"
           position="bottom-right"
           closeButton
           toastOptions={{
             style: {
-              background: "#13131F",
-              border: "1px solid rgba(255, 255, 255, 0.08)",
-              color: "#f4f4f5",
+              background: "#FFFFFF",
+              border: "1px solid #D9D5CE",
+              color: "#1E1E24",
             },
           }}
         />
