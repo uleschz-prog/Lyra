@@ -15,6 +15,7 @@ type CreditContextValue = {
   totalEarnedCommissions: number;
   transactions: WalletTransaction[];
   spend: (input: SpendInput) => boolean;
+  addCredits: (amount: number, description: string) => void;
 };
 
 const CreditContext = createContext<CreditContextValue | null>(null);
@@ -34,24 +35,43 @@ export function CreditProvider({
   const [transactions, setTransactions] = useState(initialTransactions);
   const balanceRef = useRef(initialBalance);
 
-  const spend = useCallback((input: SpendInput) => {
-    if (balanceRef.current < input.creditCost) return false;
+  const spend = useCallback(
+    (input: SpendInput) => {
+      if (balanceRef.current < input.creditCost) return false;
 
-    balanceRef.current -= input.creditCost;
+      balanceRef.current -= input.creditCost;
+      setBalance(balanceRef.current);
+      setTransactions((current) => [
+        {
+          id: crypto.randomUUID(),
+          description: `${input.agentName}: ${input.note}`,
+          amountUsd: 0,
+          creditDelta: -input.creditCost,
+          kind: "CREDIT_SPEND",
+          createdAt: new Date().toISOString(),
+        },
+        ...current,
+      ]);
+
+      return true;
+    },
+    [],
+  );
+
+  const addCredits = useCallback((amount: number, description: string) => {
+    balanceRef.current += amount;
     setBalance(balanceRef.current);
     setTransactions((current) => [
       {
         id: crypto.randomUUID(),
-        description: `${input.agentName}: ${input.note}`,
-        amountUsd: 0,
-        creditDelta: -input.creditCost,
-        kind: "CREDIT_SPEND",
+        description,
+        amountUsd: amount,
+        creditDelta: amount,
+        kind: "CREDIT_PURCHASE",
         createdAt: new Date().toISOString(),
       },
       ...current,
     ]);
-
-    return true;
   }, []);
 
   const value = useMemo(
@@ -60,8 +80,9 @@ export function CreditProvider({
       totalEarnedCommissions,
       transactions,
       spend,
+      addCredits,
     }),
-    [balance, spend, totalEarnedCommissions, transactions],
+    [addCredits, balance, spend, totalEarnedCommissions, transactions],
   );
 
   return <CreditContext.Provider value={value}>{children}</CreditContext.Provider>;

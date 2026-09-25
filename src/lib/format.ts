@@ -1,19 +1,43 @@
-import type { Rank } from "@/lib/types";
+import type { PackageType, Rank } from "@/lib/types";
 
 const rankOrder: Record<Rank, number> = {
-  SOCIO: 0,
-  LIDER: 1,
-  MAESTRO: 2,
+  ASTRA: 0,
+  NOVA: 1,
+  ALPHA: 2,
+  PULSAR: 3,
+  VEGA: 4,
+  CONSTELLATION: 5,
 };
 
 export const rankLabel: Record<Rank, string> = {
-  SOCIO: "Socio",
-  LIDER: "Líder",
-  MAESTRO: "Maestro",
+  ASTRA: "Astra",
+  NOVA: "Nova",
+  ALPHA: "Alpha",
+  PULSAR: "Pulsar",
+  VEGA: "Vega",
+  CONSTELLATION: "Constellation",
+};
+
+export const packageLabel: Record<PackageType, string> = {
+  NONE: "Sin plan",
+  FREE: "Free",
+  STARTED: "Started",
+  PRO: "Pro",
+  FOUNDER: "Founder",
+  CORPORATE: "Corporate",
+  VEGA: "Free",
+  POLARIS: "Started",
+  LYRA_MASTER: "Pro",
 };
 
 export function canAccess(userRank: Rank, required: Rank) {
   return rankOrder[userRank] >= rankOrder[required];
+}
+
+export function rankBadge(rank: Rank): "default" | "violet" | "cyan" {
+  if (rankOrder[rank] >= rankOrder.VEGA) return "cyan";
+  if (rankOrder[rank] >= rankOrder.ALPHA) return "violet";
+  return "default";
 }
 
 export function formatCredits(value: number) {

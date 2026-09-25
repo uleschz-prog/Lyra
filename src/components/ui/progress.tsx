@@ -15,10 +15,10 @@ export function Progress({
       aria-valuenow={width}
       aria-valuemin={0}
       aria-valuemax={100}
-      className={cn("h-1.5 w-full overflow-hidden rounded-full bg-white/10", className)}
+      className={cn("h-1.5 w-full overflow-hidden rounded-full bg-[#E7E2DA]", className)}
     >
       <div
-        className="h-full rounded-full bg-gradient-to-r from-lyra-violet to-lyra-cyan"
+        className="h-full rounded-full bg-[#7C3AED]"
         style={{ width: `${width}%` }}
       />
     </div>

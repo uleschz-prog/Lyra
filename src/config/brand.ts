@@ -1,18 +1,14 @@
 import {
+  BookOpen,
   Bot,
+  Crown,
   GraduationCap,
-  LayoutDashboard,
+  Home,
   Network,
+  Orbit,
+  Sparkles,
   Wallet,
-  type LucideIcon,
 } from "lucide-react";
-
-export type BrandNavItem = {
-  href: string;
-  label: string;
-  description: string;
-  icon: LucideIcon;
-};
 
 export const brand = {
   name: "LYRA",
@@ -20,50 +16,94 @@ export const brand = {
   description:
     "Backoffice para una academia digital y una red multinivel operada con agentes autónomos.",
   colors: {
-    dark: "#0B0B12",
-    card: "#13131F",
-    border: "rgba(255, 255, 255, 0.08)",
+    dark: "#08090A",
+    card: "#0D0E11",
+    border: "#1C1D22",
     violet: "#7C3AED",
     cyan: "#06B6D4",
   },
   links: {
     home: "/",
+    login: "/login",
+    register: "/register",
     dashboard: "/dashboard",
     network: "/dashboard/network",
+    plan: "/dashboard/plan",
     academy: "/dashboard/academy",
     aiStudio: "/dashboard/ai-studio",
+    notebook: "/dashboard/notebook",
+    studio: "/dashboard/studio",
     wallet: "/dashboard/wallet",
   },
-  navigation: [
-    {
-      href: "/dashboard",
-      label: "Dashboard",
-      description: "Pulso de la red y de los créditos",
-      icon: LayoutDashboard,
-    },
-    {
-      href: "/dashboard/network",
-      label: "Mi Red",
-      description: "Árbol genealógico",
-      icon: Network,
-    },
-    {
-      href: "/dashboard/academy",
-      label: "Academia",
-      description: "Cursos según tu rango",
-      icon: GraduationCap,
-    },
-    {
-      href: "/dashboard/ai-studio",
-      label: "Estudio IA",
-      description: "Agentes y créditos",
-      icon: Bot,
-    },
-    {
-      href: "/dashboard/wallet",
-      label: "Billetera",
-      description: "Comisiones y créditos",
-      icon: Wallet,
-    },
-  ] satisfies BrandNavItem[],
 };
+
+export const officeModes = [
+  {
+    id: "comunidad",
+    label: "Comunidad",
+    home: "/dashboard",
+    items: [
+      {
+        href: "/dashboard",
+        label: "Inicio",
+        description: "La pregunta para crear",
+        icon: Home,
+      },
+      {
+        href: "/dashboard/notebook",
+        label: "Notebook",
+        description: "Investigación sobre tus fuentes",
+        icon: BookOpen,
+      },
+      {
+        href: "/dashboard/studio",
+        label: "Estudio creativo",
+        description: "Video con imagen y sonido",
+        icon: Sparkles,
+      },
+      {
+        href: "/dashboard/network",
+        label: "Mi Red",
+        description: "Árbol genealógico",
+        icon: Network,
+      },
+      {
+        href: "/dashboard/plan",
+        label: "Partners",
+        description: "Comisiones y membresías",
+        icon: Orbit,
+      },
+      {
+        href: "/dashboard/academy",
+        label: "Academia",
+        description: "Cursos según tu rango",
+        icon: GraduationCap,
+      },
+      {
+        href: "/dashboard/wallet",
+        label: "Billetera",
+        description: "Comisiones y créditos",
+        icon: Wallet,
+      },
+    ],
+  },
+  {
+    id: "agentes",
+    label: "Agentes",
+    home: "/dashboard/ai-studio",
+    items: [
+      {
+        href: "/dashboard/ai-studio",
+        label: "Agentes",
+        description: "Constelación y canales",
+        icon: Bot,
+      },
+      {
+        href: "/dashboard/super-agent",
+        label: "Super agente",
+        description: "Lyra vende y cobra por ti",
+        icon: Crown,
+      },
+    ],
+  },
+] as const;
