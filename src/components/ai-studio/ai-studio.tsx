@@ -15,13 +15,12 @@ import {
   Star,
   type LucideIcon,
 } from "lucide-react";
-import { useState, useSyncExternalStore } from "react";
+import { useRef, useState, useSyncExternalStore } from "react";
 import { toast } from "sonner";
 
 import { agentIcons } from "@/components/ai-studio/agent-icons";
-import { useCredits } from "@/components/dashboard/credit-provider";
+import { readReturnedTransaction, useCredits } from "@/components/dashboard/credit-provider";
 import { channels, masterPrompt } from "@/config/constellation";
-import { simulateAgentReply } from "@/lib/agent-reply";
 import { formatCredits } from "@/lib/format";
 import type { ChannelId, DemoAgent } from "@/lib/types";
 import { cn } from "@/lib/utils";
@@ -88,7 +87,8 @@ export function AiStudio({
   const [threads, setThreads] = useState<Record<string, ChatMessage[]>>({});
   const rawLinks = useSyncExternalStore(subscribeLinks, readLinks, () => "{}");
   const links = parseLinks(rawLinks);
-  const { balance, spend } = useCredits();
+  const { balance, applyServerBalance } = useCredits();
+  const inFlight = useRef(false);
   const selected = agents.find((agent) => agent.id === selectedId) ?? null;
   const activeChannel = selected?.channels.includes(channelId) ? channelId : (selected?.channels[0] ?? "whatsapp");
   const channel = channels.find((item) => item.id === activeChannel) ?? channels[0];
@@ -124,7 +124,7 @@ export function AiStudio({
   }
 
   async function send() {
-    if (!selected || pending) return;
+    if (!selected || pending || inFlight.current) return;
     const note = draft.trim();
     if (!note) return;
 
@@ -138,64 +138,51 @@ export function AiStudio({
     const agent = selected;
     const channelName = activeChannel;
     const destination = linkedHandle;
+    const idempotencyKey = crypto.randomUUID();
+    inFlight.current = true;
     appendMessage(agent.id, { id: crypto.randomUUID(), role: "user", content: note });
     setDraft("");
     setPending(true);
 
-    const reply = simulateAgentReply(agent, note, channelName, destination);
-    let content = reply;
-
-    if (channelName === "whatsapp") {
-      if (!destination) {
-        content = `${reply}\n\nVincula el número de WhatsApp para enviarlo.`;
-      } else {
-        const response = await fetch("/api/ai/whatsapp", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ to: destination, text: reply }),
-        });
-        const payload = (await response.json().catch(() => null)) as {
-          error?: string;
-          sent?: boolean;
-          connectUrl?: string | null;
-        } | null;
-        if (payload?.sent) {
-          const charged = spend({
-            agentName: agent.name,
-            creditCost: agent.creditCost,
-            note,
-          });
-          content = charged
-            ? `${reply}\n\nEnviado por WhatsApp a ${destination}.`
-            : `${reply}\n\nWhatsApp lo envió, pero no alcanzó el saldo para descontar créditos.`;
-          toast.success("Mensaje enviado por WhatsApp", { description: destination });
-        } else {
-          content = payload?.connectUrl
-            ? `${reply}\n\nConecta WhatsApp al proyecto Lira y vuelve a ejecutar:\n${payload.connectUrl}`
-            : `${reply}\n\n${payload?.error ?? "WhatsApp no aceptó el envío."}`;
-          toast.error("WhatsApp no envió el mensaje", {
-            description: payload?.connectUrl ? "Abre el enlace del panel para conectar el proyecto Lira." : (payload?.error ?? "Revisa la conexión de Composio."),
-          });
-        }
-      }
-    } else {
-      const charged = spend({
-        agentName: agent.name,
-        creditCost: agent.creditCost,
-        note,
+    try {
+      const response = await fetch("/api/ai/agent", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "idempotency-key": idempotencyKey },
+        body: JSON.stringify({
+          agentId: agent.id,
+          note,
+          channel: channelName,
+          destination: destination ?? "",
+          idempotencyKey,
+        }),
       });
-      if (!charged) {
-        setPending(false);
-        toast.error("Créditos insuficientes", {
-          description: `${agent.name} requiere ${agent.creditCost} créditos.`,
-        });
+      const payload = (await response.json().catch(() => null)) as {
+        error?: string;
+        reply?: string;
+        sent?: boolean;
+        charged?: number;
+        balance?: number;
+        transaction?: unknown;
+      } | null;
+      if (typeof payload?.balance === "number") {
+        applyServerBalance(payload.balance, readReturnedTransaction(payload));
+      }
+      if (payload?.reply) {
+        appendMessage(agent.id, { id: crypto.randomUUID(), role: "assistant", content: payload.reply });
+      }
+      if (!response.ok || !payload?.reply) {
+        toast.error(payload?.error ?? "No se pudo ejecutar el agente.");
         return;
       }
-      toast.success("Borrador listo", { description: `${agent.creditCost} créditos · ${agent.star}` });
+      if (payload.sent) {
+        toast.success("Mensaje enviado por WhatsApp", { description: destination });
+      } else if (payload.charged) {
+        toast.success("Borrador listo", { description: `${payload.charged} créditos · ${agent.star}` });
+      }
+    } finally {
+      inFlight.current = false;
+      setPending(false);
     }
-
-    appendMessage(agent.id, { id: crypto.randomUUID(), role: "assistant", content });
-    setPending(false);
   }
 
   const ctaClass =

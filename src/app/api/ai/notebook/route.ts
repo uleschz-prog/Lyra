@@ -1,7 +1,8 @@
-import { NextResponse } from "next/server";
-
+import { aiPricing } from "@/config/ai-pricing";
+import { aiJson, chargeAiCall, idempotencyKeyFrom, requireAiUser } from "@/lib/ai/guard";
 import { geminiCredentials } from "@/lib/ai/generate";
 import { providerError, readJson } from "@/lib/ai/providers";
+import { readCreditBalance } from "@/lib/credits/ledger";
 
 export const maxDuration = 60;
 
@@ -95,15 +96,20 @@ function previewAnswer(mode: NotebookMode, question: string, sources: SourceInpu
 }
 
 export async function POST(request: Request) {
+  const session = await requireAiUser();
+  if (!session.user) return session.response;
+  const user = session.user;
+
   const body = (await request.json().catch(() => null)) as {
     mode?: unknown;
     question?: unknown;
     sources?: unknown;
+    idempotencyKey?: unknown;
   } | null;
 
   const mode = body?.mode;
   if (typeof mode !== "string" || !modes.has(mode as NotebookMode)) {
-    return NextResponse.json({ error: "Modo de notebook no válido." }, { status: 400 });
+    return aiJson({ error: "Modo de notebook no válido." }, 400, user.credits);
   }
 
   const notebookMode = mode as NotebookMode;
@@ -111,10 +117,7 @@ export async function POST(request: Request) {
   const sources = Array.isArray(body?.sources) ? body.sources.filter(isSource).slice(0, 12) : [];
 
   if (sources.length === 0) {
-    return NextResponse.json(
-      { error: "Agrega al menos una fuente antes de consultar." },
-      { status: 400 },
-    );
+    return aiJson({ error: "Agrega al menos una fuente antes de consultar." }, 400, user.credits);
   }
 
   const prepared = sources.map((source) => ({
@@ -125,60 +128,76 @@ export async function POST(request: Request) {
 
   const { apiKey, model } = geminiCredentials();
   if (!apiKey) {
-    return NextResponse.json({
-      mode: "preview",
-      model: "gemini-2.5-flash",
-      text: previewAnswer(notebookMode, question, prepared),
-    });
+    return aiJson(
+      {
+        mode: "preview",
+        model: "gemini-2.5-flash",
+        charged: 0,
+        text: previewAnswer(notebookMode, question, prepared),
+      },
+      200,
+      await readCreditBalance(user.id),
+    );
   }
 
   const corpus = prepared
     .map((source) => `# ${source.title} (${source.kind})\n${source.text}`)
     .join("\n\n");
 
-  const response = await fetch(
-    `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`,
-    {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "x-goog-api-key": apiKey,
-      },
-      body: JSON.stringify({
-        systemInstruction: { parts: [{ text: instructions[notebookMode] }] },
-        contents: [
-          {
-            role: "user",
-            parts: [
+  const paid = await chargeAiCall({
+    userId: user.id,
+    cost: aiPricing.notebook,
+    reason: "ai.notebook",
+    description: `Notebook · ${notebookMode}`,
+    idempotencyKey: idempotencyKeyFrom(request, body?.idempotencyKey),
+    metadata: { mode: notebookMode },
+    execute: async () => {
+      const response = await fetch(
+        `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "x-goog-api-key": apiKey,
+          },
+          body: JSON.stringify({
+            systemInstruction: { parts: [{ text: instructions[notebookMode] }] },
+            contents: [
               {
-                text: `${corpus}\n\nConsulta:\n${question || "Trabaja con todas las fuentes cargadas."}`,
+                role: "user",
+                parts: [
+                  {
+                    text: `${corpus}\n\nConsulta:\n${question || "Trabaja con todas las fuentes cargadas."}`,
+                  },
+                ],
               },
             ],
-          },
-        ],
-        generationConfig: { temperature: 0.4 },
-      }),
+            generationConfig: { temperature: 0.4 },
+          }),
+        },
+      );
+
+      const payload = await readJson(response);
+      if (!response.ok) throw new Error(providerError(payload, "Gemini no pudo responder."));
+      const text = extractGeminiText(payload);
+      if (!text) throw new Error("Gemini devolvió una respuesta vacía.");
+      return text;
     },
-  );
-
-  const payload = await readJson(response);
-  if (!response.ok) {
-    return NextResponse.json(
-      { error: providerError(payload, "Gemini no pudo responder.") },
-      { status: 502 },
-    );
-  }
-
-  const text = extractGeminiText(payload);
-  if (!text) {
-    return NextResponse.json({ error: "Gemini devolvió una respuesta vacía." }, { status: 502 });
-  }
-
-  return NextResponse.json({
-    mode: "live",
-    model,
-    text,
   });
+
+  if (!paid.ok) return aiJson({ error: paid.error }, paid.status, paid.balance);
+
+  return aiJson(
+    {
+      mode: "live",
+      model,
+      charged: paid.charged,
+      transaction: paid.transaction,
+      text: paid.value,
+    },
+    200,
+    paid.balance,
+  );
 }
 
 function extractGeminiText(payload: unknown) {

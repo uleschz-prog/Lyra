@@ -4,18 +4,11 @@ import { createContext, useCallback, useContext, useMemo, useRef, useState, type
 
 import type { WalletTransaction } from "@/lib/types";
 
-type SpendInput = {
-  agentName: string;
-  creditCost: number;
-  note: string;
-};
-
 type CreditContextValue = {
   balance: number;
   totalEarnedCommissions: number;
   transactions: WalletTransaction[];
-  spend: (input: SpendInput) => boolean;
-  addCredits: (amount: number, description: string) => void;
+  applyServerBalance: (balance: number, transaction?: WalletTransaction | null) => void;
 };
 
 const CreditContext = createContext<CreditContextValue | null>(null);
@@ -35,43 +28,12 @@ export function CreditProvider({
   const [transactions, setTransactions] = useState(initialTransactions);
   const balanceRef = useRef(initialBalance);
 
-  const spend = useCallback(
-    (input: SpendInput) => {
-      if (balanceRef.current < input.creditCost) return false;
-
-      balanceRef.current -= input.creditCost;
-      setBalance(balanceRef.current);
-      setTransactions((current) => [
-        {
-          id: crypto.randomUUID(),
-          description: `${input.agentName}: ${input.note}`,
-          amountUsd: 0,
-          creditDelta: -input.creditCost,
-          kind: "CREDIT_SPEND",
-          createdAt: new Date().toISOString(),
-        },
-        ...current,
-      ]);
-
-      return true;
-    },
-    [],
-  );
-
-  const addCredits = useCallback((amount: number, description: string) => {
-    balanceRef.current += amount;
-    setBalance(balanceRef.current);
-    setTransactions((current) => [
-      {
-        id: crypto.randomUUID(),
-        description,
-        amountUsd: amount,
-        creditDelta: amount,
-        kind: "CREDIT_PURCHASE",
-        createdAt: new Date().toISOString(),
-      },
-      ...current,
-    ]);
+  const applyServerBalance = useCallback((nextBalance: number, transaction?: WalletTransaction | null) => {
+    if (!Number.isInteger(nextBalance)) return;
+    balanceRef.current = nextBalance;
+    setBalance(nextBalance);
+    if (!transaction) return;
+    setTransactions((current) => (current.some((item) => item.id === transaction.id) ? current : [transaction, ...current]));
   }, []);
 
   const value = useMemo(
@@ -79,10 +41,9 @@ export function CreditProvider({
       balance,
       totalEarnedCommissions,
       transactions,
-      spend,
-      addCredits,
+      applyServerBalance,
     }),
-    [addCredits, balance, spend, totalEarnedCommissions, transactions],
+    [applyServerBalance, balance, totalEarnedCommissions, transactions],
   );
 
   return <CreditContext.Provider value={value}>{children}</CreditContext.Provider>;
@@ -94,4 +55,30 @@ export function useCredits() {
     throw new Error("useCredits debe usarse dentro de CreditProvider.");
   }
   return context;
+}
+
+export function readReturnedBalance(response: Response, body: unknown) {
+  if (body && typeof body === "object" && typeof (body as { balance?: unknown }).balance === "number") {
+    const balance = (body as { balance: number }).balance;
+    return Number.isInteger(balance) ? balance : null;
+  }
+  const header = Number(response.headers.get("x-credit-balance"));
+  return Number.isInteger(header) ? header : null;
+}
+
+export function readReturnedTransaction(body: unknown): WalletTransaction | null {
+  if (!body || typeof body !== "object") return null;
+  const transaction = (body as { transaction?: unknown }).transaction;
+  if (!transaction || typeof transaction !== "object") return null;
+  const row = transaction as Partial<WalletTransaction>;
+  if (typeof row.id !== "string" || typeof row.creditDelta !== "number" || typeof row.kind !== "string") return null;
+  if (typeof row.description !== "string" || typeof row.createdAt !== "string" || typeof row.amountUsd !== "number") return null;
+  return {
+    id: row.id,
+    description: row.description,
+    amountUsd: row.amountUsd,
+    creditDelta: row.creditDelta,
+    kind: row.kind,
+    createdAt: row.createdAt,
+  };
 }

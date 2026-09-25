@@ -9,6 +9,7 @@ import { revalidatePath } from "next/cache";
 import { compensationPlan, getPackage, isSignupPlanId } from "@/config/compensation-plan";
 import { getCurrentUser } from "@/lib/auth/profile";
 import { INDEFINITE_YEAR } from "@/lib/auth/suspension";
+import { creditCredits, debitCredits } from "@/lib/credits/ledger";
 import { activateMembership } from "@/lib/payments/activate";
 import { getPrisma } from "@/lib/prisma";
 
@@ -24,7 +25,7 @@ const denied = { ok: false as const, error: "Solo la cuenta administradora puede
 async function target(id: string) {
   return getPrisma().user.findUnique({
     where: { id },
-    select: { id: true, name: true, role: true, sponsorId: true, pendingPackage: true, credits: true },
+    select: { id: true, name: true, role: true, sponsorId: true, pendingPackage: true },
   });
 }
 
@@ -53,36 +54,35 @@ export async function adjustCredits(id: string, delta: number, note: string): Pr
   if (!(await requireAdmin())) return denied;
   const amount = Math.trunc(delta);
   if (!amount || Math.abs(amount) > 1_000_000) return { ok: false, error: "Escribe una cantidad válida de créditos." };
-  const user = await target(id);
-  if (!user) return { ok: false, error: "Esa cuenta ya no existe." };
-  if (user.credits + amount < 0) return { ok: false, error: `Solo tiene ${user.credits} créditos para quitar.` };
+  if (!(await target(id))) return { ok: false, error: "Esa cuenta ya no existe." };
 
-  const prisma = getPrisma();
-  const credits = await prisma.$transaction(async (tx) => {
-    const updated = await tx.user.update({
-      where: { id },
-      data: { credits: { increment: amount } },
-      select: { credits: true },
-    });
-    const wallet = await tx.creditWallet.upsert({
-      where: { userId: id },
-      create: { userId: id, balance: Math.max(amount, 0) },
-      update: { balance: { increment: amount } },
-    });
-    await tx.transaction.create({
-      data: {
-        userId: id,
-        walletId: wallet.id,
-        amount: 0,
-        creditDelta: amount,
-        kind: "ADJUSTMENT",
-        description: `${amount > 0 ? "Créditos añadidos" : "Créditos retirados"} por administración${note.trim() ? ` · ${note.trim().slice(0, 120)}` : ""}`,
-      },
-    });
-    return updated.credits;
-  });
+  const description = `${amount > 0 ? "Créditos añadidos" : "Créditos retirados"} por administración${note.trim() ? ` · ${note.trim().slice(0, 120)}` : ""}`;
+  const result =
+    amount > 0
+      ? await creditCredits({
+          userId: id,
+          credits: amount,
+          kind: "ADJUSTMENT",
+          reason: "admin.adjust",
+          description,
+          amountUsd: 0,
+        })
+      : await debitCredits({
+          userId: id,
+          credits: -amount,
+          kind: "ADJUSTMENT",
+          reason: "admin.adjust",
+          description,
+          amountUsd: 0,
+        });
+
+  if (!result.ok) {
+    if (result.code === "missing") return { ok: false, error: "Esa cuenta ya no existe." };
+    if (result.code === "insufficient") return { ok: false, error: `Solo tiene ${result.balance} créditos para quitar.` };
+    return { ok: false, error: "No se pudo ajustar el saldo." };
+  }
   done();
-  return { ok: true, credits };
+  return { ok: true, credits: result.balance };
 }
 
 export async function updateProfile(id: string, input: { name: string; email: string }): Promise<Result> {

@@ -1,4 +1,5 @@
 import { rebuyStatus } from "@/config/compensation-plan";
+import { canonicalBalance } from "@/lib/credits/ledger-logic";
 import { readSession } from "@/lib/auth/session";
 import { isSuspended } from "@/lib/auth/suspension";
 import { activitySelect, paysOwnWay, rebuyPaidFilter, toActivity } from "@/lib/compensation/activity";
@@ -40,17 +41,19 @@ export async function getCurrentUser(): Promise<AuthProfile | null> {
     const user = { ...found, suspendedUntil: undefined };
 
     const now = new Date();
-    const [directs, rebuysThisMonth] = await Promise.all([
+    const [directs, rebuysThisMonth, wallet] = await Promise.all([
       prisma.user.findMany({
         where: { sponsorId: user.id, package: { not: "NONE" } },
         select: activitySelect(now),
       }),
       prisma.transaction.count({ where: { userId: user.id, ...rebuyPaidFilter(now) } }),
+      prisma.creditWallet.findUnique({ where: { userId: user.id }, select: { balance: true } }),
     ]);
     const activeDirects = directs.filter((direct) => paysOwnWay(toActivity(direct), now)).length;
 
     return {
       ...user,
+      credits: canonicalBalance(user.credits, wallet?.balance ?? null),
       walletBalance: user.walletBalance,
       alphaFastTrackUntil: user.alphaFastTrackUntil?.toISOString() ?? null,
       activeDirects,
