@@ -3,6 +3,7 @@ import { Prisma } from "@prisma/client";
 import { getPackage, isFounderPackage, isSignupPlanId, rebuyCredits } from "@/config/compensation-plan";
 import { rebuyPaidFilter } from "@/lib/compensation/activity";
 import { payCommissions } from "@/lib/compensation/payout";
+import { creditCredits } from "@/lib/credits/ledger";
 import { activateMembership } from "@/lib/payments/activate";
 import { getMercadoPagoPayment, type MpPurpose } from "@/lib/payments/mercadopago";
 import { getPrisma } from "@/lib/prisma";
@@ -62,7 +63,11 @@ export async function fulfillMercadoPago(paymentId: string): Promise<FulfillResu
     }
 
     const founder = isFounderPackage(user.package);
-    const credits = purpose === "rebuy" ? rebuyCredits(user.package, usd) : usd;
+    const rawCredits = purpose === "rebuy" ? rebuyCredits(user.package, usd) : usd;
+    const credits = Number.isInteger(rawCredits) ? rawCredits : Math.round(rawCredits);
+    if (!Number.isInteger(credits) || credits <= 0) {
+      return { ok: false, status: "invalid", error: "El monto de créditos no es válido." };
+    }
     const description =
       purpose === "rebuy"
         ? `${founder ? `Mensualidad Founder · $${usd} · ${credits} créditos` : `Recompra de ${credits} créditos`} · Mercado Pago`
@@ -71,25 +76,20 @@ export async function fulfillMercadoPago(paymentId: string): Promise<FulfillResu
     await prisma.$transaction(async (tx) => {
       const firstRebuy =
         purpose === "rebuy" && (await tx.transaction.count({ where: { userId: user.id, ...rebuyPaidFilter() } })) === 0;
-      const wallet = await tx.creditWallet.upsert({
-        where: { userId: user.id },
-        create: { userId: user.id, balance: credits },
-        update: { balance: { increment: credits } },
-      });
-      if (credits > 0) {
-        await tx.user.update({ where: { id: user.id }, data: { credits: { increment: credits } } });
-      }
-      await tx.transaction.create({
-        data: {
+      const credited = await creditCredits(
+        {
           userId: user.id,
-          walletId: wallet.id,
-          amount: usd,
-          creditDelta: credits,
-          kind: purpose === "rebuy" ? "REBUY" : "CREDIT_PURCHASE",
-          description,
+          credits,
+          amountUsd: usd,
           externalRef,
+          kind: purpose === "rebuy" ? "REBUY" : "CREDIT_PURCHASE",
+          reason: purpose === "rebuy" ? "mercadopago.rebuy" : "mercadopago.credits",
+          description,
         },
-      });
+        tx,
+      );
+      if (!credited.ok) throw new Error("No se pudieron acreditar los créditos.");
+      if (credited.already) return;
       if (firstRebuy) await payCommissions(tx, user, usd, "rebuy");
     });
     return { ok: true, purpose, credits, already: false };

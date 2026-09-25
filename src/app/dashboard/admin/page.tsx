@@ -4,6 +4,7 @@ import { redirect } from "next/navigation";
 import { AdminUsers, type AdminUserRow } from "@/components/admin/admin-users";
 import { PageHeader } from "@/components/dashboard/page-header";
 import { CloseMonth } from "@/components/plan/close-month";
+import { canonicalBalance } from "@/lib/credits/ledger-logic";
 import { getCurrentUser } from "@/lib/auth/profile";
 import { isSuspended } from "@/lib/auth/suspension";
 import { getPrisma } from "@/lib/prisma";
@@ -27,6 +28,7 @@ export default async function AdminPage() {
       package: true,
       pendingPackage: true,
       credits: true,
+      wallet: { select: { balance: true } },
       activationCredits: true,
       walletBalance: true,
       createdAt: true,
@@ -44,7 +46,7 @@ export default async function AdminPage() {
     isAdmin: user.role === "ADMIN",
     packageId: user.package === "NONE" ? null : user.package,
     pendingPackage: user.pendingPackage,
-    credits: user.credits,
+    credits: canonicalBalance(user.credits, user.wallet?.balance ?? null),
     activationCredits: user.activationCredits,
     walletBalance: user.walletBalance,
     sponsorName: user.sponsor?.name ?? null,

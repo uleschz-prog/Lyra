@@ -39,6 +39,7 @@ enum TransactionKind {
   CREDIT_SPEND
   ADJUSTMENT
   REBUY
+  CREDIT_REFUND
 }
 
 /// Cierre de la red: cada fila une a un afiliado con un ancestro y la distancia entre ambos.
@@ -261,7 +262,12 @@ model Transaction {
   creditDelta Int             @default(0)
   kind        TransactionKind
   description String
+  /// Clave de idempotencia. Un reintento con la misma clave no vuelve a mover el saldo.
   externalRef String?         @unique
+  /// Motivo estable del movimiento (`ai.agent`, `ai.search`, `admin.adjust`, `vega.action`…).
+  reason      String?
+  /// Datos del cobro para fases posteriores (bolsa de acciones Vega, límites diarios).
+  metadata    Json?
   createdAt   DateTime        @default(now())
 
   user   User         @relation(fields: [userId], references: [id], onDelete: Cascade)

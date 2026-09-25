@@ -1,11 +1,12 @@
 "use client";
 
 import { Download, Pencil, Trash2 } from "lucide-react";
-import { useEffect, useState, type ReactNode } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import { toast } from "sonner";
 
 import { discardCreation, storeCreation } from "@/app/dashboard/creations/actions";
 import { CreationHistory } from "@/components/creations/creation-history";
+import { readReturnedBalance, readReturnedTransaction, useCredits } from "@/components/dashboard/credit-provider";
 import { Button } from "@/components/ui/button";
 import type { CreationRecord } from "@/lib/creations";
 import { cn } from "@/lib/utils";
@@ -119,6 +120,8 @@ function VideoPanel({
   const [editing, setEditing] = useState(false);
   const [bar, setBar] = useState(0);
   const [pieceId, setPieceId] = useState<string | null>(null);
+  const { applyServerBalance } = useCredits();
+  const inFlight = useRef(false);
 
   const busy = pending || job?.status === "processing";
 
@@ -153,16 +156,21 @@ function VideoPanel({
   }, [busy]);
 
   async function generate() {
+    if (inFlight.current) return;
+    inFlight.current = true;
     setPending(true);
     try {
       const visual = images.length > 0 ? ` Imágenes de referencia: ${images.map((image) => image.name).join(", ")}.` : "";
       const brief = ` Formato ${format}. Duración ${duration}. Estilo ${look}. Voz ${voice}. Música ${music}. ${captions}.${detail.trim() ? ` Debe verse: ${detail.trim()}.` : ""}`;
+      const idempotencyKey = crypto.randomUUID();
       const response = await fetch("/api/ai/video", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ title, script: `${script}${brief}${visual}` }),
+        headers: { "Content-Type": "application/json", "idempotency-key": idempotencyKey },
+        body: JSON.stringify({ title, script: `${script}${brief}${visual}`, idempotencyKey }),
       });
-      const data = (await response.json()) as VideoJob;
+      const data = (await response.json()) as VideoJob & { balance?: number };
+      const balance = readReturnedBalance(response, data);
+      if (balance !== null) applyServerBalance(balance, readReturnedTransaction(data));
       if (!response.ok) {
         toast.error(data.error ?? "No se pudo preparar el video.");
         return;
@@ -189,6 +197,7 @@ function VideoPanel({
         });
       }
     } finally {
+      inFlight.current = false;
       setPending(false);
     }
   }
@@ -554,24 +563,32 @@ function wrapText(context: CanvasRenderingContext2D, text: string, x: number, y:
 }
 
 function SearchPanel() {
+  const { applyServerBalance } = useCredits();
+  const inFlight = useRef(false);
   const [query, setQuery] = useState("tendencias de academias digitales y redes de agentes");
   const [results, setResults] = useState<SearchResult[]>([]);
   const [note, setNote] = useState("Exa busca mercado y fuentes en vivo.");
   const [pending, setPending] = useState(false);
 
   async function search() {
+    if (inFlight.current) return;
+    inFlight.current = true;
     setPending(true);
     try {
+      const idempotencyKey = crypto.randomUUID();
       const response = await fetch("/api/ai/search", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ query }),
+        headers: { "Content-Type": "application/json", "idempotency-key": idempotencyKey },
+        body: JSON.stringify({ query, idempotencyKey }),
       });
       const data = (await response.json()) as {
         error?: string;
         message?: string;
         results?: SearchResult[];
+        balance?: number;
       };
+      const balance = readReturnedBalance(response, data);
+      if (balance !== null) applyServerBalance(balance, readReturnedTransaction(data));
       if (!response.ok) {
         toast.error(data.error ?? "No se pudo buscar.");
         return;
@@ -579,6 +596,7 @@ function SearchPanel() {
       setResults(data.results ?? []);
       setNote(data.message ?? `${data.results?.length ?? 0} resultados`);
     } finally {
+      inFlight.current = false;
       setPending(false);
     }
   }

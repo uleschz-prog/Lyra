@@ -3,6 +3,7 @@
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 
+import { useCredits } from "@/components/dashboard/credit-provider";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -14,6 +15,7 @@ import type { AuthProfile } from "@/lib/types";
 
 export function UserNav({ user }: { user: AuthProfile }) {
   const router = useRouter();
+  const { balance } = useCredits();
   const [pending, setPending] = useState(false);
 
   async function signOut() {
@@ -39,7 +41,7 @@ export function UserNav({ user }: { user: AuthProfile }) {
         </div>
         <div className="mx-2 my-1 border-t border-border" />
         <div className="px-3 py-2 text-xs text-[#5C5854]">
-          <p>Créditos de IA · {formatCredits(user.credits)}</p>
+          <p>Créditos de IA · {formatCredits(balance)}</p>
           <p className="mt-1">Plan · {packageLabel[user.package]}</p>
         </div>
         <DropdownMenuItem

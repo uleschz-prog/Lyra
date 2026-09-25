@@ -2,6 +2,7 @@ import type { Prisma } from "@prisma/client";
 
 import { getPackage, type SignupPlanId } from "@/config/compensation-plan";
 import { payCommissions } from "@/lib/compensation/payout";
+import { creditCredits } from "@/lib/credits/ledger";
 
 export async function activateMembership(
   tx: Prisma.TransactionClient,
@@ -15,29 +16,27 @@ export async function activateMembership(
     data: {
       package: packageId,
       pendingPackage: null,
-      credits: { increment: plan.credits },
       activationCredits: "activationCredits" in plan ? plan.activationCredits : 0,
       createdAt: new Date(),
     },
   });
   if (claimed.count === 0) return false;
 
-  const wallet = await tx.creditWallet.upsert({
-    where: { userId: user.id },
-    create: { userId: user.id, balance: plan.credits },
-    update: { balance: { increment: plan.credits } },
-  });
-  await tx.transaction.create({
-    data: {
+  const credited = await creditCredits(
+    {
       userId: user.id,
-      walletId: wallet.id,
-      amount: plan.price,
-      creditDelta: plan.credits,
-      kind: "CREDIT_PURCHASE",
-      description: record.description,
+      credits: plan.credits,
+      amountUsd: plan.price,
       externalRef: record.externalRef,
+      kind: "CREDIT_PURCHASE",
+      reason: "membership.activate",
+      description: record.description,
     },
-  });
-  await payCommissions(tx, { ...user, package: packageId }, plan.price, "purchase");
+    tx,
+  );
+  if (!credited.ok) throw new Error("No se pudieron acreditar los créditos de la membresía.");
+  if (!credited.already) {
+    await payCommissions(tx, { ...user, package: packageId }, plan.price, "purchase");
+  }
   return true;
 }

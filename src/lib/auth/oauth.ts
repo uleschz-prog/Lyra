@@ -1,6 +1,8 @@
 import { SignJWT, jwtVerify } from "jose";
 import { cookies } from "next/headers";
 
+import { isProviderEmailVerified, pickGithubEmail } from "@/lib/auth/oauth-email";
+
 export const oauthProviders = ["google", "github", "apple"] as const;
 
 export type OauthProvider = (typeof oauthProviders)[number];
@@ -12,6 +14,7 @@ export type OauthProfile = {
   ref: string;
   idea: string;
   kind: string;
+  emailVerified: true;
 };
 
 const stateCookie = "lyra_oauth_state";
@@ -90,8 +93,10 @@ async function googleProfile(code: string, redirectUri: string) {
   const response = await fetch("https://www.googleapis.com/oauth2/v3/userinfo", {
     headers: { Authorization: `Bearer ${access}` },
   });
-  const profile = (await response.json()) as { email?: string; name?: string };
-  if (!profile.email) throw new Error("Google no entregó un correo.");
+  const profile = (await response.json()) as { email?: string; name?: string; email_verified?: unknown };
+  if (!profile.email || !isProviderEmailVerified(profile.email_verified)) {
+    throw new Error("Google no confirmó el correo.");
+  }
   return { email: profile.email, name: profile.name || profile.email.split("@")[0] || "LYRA" };
 }
 
@@ -110,16 +115,12 @@ async function githubProfile(code: string, redirectUri: string) {
   const response = await fetch("https://api.github.com/user", {
     headers: { Authorization: `Bearer ${access}`, Accept: "application/vnd.github+json" },
   });
-  const profile = (await response.json()) as { email?: string | null; name?: string | null; login?: string };
-  let email = profile.email ?? "";
-  if (!email) {
-    const emails = await fetch("https://api.github.com/user/emails", {
-      headers: { Authorization: `Bearer ${access}`, Accept: "application/vnd.github+json" },
-    });
-    const list = (await emails.json()) as { email?: string; primary?: boolean }[];
-    email = list.find((item) => item.primary)?.email || list[0]?.email || "";
-  }
-  if (!email) throw new Error("GitHub no entregó un correo.");
+  const profile = (await response.json()) as { name?: string | null; login?: string };
+  const emails = await fetch("https://api.github.com/user/emails", {
+    headers: { Authorization: `Bearer ${access}`, Accept: "application/vnd.github+json" },
+  });
+  const email = pickGithubEmail(await emails.json());
+  if (!email) throw new Error("GitHub no confirmó el correo.");
   return { email, name: profile.name || profile.login || email.split("@")[0] || "LYRA" };
 }
 
@@ -134,7 +135,9 @@ async function appleProfile(code: string, redirectUri: string) {
   const idToken = typeof token.id_token === "string" ? token.id_token : "";
   const payload = decodeJwtPayload(idToken);
   const email = typeof payload.email === "string" ? payload.email : "";
-  if (!email) throw new Error("Apple no entregó un correo.");
+  if (!email || !isProviderEmailVerified(payload.email_verified)) {
+    throw new Error("Apple no confirmó el correo.");
+  }
   return { email, name: email.split("@")[0] || "LYRA" };
 }
 
@@ -210,6 +213,7 @@ export async function readOauthProfile(): Promise<OauthProfile | null> {
   try {
     const { payload } = await jwtVerify(token, key, { algorithms: ["HS256"] });
     if (typeof payload.email !== "string" || !isOauthProvider(String(payload.provider))) return null;
+    if (payload.emailVerified !== true) return null;
     return {
       email: payload.email,
       name: typeof payload.name === "string" ? payload.name : payload.email,
@@ -217,6 +221,7 @@ export async function readOauthProfile(): Promise<OauthProfile | null> {
       ref: typeof payload.ref === "string" ? payload.ref : "LYRA-ROOT",
       idea: typeof payload.idea === "string" ? payload.idea.slice(0, 240) : "",
       kind: typeof payload.kind === "string" ? payload.kind.slice(0, 12) : "",
+      emailVerified: true,
     };
   } catch {
     return null;
