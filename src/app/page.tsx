@@ -5,6 +5,7 @@ import { BuilderConsole } from "@/components/landing/builder-console";
 import { SiteFooter } from "@/components/landing/site-footer";
 import { SiteHeader } from "@/components/landing/site-header";
 import { PromoBadge, RebuyPromo } from "@/components/plan/rebuy-promo";
+import { VegaBot } from "@/components/plan/vega-bot";
 import { brand } from "@/config/brand";
 import { signupPlans } from "@/config/compensation-plan";
 
@@ -103,25 +104,36 @@ export default function HomePage() {
             </div>
             <div className="space-y-4">
               {signupPlans.map((plan) => {
+                const vegaPartner = plan.id === "VEGA_PARTNER";
                 const featured = plan.id === "FOUNDER";
                 const corporate = plan.id === "CORPORATE";
                 const promo = "rebuyBefore" in plan;
-                const dark = featured || corporate;
+                const dark = vegaPartner || featured || corporate;
                 return (
                   <article
                     key={plan.id}
                     className={
-                      featured
-                        ? "bg-[#7C3AED] p-6 text-white sm:p-8"
-                        : corporate
-                          ? "bg-[#1E1E24] p-6 text-white sm:p-8"
-                          : "bg-white p-6 text-[#1E1E24] sm:p-8"
+                      vegaPartner
+                        ? "relative overflow-hidden bg-gradient-to-br from-[#7C3AED] via-[#6D28D9] to-[#2E1065] p-6 text-white shadow-[0_24px_70px_-24px_rgba(124,58,237,0.8)] ring-2 ring-[#C4B5FD]/60 sm:p-8"
+                        : featured
+                          ? "bg-[#7C3AED] p-6 text-white sm:p-8"
+                          : corporate
+                            ? "bg-[#1E1E24] p-6 text-white sm:p-8"
+                            : "bg-white p-6 text-[#1E1E24] sm:p-8"
                     }
                   >
-                    <div className="grid gap-8 sm:grid-cols-2">
+                    {vegaPartner ? (
+                      <span aria-hidden className="pointer-events-none absolute -top-16 -right-16 h-56 w-56 rounded-full bg-[#E9D5FF]/25 blur-3xl" />
+                    ) : null}
+                    <div className="relative grid gap-8 sm:grid-cols-2">
                       <div>
                         <p className="flex flex-wrap items-center gap-2 text-xl">
                           {plan.label}
+                          {vegaPartner ? (
+                            <span className="rounded-full bg-gradient-to-r from-[#E9D5FF] to-[#C4B5FD] px-3 py-1 text-xs font-bold tracking-wide text-[#2E1065] uppercase">
+                              ⭐ El favorito — oferta irresistible
+                            </span>
+                          ) : null}
                           {promo ? <PromoBadge /> : null}
                         </p>
                         <p className="mt-3 flex items-end">
@@ -141,11 +153,23 @@ export default function HomePage() {
                         <Link
                           href={`${brand.links.register}?idea=${encodeURIComponent(planIdeas[plan.id])}`}
                           className={`mt-6 inline-flex rounded-md px-4 py-2.5 text-base font-medium ${
-                            corporate ? "bg-white text-[#1E1E24]" : "bg-[#312F2F] text-white"
+                            vegaPartner
+                              ? "animate-pulse bg-white text-[#2E1065] shadow-[0_0_30px_rgba(233,213,255,0.8)]"
+                              : corporate
+                                ? "bg-white text-[#1E1E24]"
+                                : "bg-[#312F2F] text-white"
                           }`}
                         >
                           Empieza a crear
                         </Link>
+                        {vegaPartner ? (
+                          <div className="mt-5 flex items-center gap-3">
+                            <VegaBot className="h-20 w-20 shrink-0" />
+                            <p className="text-sm leading-6 text-white/85">
+                              Tu superagente <strong className="text-white">Vega</strong> te acompaña 24/7: agenda, escribe y hace crecer tu red por ti.
+                            </p>
+                          </div>
+                        ) : null}
                       </div>
                       <ul className="space-y-3 sm:pt-1">
                         {plan.points.filter((item) => !/^Recarga mínima|^Mensualidad/i.test(item)).map((item) => (

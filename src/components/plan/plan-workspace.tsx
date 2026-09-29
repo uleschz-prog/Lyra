@@ -5,6 +5,7 @@ import { useMemo, useState } from "react";
 
 import { Badge } from "@/components/ui/badge";
 import { PromoBadge, RebuyPromo } from "@/components/plan/rebuy-promo";
+import { VegaBot } from "@/components/plan/vega-bot";
 import { Progress } from "@/components/ui/progress";
 import {
   bonusProfile,
@@ -93,9 +94,10 @@ export function PlanWorkspace({ plan }: { plan: MemberPlanView }) {
         </p>
         <div className="mt-6 grid items-stretch gap-4 md:grid-cols-2 xl:grid-cols-4">
           {signupPlans.map((planPackage) => {
+            const vegaPartner = planPackage.id === "VEGA_PARTNER";
             const corporate = planPackage.id === "CORPORATE";
             const founder = planPackage.id === "FOUNDER";
-            const featured = founder || corporate;
+            const featured = vegaPartner || founder || corporate;
             const promo = "rebuyBefore" in planPackage;
             const benefits = planPackage.points.filter(
               (point) => !/^[\d,]+ créditos de entrada|^Recarga mínima|^Mensualidad|^Libre de recompra/i.test(point),
@@ -104,7 +106,9 @@ export function PlanWorkspace({ plan }: { plan: MemberPlanView }) {
               <article
                 key={planPackage.id}
                 className={`relative row-span-8 grid grid-rows-subgrid gap-0 overflow-hidden rounded-[28px] p-5 transition-transform duration-300 hover:-translate-y-1 ${
-                  corporate
+                  vegaPartner
+                    ? "bg-gradient-to-b from-[#7C3AED] via-[#6D28D9] to-[#2E1065] text-white shadow-[0_24px_60px_-20px_rgba(124,58,237,0.85)] ring-2 ring-[#C4B5FD]/60"
+                    : corporate
                     ? "bg-gradient-to-b from-[#2A2A33] to-[#111114] text-white shadow-[0_24px_60px_-28px_rgba(17,17,20,0.9)] ring-1 ring-white/10"
                     : founder
                       ? "bg-gradient-to-b from-[#8B5CF6] to-[#5B21B6] text-white shadow-[0_24px_60px_-24px_rgba(124,58,237,0.75)]"
@@ -121,7 +125,11 @@ export function PlanWorkspace({ plan }: { plan: MemberPlanView }) {
                 ) : null}
 
                 <div className="relative flex h-7 items-center">
-                  {founder ? (
+                  {vegaPartner ? (
+                    <span className="flex items-center gap-2 rounded-full bg-gradient-to-r from-[#E9D5FF] to-[#C4B5FD] px-3 py-1 text-[11px] font-bold tracking-wide text-[#2E1065] uppercase">
+                      ⭐ El favorito
+                    </span>
+                  ) : founder ? (
                     <span className="rounded-full bg-white/15 px-2.5 py-1 text-[11px] font-medium tracking-wide text-white ring-1 ring-white/20">
                       Mayor capacidad
                     </span>
@@ -139,6 +147,7 @@ export function PlanWorkspace({ plan }: { plan: MemberPlanView }) {
                 </div>
 
                 <h3 className="relative mt-4 text-2xl font-semibold tracking-tight">{planPackage.label}</h3>
+                {vegaPartner ? <VegaBot className="vega-bot mt-3 h-20 w-20" /> : null}
                 <p className={`relative mt-1.5 text-sm leading-6 ${featured ? "text-white/75" : "text-[#5C5854]"}`}>
                   {planVoice[planPackage.id]}
                 </p>

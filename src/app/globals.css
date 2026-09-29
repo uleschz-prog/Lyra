@@ -377,3 +377,50 @@ body::before {
   background: rgba(124, 58, 237, 0.22);
   color: #1e1e24;
 }
+
+/* Vega Partner: bot animado */
+@keyframes vega-bot-float {
+  0%, 100% { transform: translateY(0) rotate(0deg); }
+  50% { transform: translateY(-8px) rotate(2deg); }
+}
+@keyframes vega-bot-blink {
+  0%, 88%, 100% { transform: scaleY(1); }
+  92%, 96% { transform: scaleY(0.15); }
+}
+@keyframes vega-bot-arm-left {
+  0%, 100% { transform: rotate(0deg); }
+  50% { transform: rotate(-14deg); }
+}
+@keyframes vega-bot-arm-right {
+  0%, 100% { transform: rotate(0deg); }
+  50% { transform: rotate(14deg); }
+}
+@keyframes vega-bot-core {
+  0%, 100% { opacity: 1; r: 3.5; }
+  50% { opacity: 0.5; r: 4.5; }
+}
+.vega-bot {
+  animation: vega-bot-float 3s ease-in-out infinite;
+  transform-origin: 50% 50%;
+}
+.vega-bot-eye {
+  animation: vega-bot-blink 4.5s ease-in-out infinite;
+  transform-origin: center;
+  transform-box: fill-box;
+}
+.vega-bot-arm-left {
+  animation: vega-bot-arm-left 2.6s ease-in-out infinite;
+  transform-origin: 18px 46px;
+  transform-box: view-box;
+}
+.vega-bot-arm-right {
+  animation: vega-bot-arm-right 2.6s ease-in-out infinite;
+  transform-origin: 46px 46px;
+  transform-box: view-box;
+}
+.vega-bot-core {
+  animation: vega-bot-core 1.8s ease-in-out infinite;
+}
+.vega-bot-antenna {
+  animation: vega-bot-core 1.4s ease-in-out infinite;
+}

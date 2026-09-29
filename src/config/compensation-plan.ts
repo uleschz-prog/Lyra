@@ -3,6 +3,21 @@ export const creditUsd = 1;
 
 export const signupPlans = [
   {
+    id: "VEGA_PARTNER",
+    label: "Vega Partner",
+    subtitle: "Superagente Vega y tu red por $50 al mes",
+    points: [
+      "150 créditos de entrada",
+      "Chispa de 10% y Órbita de 2 niveles",
+      "Superagente Vega, Telegram y academia",
+      "Recarga mínima de $50 al mes siguiente",
+    ],
+    price: 50,
+    rebuy: 50,
+    credits: 150,
+    levels: 2,
+  },
+  {
     id: "STARTED",
     label: "Started",
     subtitle: "Recarga mínima desde el mes siguiente",
@@ -67,21 +82,6 @@ export const signupPlans = [
     credits: 10000,
     activationCredits: 5000,
     levels: 6,
-  },
-  {
-    id: "VEGA_PARTNER",
-    label: "Vega Partner",
-    subtitle: "Superagente Vega y tu red por $50 al mes",
-    points: [
-      "150 créditos de entrada",
-      "Chispa de 10% y Órbita de 2 niveles",
-      "Superagente Vega, Telegram y academia",
-      "Recarga mínima de $50 al mes siguiente",
-    ],
-    price: 50,
-    rebuy: 50,
-    credits: 150,
-    levels: 2,
   },
 ] as const;
 
