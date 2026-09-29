@@ -1,5 +1,7 @@
 @import "tailwindcss";
 
+@custom-variant dark (&:where(.dark, .dark *));
+
 @theme inline {
   --color-background: var(--background);
   --color-surface: var(--surface);
@@ -307,6 +309,45 @@
   --ring: #7c3aed;
 }
 
+/* ===== Modo oscuro (toggle con clase .dark en <html>) ===== */
+.dark,
+.dark .lyra-office {
+  color-scheme: dark;
+  --background: #0B0A10;
+  --surface: #14121C;
+  --surface-hover: #1B1826;
+  --foreground: #F2F0F7;
+  --muted: #9B96AC;
+  --card: #181625;
+  --card-foreground: #F2F0F7;
+  --primary: #7C3AED;
+  --primary-foreground: #ffffff;
+  --muted-foreground: #9B96AC;
+  --border: rgba(255, 255, 255, 0.12);
+  --border-bright: rgba(255, 255, 255, 0.22);
+  --ring: #7C3AED;
+}
+
+.dark .lyra-paper,
+.dark .lyra-paper.lyra-office {
+  background-color: var(--surface);
+  background-image: none;
+  color: var(--foreground);
+}
+
+.dark body::before {
+  opacity: 0.08;
+}
+
+.dark .lyra-office {
+  background-color: var(--surface);
+}
+
+.dark .lyra-office ::selection {
+  background: rgba(124, 58, 237, 0.35);
+  color: #ffffff;
+}
+
 @layer base {
   *,
   ::after,
@@ -423,6 +464,24 @@ body::before {
 }
 .vega-bot-antenna {
   animation: vega-bot-core 1.4s ease-in-out infinite;
+}
+
+/* Splash entrance */
+@keyframes splash-entrance {
+  0% {
+    opacity: 0;
+    transform: scale(0.7) translateY(14px);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
+}
+.splash-entrance {
+  animation: splash-entrance 0.6s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+.splash-entrance-delayed {
+  animation-delay: 0.18s;
 }
 
 /* ===== Modo app (PWA / móvil) ===== */

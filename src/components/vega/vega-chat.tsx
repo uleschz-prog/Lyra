@@ -274,7 +274,7 @@ export function VegaChat({
   }
 
   return (
-    <div className="fixed inset-0 z-30 flex h-dvh overflow-hidden bg-white md:relative md:inset-auto md:z-auto md:h-[calc(100dvh-7rem)] md:min-h-[520px] md:rounded-3xl md:border md:border-[#E7E2DA]">
+    <div className="fixed inset-0 z-30 flex h-dvh overflow-hidden bg-white md:relative md:inset-auto md:z-auto md:h-[calc(100dvh-7rem)] md:min-h-[520px] md:rounded-3xl md:border md:border-[#E7E2DA] dark:bg-[#14121C] dark:md:border-white/12">
       {listOpen || menuOpen || panel ? (
         <button
           type="button"
@@ -290,7 +290,7 @@ export function VegaChat({
 
       <aside
         className={cn(
-          "fixed inset-y-0 left-0 z-50 flex w-[min(85vw,320px)] flex-col border-r border-[#F0ECE6] bg-[#FCFBF9] pt-[env(safe-area-inset-top)] pb-[env(safe-area-inset-bottom)] transition-transform duration-200 md:static md:z-auto md:w-72 md:translate-x-0 md:pt-0 md:pb-0",
+          "fixed inset-y-0 left-0 z-50 flex w-[min(85vw,320px)] flex-col border-r border-[#F0ECE6] bg-[#FCFBF9] pt-[env(safe-area-inset-top)] pb-[env(safe-area-inset-bottom)] transition-transform duration-200 md:static md:z-auto md:w-72 md:translate-x-0 md:pt-0 md:pb-0 dark:border-white/10 dark:bg-[#181625]",
           listOpen ? "translate-x-0 shadow-2xl md:shadow-none" : "-translate-x-full",
         )}
       >
@@ -317,7 +317,7 @@ export function VegaChat({
                 onClick={() => void selectChat(chat.id)}
                 className={cn(
                   "w-full truncate rounded-lg px-3 py-3 pr-16 text-left text-[15px] md:py-2 md:text-sm",
-                  chat.id === activeId ? "bg-[#EDE9FE] text-[#1E1E24]" : "text-[#5C5854] hover:bg-[#F3F0EB]",
+                  chat.id === activeId ? "bg-[#EDE9FE] text-[#1E1E24] dark:bg-[#221F30] dark:text-[#F2F0F7]" : "text-[#5C5854] hover:bg-[#F3F0EB] dark:text-[#9B96AC] dark:hover:bg-[#221F30]",
                 )}
               >
                 {chat.title}
@@ -335,7 +335,7 @@ export function VegaChat({
         </ul>
         <Link
           href="/dashboard"
-          className="mx-3 mb-3 flex items-center gap-2 rounded-xl px-3 py-2.5 text-sm text-[#5C5854] hover:bg-[#F3F0EB] md:hidden"
+          className="mx-3 mb-3 flex items-center gap-2 rounded-xl px-3 py-2.5 text-sm text-[#5C5854] hover:bg-[#F3F0EB] md:hidden dark:text-[#9B96AC] dark:hover:bg-[#221F30]"
         >
           <ChevronLeft className="size-4" />
           Volver a LYRA
@@ -343,8 +343,8 @@ export function VegaChat({
       </aside>
 
       <section className="flex min-w-0 flex-1 flex-col">
-        <header className="flex items-center gap-2 border-b border-[#F0ECE6] bg-white/95 px-2 pt-[max(0.5rem,env(safe-area-inset-top))] pb-2 backdrop-blur md:hidden">
-          <Link href="/dashboard" className="grid size-10 place-items-center rounded-full text-[#1E1E24] active:bg-[#F3F0EB]" aria-label="Volver a LYRA">
+        <header className="flex items-center gap-2 border-b border-[#F0ECE6] bg-white/95 px-2 pt-[max(0.5rem,env(safe-area-inset-top))] pb-2 backdrop-blur md:hidden dark:border-white/10 dark:bg-[#14121C]/95">
+          <Link href="/dashboard" className="grid size-10 place-items-center rounded-full text-[#1E1E24] active:bg-[#F3F0EB] dark:text-[#F2F0F7] dark:active:bg-[#221F30]" aria-label="Volver a LYRA">
             <ChevronLeft className="size-6" />
           </Link>
           <VegaMark className="size-9" mood={mood} thinking={streaming} />
@@ -385,7 +385,7 @@ export function VegaChat({
               onClick={() => openPanel(id)}
               className={cn(
                 "inline-flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-medium text-[#1E1E24] hover:border-[#C4B5FD]",
-                panel === id ? "border-[#C4B5FD] bg-[#F5F3FF]" : "border-[#E7E2DA]",
+                panel === id ? "border-[#C4B5FD] bg-[#F5F3FF] dark:border-[#A78BFA]/50 dark:bg-[#221F30]" : "border-[#E7E2DA] dark:border-white/12",
               )}
             >
               <Icon className="size-3.5 text-[#7C3AED]" />
@@ -395,27 +395,27 @@ export function VegaChat({
         </header>
 
         {menuOpen ? (
-          <div className="fixed inset-x-0 bottom-0 z-50 rounded-t-3xl bg-white px-3 pt-2 pb-[max(1rem,env(safe-area-inset-bottom))] shadow-2xl md:hidden">
-            <span className="mx-auto mb-2 block h-1 w-10 rounded-full bg-[#E7E2DA]" aria-hidden />
+          <div className="fixed inset-x-0 bottom-0 z-50 rounded-t-3xl bg-white px-3 pt-2 pb-[max(1rem,env(safe-area-inset-bottom))] shadow-2xl md:hidden dark:bg-[#181625]">
+            <span className="mx-auto mb-2 block h-1 w-10 rounded-full bg-[#E7E2DA] dark:bg-white/15" aria-hidden />
             <button
               type="button"
               onClick={newChat}
               disabled={streaming}
-              className="flex w-full items-center gap-3 rounded-2xl px-3 py-3 text-left active:bg-[#F3F0EB] disabled:opacity-50"
+              className="flex w-full items-center gap-3 rounded-2xl px-3 py-3 text-left active:bg-[#F3F0EB] disabled:opacity-50 dark:active:bg-[#221F30]"
             >
-              <span className="grid size-10 place-items-center rounded-full bg-[#1E1E24] text-white">
+              <span className="grid size-10 place-items-center rounded-full bg-[#1E1E24] text-white dark:bg-[#EDE9FE] dark:text-[#2E1065]">
                 <MessageSquarePlus className="size-5" />
               </span>
-              <span className="text-[15px] font-medium text-[#1E1E24]">Nueva conversación</span>
+              <span className="text-[15px] font-medium text-[#1E1E24] dark:text-[#F2F0F7]">Nueva conversación</span>
             </button>
             {panelButtons.map(({ id, label, hint, icon: Icon }) => (
               <button
                 key={id}
                 type="button"
                 onClick={() => openPanel(id)}
-                className="flex w-full items-center gap-3 rounded-2xl px-3 py-3 text-left active:bg-[#F3F0EB]"
+                className="flex w-full items-center gap-3 rounded-2xl px-3 py-3 text-left active:bg-[#F3F0EB] dark:active:bg-[#221F30]"
               >
-                <span className="grid size-10 place-items-center rounded-full bg-[#F5F3FF] text-[#7C3AED]">
+                <span className="grid size-10 place-items-center rounded-full bg-[#F5F3FF] text-[#7C3AED] dark:bg-[#221F30]">
                   <Icon className="size-5" />
                 </span>
                 <span className="min-w-0">
@@ -449,7 +449,7 @@ export function VegaChat({
                     key={suggestion}
                     type="button"
                     onClick={() => void send(suggestion)}
-                    className="rounded-2xl border border-[#E7E2DA] bg-[#FCFBF9] px-4 py-3 text-left text-sm text-[#1E1E24] transition-colors hover:border-[#C4B5FD] hover:bg-[#FAF8FF] active:bg-[#F5F3FF] sm:bg-white"
+                    className="rounded-2xl border border-[#E7E2DA] bg-[#FCFBF9] px-4 py-3 text-left text-sm text-[#1E1E24] transition-colors hover:border-[#C4B5FD] hover:bg-[#FAF8FF] active:bg-[#F5F3FF] sm:bg-white dark:border-white/12 dark:bg-[#181625] dark:text-[#F2F0F7] dark:hover:border-[#A78BFA]/50 dark:hover:bg-[#221F30] dark:active:bg-[#221F30] dark:sm:bg-[#181625]"
                   >
                     {suggestion}
                   </button>
@@ -530,13 +530,13 @@ export function VegaChat({
         </div>
 
         <form
-          className="border-t border-[#F0ECE6] bg-white px-2 pt-2 pb-[max(0.5rem,env(safe-area-inset-bottom))] sm:p-4"
+          className="border-t border-[#F0ECE6] bg-white px-2 pt-2 pb-[max(0.5rem,env(safe-area-inset-bottom))] sm:p-4 dark:border-white/10 dark:bg-[#14121C]"
           onSubmit={(event) => {
             event.preventDefault();
             void send();
           }}
         >
-          <div className="mx-auto flex max-w-3xl items-end gap-2 rounded-3xl border border-[#E7E2DA] bg-[#FCFBF9] p-1.5 focus-within:border-[#7C3AED] sm:rounded-2xl sm:bg-white sm:p-2">
+          <div className="mx-auto flex max-w-3xl items-end gap-2 rounded-3xl border border-[#E7E2DA] bg-[#FCFBF9] p-1.5 focus-within:border-[#7C3AED] sm:rounded-2xl sm:bg-white sm:p-2 dark:border-white/12 dark:bg-[#181625] dark:focus-within:border-[#A78BFA] dark:sm:bg-[#181625]">
             <textarea
               ref={inputRef}
               value={draft}

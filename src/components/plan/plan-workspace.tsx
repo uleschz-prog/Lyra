@@ -69,7 +69,7 @@ export function PlanWorkspace({ plan }: { plan: MemberPlanView }) {
 
   return (
     <div className="space-y-8">
-      <section className="rounded-3xl border border-border bg-[#F4F1EC] p-6 backdrop-blur-xl sm:p-8">
+      <section className="rounded-3xl border border-border bg-[#F4F1EC] p-6 backdrop-blur-xl sm:p-8 dark:border-white/12 dark:bg-[#181625]">
         <div className="flex flex-wrap items-end justify-between gap-6">
           <div>
             <p className="text-[11px] uppercase tracking-[0.28em] text-lyra-cyan">Tu membresía</p>
@@ -112,7 +112,7 @@ export function PlanWorkspace({ plan }: { plan: MemberPlanView }) {
                     ? "bg-gradient-to-b from-[#2A2A33] to-[#111114] text-white shadow-[0_24px_60px_-28px_rgba(17,17,20,0.9)] ring-1 ring-white/10"
                     : founder
                       ? "bg-gradient-to-b from-[#8B5CF6] to-[#5B21B6] text-white shadow-[0_24px_60px_-24px_rgba(124,58,237,0.75)]"
-                      : "border border-[#E7E2DA] bg-white text-[#1E1E24] shadow-[0_18px_40px_-30px_rgba(30,30,36,0.35)]"
+                      : "border border-[#E7E2DA] bg-white text-[#1E1E24] shadow-[0_18px_40px_-30px_rgba(30,30,36,0.35)] dark:border-white/12 dark:bg-[#181625] dark:text-[#F2F0F7]"
                 }`}
               >
                 {featured ? (
@@ -140,7 +140,7 @@ export function PlanWorkspace({ plan }: { plan: MemberPlanView }) {
                   ) : promo ? (
                     <PromoBadge />
                   ) : (
-                    <span className="rounded-full bg-[#F4F1EC] px-2.5 py-1 text-[11px] font-medium tracking-wide text-[#5C5854]">
+                    <span className="rounded-full bg-[#F4F1EC] px-2.5 py-1 text-[11px] font-medium tracking-wide text-[#5C5854] dark:bg-[#221F30] dark:text-[#9B96AC]">
                       Para empezar
                     </span>
                   )}
@@ -161,7 +161,7 @@ export function PlanWorkspace({ plan }: { plan: MemberPlanView }) {
 
                 <div
                   className={`relative mt-5 rounded-2xl px-4 py-3.5 ${
-                    featured ? "bg-white/10 ring-1 ring-white/15" : "bg-[#F7F5F1] ring-1 ring-[#EFEAE3]"
+                    featured ? "bg-white/10 ring-1 ring-white/15" : "bg-[#F7F5F1] ring-1 ring-[#EFEAE3] dark:bg-white/5 dark:ring-white/10"
                   }`}
                 >
                   <p className={`text-sm font-semibold ${featured ? "text-white" : "text-[#7C3AED]"}`}>
@@ -180,14 +180,14 @@ export function PlanWorkspace({ plan }: { plan: MemberPlanView }) {
                   )}
                 </div>
 
-                <div className={`relative my-5 h-px ${featured ? "bg-white/15" : "bg-[#EFEAE3]"}`} />
+                <div className={`relative my-5 h-px ${featured ? "bg-white/15" : "bg-[#EFEAE3] dark:bg-white/10"}`} />
 
                 <ul className="relative space-y-3">
                   {benefits.map((point) => (
                     <li key={point} className="flex items-start gap-2.5 text-sm leading-6">
                       <span
                         className={`mt-1 grid h-4 w-4 shrink-0 place-items-center rounded-full ${
-                          featured ? "bg-white/20" : "bg-[#7C3AED]/10"
+                          featured ? "bg-white/20" : "bg-[#7C3AED]/10 dark:bg-[#7C3AED]/25"
                         }`}
                       >
                         <Check className={`h-3 w-3 ${featured ? "text-white" : "text-[#7C3AED]"}`} aria-hidden />
@@ -208,7 +208,7 @@ export function PlanWorkspace({ plan }: { plan: MemberPlanView }) {
           Tu equipo es el mismo. Tu paquete decide cuánto te toca. El pago total nunca pasa de{" "}
           {Math.round(compensationPlan.payoutCap * 100)}% de los puntos.
         </p>
-        <div className="mt-5 overflow-x-auto rounded-3xl border border-[#E7E2DA] bg-white">
+        <div className="mt-5 overflow-x-auto rounded-3xl border border-[#E7E2DA] bg-white dark:border-white/12 dark:bg-[#181625]">
           <table className="w-full min-w-[640px] text-left text-sm">
             <thead>
               <tr className="border-b border-[#E7E2DA] text-xs uppercase tracking-[0.14em] text-[#8A8680]">
@@ -353,7 +353,7 @@ function Metric({
   return (
     <div
       className={`rounded-2xl border px-4 py-3 ${
-        emphasis ? "border-[#7C3AED]/30 bg-[#7C3AED]/10" : "border-border bg-[#F4F1EC]"
+        emphasis ? "border-[#7C3AED]/30 bg-[#7C3AED]/10" : "border-border bg-[#F4F1EC] dark:border-white/12 dark:bg-[#181625]"
       }`}
     >
       <p className="text-[11px] uppercase tracking-[0.16em] text-[#8A8680]">{label}</p>

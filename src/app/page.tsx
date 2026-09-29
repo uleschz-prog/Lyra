@@ -43,15 +43,15 @@ const planIdeas = {
 
 export default function HomePage() {
   return (
-    <div className="lyra-paper min-h-screen overflow-x-hidden">
+    <div className="lyra-paper min-h-screen overflow-x-hidden dark:bg-[#14121C] dark:text-[#F2F0F7]">
       <SiteHeader />
       <main>
         <section className="mx-auto w-full max-w-7xl px-4 pt-16 pb-8 sm:px-6 sm:pt-24">
           <div className="animate-lyra-rise mx-auto max-w-3xl text-center">
-            <h1 className="text-[2.85rem] font-semibold tracking-tight text-[#1E1E24] sm:text-7xl lg:text-[5rem] lg:leading-[1.05]">
+            <h1 className="text-[2.85rem] font-semibold tracking-tight text-[#1E1E24] sm:text-7xl lg:text-[5rem] lg:leading-[1.05] dark:text-[#F2F0F7]">
               Construye aplicaciones, agentes e ideas sin programar
             </h1>
-            <p className="mx-auto mt-6 max-w-3xl text-lg leading-relaxed text-[#252525] sm:text-3xl sm:leading-snug">
+            <p className="mx-auto mt-6 max-w-3xl text-lg leading-relaxed text-[#252525] sm:text-3xl sm:leading-snug dark:text-[#C7C3D4]">
               Describe en lenguaje natural lo que necesitas. LYRA autogenera la interfaz, las bases de datos, los
               agentes y los flujos de trabajo en un instante.
             </p>
@@ -60,8 +60,8 @@ export default function HomePage() {
         </section>
 
         <section id="crear" className="mx-auto w-full max-w-7xl scroll-mt-24 px-4 py-16 sm:px-6">
-          <h2 className="text-5xl font-semibold tracking-tight text-[#1E1E24] sm:text-6xl">¿Qué vas a crear?</h2>
-          <p className="mt-3 max-w-2xl text-base text-[#252525] sm:text-lg">
+          <h2 className="text-5xl font-semibold tracking-tight text-[#1E1E24] sm:text-6xl dark:text-[#F2F0F7]">¿Qué vas a crear?</h2>
+          <p className="mt-3 max-w-2xl text-base text-[#252525] sm:text-lg dark:text-[#C7C3D4]">
             Sea lo que sea que imagines, puedes crearlo en LYRA.
           </p>
           <div className="mt-10 grid items-stretch gap-4 lg:grid-cols-3">
@@ -69,18 +69,18 @@ export default function HomePage() {
               <article
                 key={item.id}
                 id={item.id}
-                className="group flex flex-col bg-white transition-colors duration-200 hover:bg-[#7C3AED]"
+                className="group flex flex-col bg-white transition-colors duration-200 hover:bg-[#7C3AED] dark:bg-[#181625] dark:hover:bg-[#7C3AED]"
               >
                 <div className="flex min-h-[300px] flex-1 flex-col p-6 sm:p-8">
-                  <h3 className="text-4xl font-semibold tracking-tight text-[#1E1E24] transition-colors duration-200 group-hover:text-white">
+                  <h3 className="text-4xl font-semibold tracking-tight text-[#1E1E24] transition-colors duration-200 group-hover:text-white dark:text-[#F2F0F7]">
                     {item.title}
                   </h3>
-                  <p className="mt-8 max-w-sm text-base leading-relaxed text-[#1E1E24] transition-colors duration-200 group-hover:text-white/90 sm:text-lg">
+                  <p className="mt-8 max-w-sm text-base leading-relaxed text-[#1E1E24] transition-colors duration-200 group-hover:text-white/90 sm:text-lg dark:text-[#C7C3D4]">
                     {item.copy}
                   </p>
                   <Link
                     href={`${brand.links.register}?idea=${encodeURIComponent(item.idea)}`}
-                    className="mt-10 inline-flex w-fit items-center rounded-md bg-[#312F2F] px-4 py-2.5 text-base font-medium text-white transition-colors duration-200 group-hover:bg-white group-hover:text-[#1E1E24]"
+                    className="mt-10 inline-flex w-fit items-center rounded-md bg-[#312F2F] px-4 py-2.5 text-base font-medium text-white transition-colors duration-200 group-hover:bg-white group-hover:text-[#1E1E24] dark:bg-[#EDE9FE] dark:text-[#2E1065] dark:group-hover:bg-white dark:group-hover:text-[#1E1E24]"
                   >
                     {item.action}
                   </Link>
@@ -93,12 +93,12 @@ export default function HomePage() {
         <section id="planes" className="mx-auto w-full max-w-7xl scroll-mt-24 px-4 py-16 sm:px-6 sm:py-24">
           <div className="grid items-start gap-10 lg:grid-cols-[minmax(0,0.8fr)_minmax(0,1.2fr)] lg:gap-16">
             <div className="lg:pt-4">
-              <h2 className="text-5xl font-semibold tracking-tight text-[#1E1E24] sm:text-6xl lg:text-[4.5rem] lg:leading-[0.95]">
+              <h2 className="text-5xl font-semibold tracking-tight text-[#1E1E24] sm:text-6xl lg:text-[4.5rem] lg:leading-[0.95] dark:text-[#F2F0F7]">
                 Elige
                 <br />
                 tu plan
               </h2>
-              <p className="mt-8 max-w-sm text-xl leading-snug text-[#1E1E24] sm:text-2xl">
+              <p className="mt-8 max-w-sm text-xl leading-snug text-[#1E1E24] sm:text-2xl dark:text-[#C7C3D4]">
                 Started entra con $99, Pro con $499, Founder con $1,000 y Corporate con $5,000. Un crédito equivale a $1. Con 3 directos activos quedas exento de recompra.
               </p>
             </div>
@@ -119,7 +119,7 @@ export default function HomePage() {
                           ? "bg-[#7C3AED] p-6 text-white sm:p-8"
                           : corporate
                             ? "bg-[#1E1E24] p-6 text-white sm:p-8"
-                            : "bg-white p-6 text-[#1E1E24] sm:p-8"
+                            : "bg-white p-6 text-[#1E1E24] sm:p-8 dark:bg-[#181625] dark:text-[#F2F0F7]"
                     }
                   >
                     {vegaPartner ? (
@@ -157,7 +157,7 @@ export default function HomePage() {
                               ? "animate-pulse bg-white text-[#2E1065] shadow-[0_0_30px_rgba(233,213,255,0.8)]"
                               : corporate
                                 ? "bg-white text-[#1E1E24]"
-                                : "bg-[#312F2F] text-white"
+                                : "bg-[#312F2F] text-white dark:bg-[#EDE9FE] dark:text-[#2E1065]"
                           }`}
                         >
                           Empieza a crear
@@ -185,7 +185,7 @@ export default function HomePage() {
               })}
             </div>
           </div>
-          <p className="mt-8 text-center text-base text-[#252525] lg:text-right">
+          <p className="mt-8 text-center text-base text-[#252525] lg:text-right dark:text-[#C7C3D4]">
             ¿Buscas soluciones para empresas?{" "}
             <Link
               href={`${brand.links.register}?idea=${encodeURIComponent("Una solución para mi empresa")}`}

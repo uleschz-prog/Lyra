@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useState } from "react";
 
 import { Logo } from "@/components/brand/logo";
+import { ThemeToggle } from "@/components/app/theme-toggle";
 import { brand } from "@/config/brand";
 
 const links = [
@@ -37,6 +38,7 @@ export function SiteHeader() {
           ))}
         </nav>
         <div className="flex items-center gap-2 sm:gap-3">
+          <ThemeToggle className="hidden h-10 w-10 place-items-center rounded-[6px] text-[#1E1E24] transition-colors hover:bg-black/5 dark:text-[#F2F0F7] dark:hover:bg-white/10 sm:grid" />
           <Link href={brand.links.login} className="hidden text-base text-[#1E1E24] hover:text-black sm:inline">
             Inicia Sesión
           </Link>

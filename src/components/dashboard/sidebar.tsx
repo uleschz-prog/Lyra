@@ -28,7 +28,7 @@ export function Sidebar({ user, onClose }: { user: AuthProfile; onClose?: () => 
   const mode = agentRoots.some((href) => isActive(href, pathname)) ? officeModes[1] : officeModes[0];
 
   return (
-    <div className="flex h-full flex-col bg-white">
+    <div className="flex h-full flex-col bg-white dark:bg-[#181625]">
       <div className="flex items-center justify-between px-4 pt-5">
         <Link
           href={brand.links.dashboard}
@@ -65,7 +65,9 @@ export function Sidebar({ user, onClose }: { user: AuthProfile; onClose?: () => 
                 }}
                 className={cn(
                   "rounded-full px-2 py-1.5 text-sm transition-colors",
-                  selected ? "bg-white font-medium text-[#1E1E24] shadow-sm" : "text-[#6D28D9]",
+                  selected
+                    ? "bg-white font-medium text-[#1E1E24] shadow-sm dark:bg-[#221F30] dark:text-[#F2F0F7]"
+                    : "text-[#6D28D9] dark:text-[#C4B5FD]",
                 )}
               >
                 {item.label}
@@ -87,7 +89,9 @@ export function Sidebar({ user, onClose }: { user: AuthProfile; onClose?: () => 
               onClick={onClose}
               className={cn(
                 "flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm transition-colors",
-                active ? "bg-[#EDE9FE] text-[#1E1E24]" : "text-[#5C5854] hover:bg-[#F6F4F1] hover:text-[#1E1E24]",
+                active
+                  ? "bg-[#EDE9FE] text-[#1E1E24] dark:bg-[#221F30] dark:text-[#F2F0F7]"
+                  : "text-[#5C5854] hover:bg-[#F6F4F1] hover:text-[#1E1E24] dark:text-[#9B96AC] dark:hover:bg-[#221F30] dark:hover:text-[#F2F0F7]",
               )}
             >
               <Icon className={cn("h-4 w-4", active ? "text-[#7C3AED]" : "text-[#8A8680]")} aria-hidden />
@@ -106,8 +110,8 @@ export function Sidebar({ user, onClose }: { user: AuthProfile; onClose?: () => 
             className={cn(
               "flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm transition-colors",
               isActive("/dashboard/admin", pathname)
-                ? "bg-[#1E1E24] text-white"
-                : "bg-[#F6F4F1] text-[#1E1E24] hover:bg-[#EDE9FE]",
+                ? "bg-[#1E1E24] text-white dark:bg-[#EDE9FE] dark:text-[#2E1065]"
+                : "bg-[#F6F4F1] text-[#1E1E24] hover:bg-[#EDE9FE] dark:bg-[#221F30] dark:text-[#F2F0F7] dark:hover:bg-[#2B2740]",
             )}
           >
             <ShieldCheck className="h-4 w-4 text-[#7C3AED]" aria-hidden />
@@ -117,18 +121,18 @@ export function Sidebar({ user, onClose }: { user: AuthProfile; onClose?: () => 
         <Link
           href={brand.links.plan}
           onClick={onClose}
-          className="flex items-center gap-3 rounded-2xl border border-[#E7E2DA] px-3 py-3 transition-colors hover:border-[#C4B5FD]"
+          className="flex items-center gap-3 rounded-2xl border border-[#E7E2DA] px-3 py-3 transition-colors hover:border-[#C4B5FD] dark:border-white/12 dark:hover:border-[#A78BFA]"
         >
           <span className="min-w-0 flex-1">
-            <span className="block text-sm font-medium text-[#1E1E24]">Mejorar tu plan</span>
-            <span className="mt-0.5 block text-xs text-[#8A8680]">Más créditos en Pro</span>
+            <span className="block text-sm font-medium text-[#1E1E24] dark:text-[#F2F0F7]">Mejorar tu plan</span>
+            <span className="mt-0.5 block text-xs text-[#8A8680] dark:text-[#9B96AC]">Más créditos en Pro</span>
           </span>
           <Gift className="h-4 w-4 shrink-0 text-[#7C3AED]" aria-hidden />
         </Link>
         <div className="flex items-center gap-2 px-1 py-1">
           <UserNav user={user} />
           <div className="min-w-0 flex-1">
-            <p className="truncate text-sm text-[#1E1E24]">{user.name}</p>
+            <p className="truncate text-sm text-[#1E1E24] dark:text-[#F2F0F7]">{user.name}</p>
             <p className="text-xs text-[#7C3AED]">{formatCredits(balance)} créditos</p>
           </div>
         </div>

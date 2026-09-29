@@ -59,7 +59,7 @@ export function WalletPanel() {
                   "rounded-full border px-3 py-1.5 text-xs transition-all duration-300 ease-in-out",
                   filter === item.id
                     ? "border-[#7C3AED]/30 bg-[#7C3AED]/10 text-[#1E1E24]"
-                    : "border-border bg-[#F4F1EC] text-[#5C5854] hover:border-[#C9C3BA] hover:text-[#1E1E24]",
+                    : "border-border bg-[#F4F1EC] text-[#5C5854] hover:border-[#C9C3BA] hover:text-[#1E1E24] dark:border-white/12 dark:bg-[#181625] dark:text-[#9B96AC] dark:hover:border-white/25 dark:hover:text-[#F2F0F7]",
                 )}
               >
                 {item.label}
