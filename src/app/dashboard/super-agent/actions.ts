@@ -11,6 +11,7 @@ import { canUseVega } from "@/lib/vega/access";
 import { isUserToolkit, noConnections } from "@/lib/vega/apps";
 import type { VegaActionView, VegaSource } from "@/lib/vega/events";
 import { forgetAllMemories, forgetMemory, listMemories, saveMemory, type VegaMemoryView } from "@/lib/vega/memory";
+import { defaultAutonomy, type AutonomySettings } from "@/lib/vega/autonomy";
 import { getVegaProfile, saveVegaProfile, type VegaProfile } from "@/lib/vega/profile";
 import { deleteTask, listTasks, setTaskStatus, type VegaTaskView } from "@/lib/vega/tasks";
 import { actionView, decideAction } from "@/lib/vega/decide";
@@ -122,6 +123,49 @@ export async function updateVegaProfile(input: Partial<VegaProfile>): Promise<{ 
   if (!user) return { ok: false, error: "Vega está incluida en Founder, Corporate y Vega Partner." };
   const saved = await saveVegaProfile(user.id, input);
   return saved.ok ? { ok: true } : { ok: false, error: saved.error };
+}
+
+export async function vegaAutonomy(): Promise<AutonomySettings> {
+  const user = await vegaUser();
+  if (!user) return defaultAutonomy;
+  const prisma = getPrisma();
+  const row = await prisma.vegaAutonomy.findUnique({ where: { userId: user.id } }).catch(() => null);
+  if (!row) return defaultAutonomy;
+  return {
+    enabled: row.enabled,
+    sendEmail: row.sendEmail,
+    whatsapp: row.whatsapp,
+    events: row.events,
+    appActions: row.appActions,
+    dailyLimit: row.dailyLimit,
+  };
+}
+
+export async function updateVegaAutonomy(input: AutonomySettings): Promise<{ ok: boolean; error?: string }> {
+  const user = await vegaUser();
+  if (!user) return { ok: false, error: "Vega está incluida en Founder, Corporate y Vega Partner." };
+  const limit = Math.max(1, Math.min(20, Math.floor(input.dailyLimit) || 5));
+  await getPrisma().vegaAutonomy.upsert({
+    where: { userId: user.id },
+    create: {
+      userId: user.id,
+      enabled: input.enabled,
+      sendEmail: input.sendEmail,
+      whatsapp: input.whatsapp,
+      events: input.events,
+      appActions: input.appActions,
+      dailyLimit: limit,
+    },
+    update: {
+      enabled: input.enabled,
+      sendEmail: input.sendEmail,
+      whatsapp: input.whatsapp,
+      events: input.events,
+      appActions: input.appActions,
+      dailyLimit: limit,
+    },
+  });
+  return { ok: true };
 }
 
 export async function addVegaMemory(content: string) {

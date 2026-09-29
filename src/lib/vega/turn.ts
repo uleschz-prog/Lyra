@@ -2,18 +2,20 @@ import type { Prisma } from "@prisma/client";
 
 import { composioConfigured } from "@/lib/ai/composio";
 import { userConnections } from "@/lib/ai/composio-user";
+import { evaluateAutonomy, autonomyPrompt } from "@/lib/vega/autonomy";
 import type { WebResult } from "@/lib/ai/search";
 import { chargeCredits, creditPrices, currentCredits, refundCharge } from "@/lib/credits";
 import { getPrisma } from "@/lib/prisma";
 import type { AuthProfile } from "@/lib/types";
 import { appStatusLabel } from "@/lib/vega/app-tools";
 import { noConnections } from "@/lib/vega/apps";
+import { actionView } from "@/lib/vega/decide";
 import type { VegaEvent, VegaMood } from "@/lib/vega/events";
 import { openGeminiStream, type FunctionDeclaration, type GeminiContent, type GeminiPart } from "@/lib/vega/gemini-stream";
 import { listMemories } from "@/lib/vega/memory";
 import { getVegaProfile } from "@/lib/vega/profile";
 import { conversationTitle, vegaSystemPrompt } from "@/lib/vega/prompt";
-import { freeTools, runVegaTool, vegaTools } from "@/lib/vega/tools";
+import { freeTools, runVegaTool, vegaTools, executeVegaAction, type ActionPayload } from "@/lib/vega/tools";
 
 const HISTORY = 24;
 const MAX_STEPS = 4;
@@ -122,7 +124,13 @@ export async function prepareVegaTurn(
     team: null,
     notes: null,
   }));
-  const system = [vegaSystemPrompt(user, connections, webSearch, memories, profile), input.channelNote].filter(Boolean).join("\n");
+  const system = [
+    vegaSystemPrompt(user, connections, webSearch, memories, profile),
+    await autonomyPrompt(user.id).catch(() => ""),
+    input.channelNote,
+  ]
+    .filter(Boolean)
+    .join("\n");
 
   const first = await openGeminiStream(system, contents, tools);
   if (!first.ok) {
@@ -235,14 +243,42 @@ export async function runVegaTurn(turn: VegaTurn, emit: (event: VegaEvent) => vo
             select: { id: true },
           });
           actionIds.push(action.id);
-          emit({ t: "action", v: { id: action.id, kind: outcome.action, payload: outcome.payload, status: "pending" } });
-          response =
-            outcome.action === "whatsapp_message"
-              ? {
-                  estado: "listo_para_enviar",
-                  nota: "El socio ve el mensaje con un botón «Abrir en WhatsApp» y lo envía desde su propio número. No repitas el mensaje completo en tu respuesta.",
-                }
-              : { estado: "pendiente_de_confirmacion", nota: "El socio ve una tarjeta con Confirmar o Cancelar. No digas que ya se hizo." };
+
+          const verdict = await evaluateAutonomy(userId, outcome.action).catch(() => ({ ok: false, reason: "fallo la revisión" }) as const);
+          if (verdict.ok) {
+            const result = await executeVegaAction(userId, outcome.action, outcome.payload as unknown as ActionPayload).catch(() => ({
+              ok: false as const,
+              message: "El servicio no respondió. No se completó la acción.",
+            }));
+            const updated = await prisma.vegaAction
+              .update({
+                where: { id: action.id },
+                data: { status: result.ok ? "done" : "failed", result: result.message },
+                select: { id: true, kind: true, payload: true, status: true, result: true },
+              })
+              .catch(() => null);
+            if (updated) {
+              emit({ t: "action", v: actionView(updated) });
+              statuses.push(result.message);
+              emit({ t: "status", v: result.message });
+              response = {
+                estado: result.ok ? "ejecutada" : "fallo",
+                detalle: result.message,
+                nota: result.ok
+                  ? "La acción ya se ejecutó: puedes decírselo al socio con naturalidad."
+                  : "No se completó; avisa al socio y ofrece el siguiente paso.",
+              };
+            } else response = { estado: "pendiente_de_confirmacion", nota: "El socio ve una tarjeta con Confirmar o Cancelar. No digas que ya se hizo." };
+          } else {
+            emit({ t: "action", v: { id: action.id, kind: outcome.action, payload: outcome.payload, status: "pending" } });
+            response =
+              outcome.action === "whatsapp_message"
+                ? {
+                    estado: "listo_para_enviar",
+                    nota: "El socio ve el mensaje con un botón «Abrir en WhatsApp» y lo envía desde su propio número. No repitas el mensaje completo en tu respuesta.",
+                  }
+                : { estado: "pendiente_de_confirmacion", nota: "El socio ve una tarjeta con Confirmar o Cancelar. No digas que ya se hizo." };
+          }
         } else response = outcome.response;
 
         responses.push({ functionResponse: { name: call.name, response } });
