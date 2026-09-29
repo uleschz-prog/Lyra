@@ -61,6 +61,9 @@ export async function startCheckout(purpose: MpPurpose) {
 
 const activationPackages: SignupPlanId[] = ["STARTED", "PRO", "FOUNDER"];
 
+/** Tope vitalicio que un Founder puede gastar de sus créditos normales generando códigos. */
+const founderActivationCapUsd = 1000;
+
 function newCode() {
   return `LYRA-${randomBytes(4).toString("hex").toUpperCase()}`;
 }
@@ -76,18 +79,52 @@ export async function createActivationCode(packageId: string) {
   const prisma = getPrisma();
 
   const code = await prisma.$transaction(async (tx) => {
+    // 1) Pool dedicado de créditos de activación (Corporate).
     const spent = await tx.user.updateMany({
       where: { id: user.id, activationCredits: { gte: price } },
       data: { activationCredits: { decrement: price } },
     });
-    if (spent.count === 0) return null;
+    if (spent.count > 0) {
+      return tx.activationCode.create({
+        data: { code: newCode(), packageId: packageId as SignupPlanId, price, ownerId: user.id },
+        select: { code: true },
+      });
+    }
+
+    // 2) Founder: paga desde sus créditos normales, con tope vitalicio de $1,000.
+    if (user.package !== "FOUNDER") return null;
+    const used = await tx.activationCode.aggregate({
+      where: { ownerId: user.id },
+      _sum: { price: true },
+    });
+    if ((used._sum.price ?? 0) + price > founderActivationCapUsd) return null;
+    const debited = await tx.user.updateMany({
+      where: { id: user.id, credits: { gte: price } },
+      data: { credits: { decrement: price } },
+    });
+    if (debited.count === 0) return null;
+    const wallet = await tx.creditWallet.upsert({
+      where: { userId: user.id },
+      create: { userId: user.id, balance: -price },
+      update: { balance: { decrement: price } },
+    });
+    await tx.transaction.create({
+      data: {
+        userId: user.id,
+        walletId: wallet.id,
+        amount: 0,
+        creditDelta: -price,
+        kind: "CREDIT_SPEND",
+        description: `Código de activación ${packageId} · ${price} créditos`,
+      },
+    });
     return tx.activationCode.create({
       data: { code: newCode(), packageId: packageId as SignupPlanId, price, ownerId: user.id },
       select: { code: true },
     });
   });
 
-  if (!code) return { ok: false as const, error: "No tienes créditos de activación suficientes." };
+  if (!code) return { ok: false as const, error: "No tienes créditos suficientes para generar ese código." };
   revalidatePath("/dashboard/wallet");
   return { ok: true as const, code: code.code, price };
 }

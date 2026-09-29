@@ -63,6 +63,8 @@ export function RegisterForm({
   const [error, setError] = useState(activationError || notices[aviso] || "");
   const prepaid = activation ? signupPlans.find((plan) => plan.id === activation.packageId) : null;
   const [pending, setPending] = useState(false);
+  const [codeMode, setCodeMode] = useState(false);
+  const [manualCode, setManualCode] = useState("");
   const [email, setEmail] = useState(social?.email ?? "");
   const [password, setPassword] = useState("");
   const ready = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) && password.length >= 8;
@@ -79,8 +81,9 @@ export function RegisterForm({
   }
 
   async function submitRegistration() {
-    if (!packageId) {
-      setError("Elige un plan para abrir la cuenta.");
+    const code = activation?.code ?? (codeMode ? manualCode.trim().toUpperCase().slice(0, 24) : "");
+    if (!packageId && !code) {
+      setError("Elige un plan o ingresa un código de activación.");
       return;
     }
     setPending(true);
@@ -97,11 +100,11 @@ export function RegisterForm({
               username: usernameFromEmail(email),
               password,
               confirmPassword: password,
-              packageId,
+              packageId: packageId ?? "",
               ref: refCode,
               idea,
               kind,
-              code: activation?.code ?? "",
+              code,
             },
       ),
     });
@@ -216,8 +219,11 @@ export function RegisterForm({
       ) : (
         <>
         <p className="mt-6 text-center text-sm leading-relaxed text-[#5C5854]">
-          Elige la membresía de entrada. Pagas con Mercado Pago (tarjeta, OXXO o saldo) y tu cuenta se activa al acreditarse. La recarga de créditos, si aplica, empieza al mes siguiente.
+          {codeMode
+            ? "Ingresa el código de activación que te compartió tu patrocinador. Tu membresía se activa al crear la cuenta, sin pagar."
+            : "Elige la membresía de entrada. Pagas con Mercado Pago (tarjeta, OXXO o saldo) y tu cuenta se activa al acreditarse. La recarga de créditos, si aplica, empieza al mes siguiente."}
         </p>
+        {!codeMode ? (
         <div className="mt-6 space-y-3">
           {signupPlans.map((planPackage) => {
             const selected = packageId === planPackage.id;
@@ -254,6 +260,35 @@ export function RegisterForm({
               </button>
             );
           })}
+          </div>
+          ) : (
+            <div className="mt-6 space-y-3">
+              <label className="block text-sm font-medium text-[#1E1E24]">
+                Código de activación
+                <input
+                  type="text"
+                  required
+                  value={manualCode}
+                  onChange={(event) => setManualCode(event.target.value.toUpperCase())}
+                  placeholder="LYRA-XXXXXXXX"
+                  autoComplete="off"
+                  className="mt-2 h-12 w-full rounded-md border border-[#D9D5CE] px-3 text-sm font-normal uppercase tracking-wide text-[#0F0F0F] outline-none placeholder:normal-case placeholder:tracking-normal placeholder:text-[#B0B0B0] focus:border-[#312F2F]"
+                />
+              </label>
+            </div>
+          )}
+          <p className="mt-4 text-center">
+            <button
+              type="button"
+              onClick={() => {
+                setCodeMode((mode) => !mode);
+                setError("");
+              }}
+              className="text-sm font-medium text-[#7C3AED] underline"
+            >
+              {codeMode ? "Ver planes y pagar con Mercado Pago" : "Tengo un código de activación"}
+            </button>
+          </p>
           {error ? <p className="text-sm text-[#9A3B2F]">{error}</p> : null}
           <div className="flex gap-2 pt-2">
             <button
@@ -265,14 +300,13 @@ export function RegisterForm({
             </button>
             <button
               type="button"
-              disabled={pending || !packageId}
+              disabled={pending || (!packageId && !(codeMode && manualCode.trim()))}
               onClick={() => void submitRegistration()}
               className="h-12 flex-1 rounded-md bg-[#312F2F] text-sm font-medium text-white disabled:bg-[#E7E7E7] disabled:text-[#A3A3A3]"
             >
-              {pending ? "Preparando tu pago…" : "Crear cuenta y pagar"}
+              {pending ? "Preparando tu cuenta…" : codeMode ? "Crear cuenta con código" : "Crear cuenta y pagar"}
             </button>
           </div>
-        </div>
         </>
       )}
 

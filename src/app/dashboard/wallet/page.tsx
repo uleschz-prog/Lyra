@@ -33,7 +33,7 @@ export default async function WalletPage({
         credits: extraUsd ? await mercadoPagoQuote(extraUsd) : null,
       }
     : null;
-  const activation = user.package === "CORPORATE" || user.activationCredits > 0;
+  const activation = user.package === "CORPORATE" || user.package === "FOUNDER" || user.activationCredits > 0;
   const codes = activation
     ? await getPrisma().activationCode.findMany({
         where: { ownerId: user.id },
@@ -42,6 +42,10 @@ export default async function WalletPage({
         select: { code: true, packageId: true, price: true, createdAt: true, usedBy: { select: { name: true } } },
       })
     : [];
+  // Founder genera códigos desde sus créditos normales con tope vitalicio de $1,000.
+  const activationBalance = isFounderPackage(user.package)
+    ? Math.max(0, 1000 - codes.reduce((total, row) => total + row.price, 0))
+    : user.activationCredits;
   const headerStore = await headers();
   const host = headerStore.get("x-forwarded-host") ?? headerStore.get("host");
   const proto = headerStore.get("x-forwarded-proto") ?? "http";
@@ -85,7 +89,7 @@ export default async function WalletPage({
         ) : null}
         {activation ? (
           <ActivationCodes
-            balance={user.activationCredits}
+            balance={activationBalance}
             inviteBase={inviteBase}
             codes={codes.map((row) => ({
               code: row.code,

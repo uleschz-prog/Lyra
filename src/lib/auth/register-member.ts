@@ -56,7 +56,7 @@ function clean(input: RegisterInput) {
     throw new AuthError(400, "La confirmación no coincide con la contraseña.");
   }
   if (!code && !isSignupPlanId(packageId)) {
-    throw new AuthError(400, "Elige Started, Pro, Founder o Corporate.");
+    throw new AuthError(400, "Elige Started, Pro, Founder, Corporate o Vega Partner.");
   }
 
   return { name, email, username, packageId, ref, idea, code, kind: input.kind, password: input.password };
