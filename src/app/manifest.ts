@@ -2,24 +2,26 @@ import type { MetadataRoute } from "next";
 
 export default function manifest(): MetadataRoute.Manifest {
   return {
-    name: "LYRA",
+    name: "LYRA — Inteligencia Aumentada & Red Global",
     short_name: "LYRA",
-    description: "Tu oficina con agentes de IA y Vega, tu super agente.",
+    description: "Academia digital con red de referidos operada por agentes autónomos de IA.",
+    id: "/",
     start_url: "/dashboard",
     scope: "/",
     display: "standalone",
     orientation: "portrait",
-    background_color: "#F6F4F1",
-    theme_color: "#FFFFFF",
-    lang: "es",
+    background_color: "#2E1065",
+    theme_color: "#2E1065",
+    categories: ["business", "productivity", "education"],
     icons: [
-      { src: "/pwa-icon/192", sizes: "192x192", type: "image/png" },
-      { src: "/pwa-icon/512", sizes: "512x512", type: "image/png" },
-      { src: "/pwa-icon/maskable-512", sizes: "512x512", type: "image/png", purpose: "maskable" },
+      { src: "/icon-192.png", sizes: "192x192", type: "image/png" },
+      { src: "/icon-512.png", sizes: "512x512", type: "image/png" },
+      { src: "/icon-maskable-512.png", sizes: "512x512", type: "image/png", purpose: "maskable" },
     ],
     shortcuts: [
-      { name: "Vega", short_name: "Vega", url: "/dashboard/super-agent", icons: [{ src: "/pwa-icon/192", sizes: "192x192" }] },
-      { name: "Telegram", url: "/dashboard/telegram" },
+      { name: "Vega", url: "/dashboard/super-agent", description: "Hablar con el superagente Vega" },
+      { name: "Billetera", url: "/dashboard/wallet", description: "Tus créditos y transacciones" },
+      { name: "Red", url: "/dashboard/network", description: "Tu red de referidos" },
     ],
   };
 }

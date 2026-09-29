@@ -424,3 +424,28 @@ body::before {
 .vega-bot-antenna {
   animation: vega-bot-core 1.4s ease-in-out infinite;
 }
+
+/* ===== Modo app (PWA / móvil) ===== */
+html {
+  -webkit-tap-highlight-color: transparent;
+  overscroll-behavior-y: none;
+}
+body {
+  text-size-adjust: 100%;
+  -webkit-text-size-adjust: 100%;
+}
+/* Áreas seguras: notch y barra inferior en iOS */
+.safe-top { padding-top: env(safe-area-inset-top); }
+.safe-bottom { padding-bottom: env(safe-area-inset-bottom); }
+/* En standalone (instalada como app) el fondo del theme morado rodea todo */
+@media all and (display-mode: standalone) {
+  html, body { background: #2E1065; }
+}
+/* Targets táctiles cómodos en móvil */
+@media (max-width: 768px) {
+  a, button, input, select, textarea { touch-action: manipulation; }
+}
+/* Evitar zoom involuntario en inputs iOS (fuente >= 16px) */
+@media (max-width: 768px) {
+  input, select, textarea { font-size: 16px; }
+}

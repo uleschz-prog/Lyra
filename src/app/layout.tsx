@@ -18,9 +18,11 @@ const geistMono = Geist_Mono({
 export const viewport: Viewport = {
   width: "device-width",
   initialScale: 1,
+  maximumScale: 1,
+  userScalable: false,
   viewportFit: "cover",
   interactiveWidget: "resizes-content",
-  themeColor: "#FFFFFF",
+  themeColor: "#2E1065",
 };
 
 export const metadata: Metadata = {
@@ -29,7 +31,17 @@ export const metadata: Metadata = {
     template: `%s · ${brand.name}`,
   },
   description: brand.slogan,
-  appleWebApp: { capable: true, title: brand.name, statusBarStyle: "default" },
+  applicationName: brand.name,
+  manifest: "/manifest.webmanifest",
+  icons: {
+    icon: [
+      { url: "/favicon-32.png", sizes: "32x32", type: "image/png" },
+      { url: "/icon-192.png", sizes: "192x192", type: "image/png" },
+      { url: "/icon-512.png", sizes: "512x512", type: "image/png" },
+    ],
+    apple: [{ url: "/apple-touch-icon.png", sizes: "180x180", type: "image/png" }],
+  },
+  appleWebApp: { capable: true, title: brand.name, statusBarStyle: "black-translucent" },
 };
 
 export default function RootLayout({ children }: LayoutProps<"/">) {
