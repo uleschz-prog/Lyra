@@ -3,23 +3,33 @@ import { cn } from "@/lib/utils";
 export function Logo({
   compact = false,
   className,
+  ink = false,
 }: {
   compact?: boolean;
   className?: string;
+  mark?: "AI" | "ENGINE";
+  ink?: boolean;
 }) {
+  const line = ink ? "#1E1E24" : "#F5F3FF";
+
   return (
-    <span className={cn("flex items-center gap-3", className)}>
-      <span className="relative grid h-9 w-9 place-items-center">
-        <span className="absolute inset-0 rounded-xl bg-gradient-to-br from-lyra-violet to-lyra-cyan opacity-80 blur-md" />
-        <span className="relative grid h-9 w-9 place-items-center rounded-xl border border-white/15 bg-lyra-card text-[11px] font-semibold tracking-[0.2em] text-white shadow-[0_0_15px_rgba(124,58,237,0.45)]">
-          L
-        </span>
-      </span>
+    <span className={cn("lyra-logo inline-flex items-center gap-2", className)}>
+      <svg viewBox="0 0 32 32" className="h-8 w-8 shrink-0" aria-hidden>
+        <circle cx="16" cy="16" r="10.25" fill="#7C3AED" />
+        <path
+          d="M2.5 11.6 L24.7 4.8 L14 30.1"
+          fill="none"
+          stroke={line}
+          strokeWidth="1.55"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        />
+        <circle cx="2.5" cy="11.6" r="1.7" fill={line} />
+        <circle cx="24.7" cy="4.8" r="2.25" fill={line} />
+        <circle cx="14" cy="30.1" r="1.7" fill={line} />
+      </svg>
       {compact ? null : (
-        <span className="flex flex-col leading-tight">
-          <span className="text-sm font-medium tracking-[0.38em] text-white">LYRA</span>
-          <span className="text-[10px] tracking-[0.18em] text-zinc-500">RED GLOBAL</span>
-        </span>
+        <span className={cn("text-xl font-bold tracking-tighter", ink ? "text-[#1E1E24]" : "text-white")}>LYRA</span>
       )}
     </span>
   );

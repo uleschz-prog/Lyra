@@ -1,10 +1,34 @@
-export type Role = "MEMBER" | "ADMIN";
-export type Rank = "SOCIO" | "LIDER" | "MAESTRO";
+export type Role = "ADMIN" | "MEMBER";
+export type PackageType = "NONE" | "FREE" | "STARTED" | "PRO" | "FOUNDER" | "CORPORATE" | "VEGA" | "POLARIS" | "LYRA_MASTER";
+export type Rank = "ASTRA" | "NOVA" | "ALPHA" | "PULSAR" | "VEGA" | "CONSTELLATION";
+
+export type AuthProfile = {
+  id: string;
+  name: string;
+  email: string;
+  username: string;
+  role: Role;
+  package: PackageType;
+  rank: Rank;
+  sponsorId: string | null;
+  referralCode: string;
+  credits: number;
+  walletBalance: number;
+  isSubscriptionExempt: boolean;
+  alphaFastTrackUntil: string | null;
+  fastTrack: boolean;
+  activeDirects: number;
+  rebuyPaidThisMonth: boolean;
+  activationCredits: number;
+  pendingPackage: string | null;
+  avatar: string | null;
+};
 export type TransactionKind =
   | "COMMISSION"
   | "CREDIT_PURCHASE"
   | "CREDIT_SPEND"
-  | "ADJUSTMENT";
+  | "ADJUSTMENT"
+  | "REBUY";
 
 export type DemoUser = {
   id: string;
@@ -54,12 +78,26 @@ export type Course = {
   lessons: Lesson[];
 };
 
+export type ChannelId =
+  | "whatsapp"
+  | "email"
+  | "telegram"
+  | "instagram"
+  | "facebook"
+  | "linkedin"
+  | "messenger"
+  | "sms"
+  | "web"
+  | "calendar";
+
 export type DemoAgent = {
   id: string;
   name: string;
+  star: string;
   description: string;
   category: string;
   promptTemplate: string;
   creditCost: number;
   uses: number;
+  channels: ChannelId[];
 };

@@ -8,14 +8,29 @@ datasource db {
 }
 
 enum Role {
-  MEMBER
   ADMIN
+  MEMBER
+}
+
+enum PackageType {
+  NONE
+  FREE
+  STARTED
+  PRO
+  FOUNDER
+  CORPORATE
+  VEGA
+  POLARIS
+  LYRA_MASTER
 }
 
 enum Rank {
-  SOCIO
-  LIDER
-  MAESTRO
+  ASTRA
+  NOVA
+  ALPHA
+  PULSAR
+  VEGA
+  CONSTELLATION
 }
 
 enum TransactionKind {
@@ -23,6 +38,7 @@ enum TransactionKind {
   CREDIT_PURCHASE
   CREDIT_SPEND
   ADJUSTMENT
+  REBUY
 }
 
 /// Cierre de la red: cada fila une a un afiliado con un ancestro y la distancia entre ambos.
@@ -41,26 +57,356 @@ model NetworkRelation {
 }
 
 model User {
-  id        String   @id @default(cuid())
-  email     String   @unique
-  name      String
-  avatar    String?
-  role      Role     @default(MEMBER)
-  rank      Rank     @default(SOCIO)
-  sponsorId String?
-  createdAt DateTime @default(now())
+  id                   String       @id @default(uuid())
+  name                 String
+  email                String       @unique
+  username             String       @unique
+  password             String
+  role                 Role         @default(MEMBER)
+  package              PackageType  @default(NONE)
+  pendingPackage       PackageType?
+  rank                 Rank         @default(ASTRA)
+  sponsorId            String?
+  referralCode         String       @unique
+  credits              Int          @default(0)
+  walletBalance        Float        @default(0)
+  isSubscriptionExempt Boolean      @default(false)
+  activationCredits    Int          @default(0)
+  activatedWithCode    Boolean      @default(false)
+  suspendedUntil       DateTime?
+  alphaFastTrackUntil  DateTime?
+  avatar               String?
+  createdAt            DateTime     @default(now())
+  updatedAt            DateTime     @updatedAt
 
-  sponsor  User?  @relation("Sponsorship", fields: [sponsorId], references: [id], onDelete: SetNull)
-  downline User[] @relation("Sponsorship")
+  sponsor   User?  @relation("Sponsorship", fields: [sponsorId], references: [id], onDelete: SetNull)
+  referrals User[] @relation("Sponsorship")
 
   descendantLinks NetworkRelation[] @relation("DescendantLinks")
   ancestorLinks   NetworkRelation[] @relation("AncestorLinks")
 
-  wallet       CreditWallet?
-  transactions Transaction[]
+  wallet             CreditWallet?
+  transactions       Transaction[]
+  projects           Project[]
+  creations          CreationPiece[]
+  vegaChats          VegaConversation[]
+  vegaActions        VegaAction[]
+  vegaMemories       VegaMemory[]
+  vegaTasks          VegaTask[]
+  vegaWhatsappBlocks VegaWhatsappBlock[]
+  telegramConnection TelegramConnection?
+  vegaWhatsapp       String?
+  activationCodes    ActivationCode[]    @relation("ActivationOwner")
+  activation         ActivationCode?     @relation("ActivationUsedBy")
 
   @@index([sponsorId])
   @@index([rank])
+}
+
+/// Código prepagado con créditos de activación. La cuenta que lo usa no genera puntos.
+model ActivationCode {
+  id        String      @id @default(cuid())
+  code      String      @unique
+  packageId PackageType
+  price     Int
+  ownerId   String
+  usedById  String?     @unique
+  usedAt    DateTime?
+  createdAt DateTime    @default(now())
+
+  owner  User  @relation("ActivationOwner", fields: [ownerId], references: [id], onDelete: Cascade)
+  usedBy User? @relation("ActivationUsedBy", fields: [usedById], references: [id], onDelete: SetNull)
+
+  @@index([ownerId, createdAt])
+}
+
+model VegaConversation {
+  id        String   @id @default(cuid())
+  userId    String
+  title     String   @default("Nueva conversación")
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user     User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  messages VegaMessage[]
+  actions  VegaAction[]
+
+  @@index([userId, updatedAt])
+}
+
+model VegaMessage {
+  id             String   @id @default(cuid())
+  conversationId String
+  role           String
+  content        String   @db.Text
+  meta           Json?
+  createdAt      DateTime @default(now())
+
+  conversation VegaConversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+
+  @@index([conversationId, createdAt])
+}
+
+model VegaMemory {
+  id        String   @id @default(cuid())
+  userId    String
+  content   String
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, createdAt])
+}
+
+model VegaTask {
+  id          String    @id @default(cuid())
+  userId      String
+  title       String
+  instruction String    @db.Text
+  kind        String    @default("reminder")
+  repeat      String    @default("once")
+  useWeb      Boolean   @default(false)
+  runAt       DateTime
+  status      String    @default("active")
+  lastRunAt   DateTime?
+  lastResult  String?   @db.Text
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([status, runAt])
+  @@index([userId, status])
+}
+
+model TelegramConnection {
+  id             String    @id @default(cuid())
+  userId         String    @unique
+  botId          String    @unique
+  botUsername    String
+  botName        String
+  tokenEnc       String    @db.Text
+  tokenHash      String    @unique
+  secretHash     String
+  status         String    @default("pending")
+  automation     Boolean   @default(true)
+  followups      Boolean   @default(true)
+  instructions   String    @default("") @db.Text
+  ownerChatId    String?
+  ownerLinkCode  String?   @unique
+  lastVerifiedAt DateTime?
+  lastWebhookAt  DateTime?
+  lastError      String?
+  disconnectedAt DateTime?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  user          User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+  chats         TelegramChat[]
+  messages      TelegramMessage[]
+  followupsList TelegramFollowup[]
+}
+
+model TelegramChat {
+  id             String    @id @default(cuid())
+  userId         String
+  connectionId   String
+  chatId         String
+  tgUserId       String?
+  username       String?
+  firstName      String?
+  lastName       String?
+  languageCode   String?
+  isBlocked      Boolean   @default(false)
+  optedIn        Boolean   @default(true)
+  optedInAt      DateTime  @default(now())
+  optedOutAt     DateTime?
+  source         String    @default("telegram")
+  campaign       String?
+  stage          String    @default("nuevo")
+  intent         String?
+  notes          String?   @db.Text
+  automation     String    @default("active")
+  autoSent       Int       @default(0)
+  lastInboundAt  DateTime?
+  lastOutboundAt DateTime?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  connection TelegramConnection @relation(fields: [connectionId], references: [id], onDelete: Cascade)
+  messages   TelegramMessage[]
+  followups  TelegramFollowup[]
+
+  @@unique([connectionId, chatId])
+  @@index([userId, updatedAt])
+}
+
+model TelegramMessage {
+  id           String   @id @default(cuid())
+  userId       String
+  connectionId String
+  chatRowId    String?
+  direction    String
+  senderType   String
+  updateId     BigInt?
+  tgMessageId  BigInt?
+  text         String   @db.Text
+  status       String   @default("received")
+  error        String?
+  createdAt    DateTime @default(now())
+
+  connection TelegramConnection @relation(fields: [connectionId], references: [id], onDelete: Cascade)
+  chat       TelegramChat?      @relation(fields: [chatRowId], references: [id], onDelete: Cascade)
+
+  @@unique([connectionId, updateId])
+  @@index([chatRowId, createdAt])
+}
+
+model TelegramFollowup {
+  id           String    @id @default(cuid())
+  userId       String
+  connectionId String
+  chatRowId    String
+  step         Int       @default(1)
+  runAt        DateTime
+  status       String    @default("scheduled")
+  note         String?   @db.Text
+  attempts     Int       @default(0)
+  lastError    String?
+  createdBy    String    @default("system")
+  claimedAt    DateTime?
+  executedAt   DateTime?
+  createdAt    DateTime  @default(now())
+
+  connection TelegramConnection @relation(fields: [connectionId], references: [id], onDelete: Cascade)
+  chat       TelegramChat       @relation(fields: [chatRowId], references: [id], onDelete: Cascade)
+
+  @@index([status, runAt])
+  @@index([chatRowId, status])
+}
+
+model VegaWhatsappBlock {
+  id        String   @id @default(cuid())
+  userId    String
+  phone     String
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, phone])
+}
+
+model VegaAction {
+  id             String   @id @default(cuid())
+  userId         String
+  conversationId String
+  kind           String
+  payload        Json
+  status         String   @default("pending")
+  result         String?  @db.Text
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  user         User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  conversation VegaConversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+
+  @@index([userId, status])
+  @@index([conversationId])
+}
+
+model CreationPiece {
+  id        String   @id @default(cuid())
+  userId    String
+  area      String
+  kind      String
+  title     String
+  body      String   @db.Text
+  media     String?  @db.Text
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, area, createdAt])
+}
+
+model Project {
+  id        String   @id @default(cuid())
+  userId    String
+  title     String
+  idea      String
+  kind      String   @default("app")
+  published Boolean  @default(false)
+  ui        Json?
+  createdAt DateTime @default(now())
+
+  user   User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tables ProjectTable[]
+  agents ProjectAgent[]
+  flows  ProjectFlow[]
+  runs   ProjectRun[]
+
+  @@index([userId, createdAt])
+}
+
+/// Catálogo de las tablas creadas para un proyecto. Las filas viven en el esquema projects.
+model ProjectTable {
+  id        String   @id @default(cuid())
+  projectId String
+  name      String
+  physical  String   @unique
+  columns   String[]
+  createdAt DateTime @default(now())
+
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@unique([projectId, name])
+  @@index([projectId])
+}
+
+model ProjectAgent {
+  id          String   @id @default(cuid())
+  projectId   String
+  name        String
+  instruction String
+  status      String   @default("running")
+  createdAt   DateTime @default(now())
+
+  project Project      @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  runs    ProjectRun[]
+
+  @@unique([projectId, name])
+  @@index([projectId])
+}
+
+model ProjectFlow {
+  id        String   @id @default(cuid())
+  projectId String
+  name      String
+  tableName String
+  agentName String
+  status    String   @default("running")
+  createdAt DateTime @default(now())
+
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@unique([projectId, name])
+  @@index([projectId, tableName])
+}
+
+model ProjectRun {
+  id        String   @id @default(cuid())
+  projectId String
+  agentId   String
+  agentName String
+  flowName  String
+  input     String
+  output    String
+  createdAt DateTime @default(now())
+
+  project Project      @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  agent   ProjectAgent @relation(fields: [agentId], references: [id], onDelete: Cascade)
+
+  @@index([projectId, createdAt])
 }
 
 model Course {
@@ -68,7 +414,7 @@ model Course {
   title           String
   description     String
   videoUrl        String?
-  rankRequirement Rank     @default(SOCIO)
+  rankRequirement Rank     @default(ASTRA)
   createdAt       DateTime @default(now())
   lessons         Lesson[]
 }
@@ -79,7 +425,7 @@ model Lesson {
   title           String
   description     String
   videoUrl        String
-  rankRequirement Rank   @default(SOCIO)
+  rankRequirement Rank   @default(ASTRA)
   position        Int    @default(0)
 
   course Course @relation(fields: [courseId], references: [id], onDelete: Cascade)
@@ -116,6 +462,7 @@ model Transaction {
   creditDelta Int             @default(0)
   kind        TransactionKind
   description String
+  externalRef String?         @unique
   createdAt   DateTime        @default(now())
 
   user   User         @relation(fields: [userId], references: [id], onDelete: Cascade)
