@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useState } from "react";
 
 import { addProjectRow } from "@/app/dashboard/projects/actions";
+import { useCredits } from "@/components/dashboard/credit-provider";
 import { brand } from "@/config/brand";
 import type { ProjectRunView } from "@/lib/project-runtime";
 import type { ProjectBlock, ProjectInterface } from "@/lib/project-ui";
@@ -29,6 +30,7 @@ function EntryForm({
 }) {
   const [sent, setSent] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
+  const { syncBalance } = useCredits();
 
   return (
     <form
@@ -48,11 +50,13 @@ function EntryForm({
             setSent(result.error);
             return;
           }
+          syncBalance(result.credits, result.runs.length > 0 ? `Flujo · ${block.table}` : undefined);
           onCreated(block.table, result.row);
           if (result.runs.length > 0) onRuns(result.runs);
           form.reset();
           const agent = result.runs[0]?.agentName;
-          setSent(agent ? `Guardado en ${block.table}. ${agent} ya corrió.` : `Guardado en ${block.table}.`);
+          const saved = agent ? `Guardado en ${block.table}. ${agent} ya corrió.` : `Guardado en ${block.table}.`;
+          setSent(result.flowError ? `${saved} ${result.flowError}` : saved);
         });
       }}
     >

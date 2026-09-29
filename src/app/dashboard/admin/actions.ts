@@ -59,15 +59,16 @@ export async function adjustCredits(id: string, delta: number, note: string): Pr
 
   const prisma = getPrisma();
   const credits = await prisma.$transaction(async (tx) => {
-    const updated = await tx.user.update({
-      where: { id },
+    const changed = await tx.user.updateMany({
+      where: { id, credits: { gte: Math.max(-amount, 0) } },
       data: { credits: { increment: amount } },
-      select: { credits: true },
     });
+    if (changed.count === 0) return null;
+    const updated = await tx.user.findUniqueOrThrow({ where: { id }, select: { credits: true } });
     const wallet = await tx.creditWallet.upsert({
       where: { userId: id },
-      create: { userId: id, balance: Math.max(amount, 0) },
-      update: { balance: { increment: amount } },
+      create: { userId: id, balance: updated.credits },
+      update: { balance: updated.credits },
     });
     await tx.transaction.create({
       data: {
@@ -81,6 +82,7 @@ export async function adjustCredits(id: string, delta: number, note: string): Pr
     });
     return updated.credits;
   });
+  if (credits === null) return { ok: false, error: "El saldo cambió y ya no alcanza para quitar esa cantidad." };
   done();
   return { ok: true, credits };
 }

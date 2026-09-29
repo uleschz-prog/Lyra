@@ -199,3 +199,41 @@ export async function sendWhatsappText(to: string, text: string) {
 
   return { sent: true as const, mode: "sent" as const };
 }
+
+/** Meta rechaza variables de plantilla con saltos de línea, tabuladores o más de 4 espacios seguidos. */
+function templateParam(value: string, max: number) {
+  const flat = value.replace(/\s*\n+\s*/g, " · ").replace(/\s{2,}/g, " ").trim();
+  return flat.length > max ? `${flat.slice(0, max - 1)}…` : flat;
+}
+
+/**
+ * Envía un aviso de Vega desde el número de LYRA. Con WHATSAPP_REMINDER_TEMPLATE usa esa plantilla aprobada
+ * (dos variables de cuerpo: título y mensaje), que llega aunque el socio no haya escrito en 24 horas.
+ */
+export async function sendWhatsappReminder(to: string, heading: string, text: string) {
+  const template = process.env.WHATSAPP_REMINDER_TEMPLATE?.trim();
+  if (!template) return sendWhatsappText(to, `*${heading}*\n\n${text}`);
+  if (!composioConfigured()) return { sent: false as const, error: "Falta COMPOSIO_API_KEY en el servidor." };
+
+  const account = await activeWhatsappAccountId();
+  if (!account.id) return { sent: false as const, error: account.error ?? "WhatsApp de LYRA no está conectado." };
+  const phoneNumberId = await senderPhoneNumberId(account.id);
+  if (!phoneNumberId) return { sent: false as const, error: "Composio no encontró el número de WhatsApp de LYRA." };
+
+  const sent = await executeTool(account.id, "WHATSAPP_SEND_TEMPLATE_MESSAGE", {
+    phone_number_id: phoneNumberId,
+    to_number: to,
+    template_name: template,
+    language_code: process.env.WHATSAPP_TEMPLATE_LANGUAGE?.trim() || "es_MX",
+    components: [
+      {
+        type: "body",
+        parameters: [
+          { type: "text", text: templateParam(heading, 120) },
+          { type: "text", text: templateParam(text, 900) },
+        ],
+      },
+    ],
+  });
+  return sent.ok ? { sent: true as const } : { sent: false as const, error: sent.error };
+}

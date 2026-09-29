@@ -6,6 +6,7 @@ import { toast } from "sonner";
 
 import { discardCreation, storeCreation } from "@/app/dashboard/creations/actions";
 import { CreationHistory } from "@/components/creations/creation-history";
+import { useCredits } from "@/components/dashboard/credit-provider";
 import { Button } from "@/components/ui/button";
 import type { CreationRecord } from "@/lib/creations";
 import { cn } from "@/lib/utils";
@@ -558,6 +559,7 @@ function SearchPanel() {
   const [results, setResults] = useState<SearchResult[]>([]);
   const [note, setNote] = useState("Exa busca mercado y fuentes en vivo.");
   const [pending, setPending] = useState(false);
+  const { syncBalance } = useCredits();
 
   async function search() {
     setPending(true);
@@ -567,11 +569,13 @@ function SearchPanel() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ query }),
       });
-      const data = (await response.json()) as {
+      const data = (await response.json().catch(() => ({}))) as {
         error?: string;
         message?: string;
         results?: SearchResult[];
+        credits?: number;
       };
+      syncBalance(data.credits, response.ok ? `Búsqueda · ${query.slice(0, 40)}` : undefined);
       if (!response.ok) {
         toast.error(data.error ?? "No se pudo buscar.");
         return;

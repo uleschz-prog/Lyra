@@ -2,6 +2,8 @@ import { NextResponse } from "next/server";
 
 import { geminiCredentials } from "@/lib/ai/generate";
 import { providerError, readJson } from "@/lib/ai/providers";
+import { requireMember } from "@/lib/auth/api";
+import { creditPrices, withCharge } from "@/lib/credits";
 
 export const maxDuration = 60;
 
@@ -95,6 +97,9 @@ function previewAnswer(mode: NotebookMode, question: string, sources: SourceInpu
 }
 
 export async function POST(request: Request) {
+  const guard = await requireMember();
+  if (!guard.ok) return guard.response;
+
   const body = (await request.json().catch(() => null)) as {
     mode?: unknown;
     question?: unknown;
@@ -136,6 +141,24 @@ export async function POST(request: Request) {
     .map((source) => `# ${source.title} (${source.kind})\n${source.text}`)
     .join("\n\n");
 
+  const result = await withCharge(
+    { userId: guard.user.id, amount: creditPrices.notebook, description: `Notebook · ${notebookLabels[notebookMode]}` },
+    () => askGemini(apiKey, model, notebookMode, corpus, question),
+  );
+  if (!result.ok) return NextResponse.json({ error: result.error, credits: result.balance }, { status: result.status });
+
+  return NextResponse.json({ mode: "live", model, text: result.value, credits: result.balance });
+}
+
+const notebookLabels: Record<NotebookMode, string> = {
+  chat: "consulta",
+  summary: "resumen",
+  quiz: "preguntas",
+  slides: "presentación",
+  video: "guion",
+};
+
+async function askGemini(apiKey: string, model: string, notebookMode: NotebookMode, corpus: string, question: string) {
   const response = await fetch(
     `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`,
     {
@@ -162,23 +185,11 @@ export async function POST(request: Request) {
   );
 
   const payload = await readJson(response);
-  if (!response.ok) {
-    return NextResponse.json(
-      { error: providerError(payload, "Gemini no pudo responder.") },
-      { status: 502 },
-    );
-  }
+  if (!response.ok) return { ok: false as const, error: providerError(payload, "Gemini no pudo responder.") };
 
   const text = extractGeminiText(payload);
-  if (!text) {
-    return NextResponse.json({ error: "Gemini devolvió una respuesta vacía." }, { status: 502 });
-  }
-
-  return NextResponse.json({
-    mode: "live",
-    model,
-    text,
-  });
+  if (!text) return { ok: false as const, error: "Gemini devolvió una respuesta vacía." };
+  return { ok: true as const, value: text };
 }
 
 function extractGeminiText(payload: unknown) {

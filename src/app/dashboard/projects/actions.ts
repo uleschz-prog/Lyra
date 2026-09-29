@@ -14,8 +14,12 @@ export async function addProjectRow(projectId: string, tableName: string, values
   const saved = await insertProjectRow(user.id, projectId, tableName.slice(0, 40), values);
   if (!saved.ok) return saved;
 
-  const runs = await runProjectFlows(user.id, projectId, tableName.slice(0, 40), saved.row.values).catch(() => []);
-  return { ...saved, runs };
+  const flows = await runProjectFlows(user.id, projectId, tableName.slice(0, 40), saved.row.values).catch(() => ({
+    runs: [],
+    credits: undefined,
+    error: undefined,
+  }));
+  return { ...saved, runs: flows.runs, credits: flows.credits, flowError: flows.error };
 }
 
 export async function publishProject(projectId: string) {
@@ -43,6 +47,5 @@ export async function askProjectAgent(projectId: string, message: string) {
   const agent = parseAgent(project?.ui);
   if (!agent) return { ok: false as const, error: "El agente todavía no está listo." };
 
-  const output = await executeAgent(agent, text);
-  return { ok: true as const, output };
+  return executeAgent(user.id, agent, text);
 }

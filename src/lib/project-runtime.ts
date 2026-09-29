@@ -1,4 +1,5 @@
 import { generateText } from "@/lib/ai/generate";
+import { chargeCredits, creditPrices, currentCredits, refundCharge } from "@/lib/credits";
 import type { ProjectInterface } from "@/lib/project-ui";
 import { getPrisma } from "@/lib/prisma";
 
@@ -15,8 +16,8 @@ function localRun(name: string, instruction: string, input: string) {
   return `${name} tomó el registro. Siguiente paso: ${step}`.slice(0, 800);
 }
 
-export async function executeAgent(agent: { name: string; instruction: string }, input: string) {
-  const fallback = localRun(agent.name, agent.instruction, input);
+async function runAgent(agent: { name: string; instruction: string }, input: string) {
+  const fallback = { output: localRun(agent.name, agent.instruction, input), live: false };
   try {
     const result = await generateText({
       system: `Eres ${agent.name}, un agente de LYRA que está en ejecución. ${agent.instruction} Responde solo el resultado útil, en español, en un párrafo corto, sin markdown.`,
@@ -25,12 +26,22 @@ export async function executeAgent(agent: { name: string; instruction: string },
     });
     if (result.mode === "live") {
       const output = result.text.trim().replace(/\s+/g, " ").slice(0, 800);
-      if (output) return output;
+      if (output) return { output, live: true };
     }
   } catch {
     return fallback;
   }
   return fallback;
+}
+
+/** Ejecuta un agente cobrando solo cuando la IA respondió. */
+export async function executeAgent(userId: string, agent: { name: string; instruction: string }, input: string) {
+  const charge = await chargeCredits(userId, creditPrices.projectAgent, `Agente ${agent.name}`);
+  if (!charge.ok) return { ok: false as const, error: charge.error, credits: charge.balance };
+  const { output, live } = await runAgent(agent, input);
+  if (live) return { ok: true as const, output, credits: charge.balance };
+  await refundCharge(charge.chargeId, `Reembolso: ${agent.name} respondió sin IA`);
+  return { ok: true as const, output, credits: await currentCredits(userId) };
 }
 
 export async function ensureProjectRuntime(projectId: string, spec: ProjectInterface) {
@@ -98,6 +109,8 @@ export async function runProjectFlows(
     .join("\n")
     .slice(0, 500);
   const runs: ProjectRunView[] = [];
+  let credits: number | undefined;
+  let error: string | undefined;
 
   for (const flow of flows) {
     const agent = await prisma.projectAgent.findFirst({
@@ -105,7 +118,13 @@ export async function runProjectFlows(
       select: { id: true, name: true, instruction: true },
     });
     if (!agent) continue;
-    const output = await executeAgent(agent, input || agent.instruction);
+    const result = await executeAgent(userId, agent, input || agent.instruction);
+    credits = result.credits;
+    if (!result.ok) {
+      error = result.error;
+      break;
+    }
+    const output = result.output;
     const run = await prisma.projectRun.create({
       data: {
         projectId,
@@ -120,5 +139,5 @@ export async function runProjectFlows(
     runs.push(run);
   }
 
-  return runs;
+  return { runs, credits, error };
 }

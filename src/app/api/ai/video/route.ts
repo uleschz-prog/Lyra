@@ -1,5 +1,7 @@
 import { NextResponse } from "next/server";
 
+import { requireMember } from "@/lib/auth/api";
+
 export const maxDuration = 60;
 
 function scenesFromScript(script: string) {
@@ -14,6 +16,9 @@ function scenesFromScript(script: string) {
 }
 
 export async function POST(request: Request) {
+  const guard = await requireMember();
+  if (!guard.ok) return guard.response;
+
   const body = (await request.json().catch(() => null)) as {
     title?: unknown;
     script?: unknown;

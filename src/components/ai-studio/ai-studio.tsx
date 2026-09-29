@@ -18,10 +18,10 @@ import {
 import { useState, useSyncExternalStore } from "react";
 import { toast } from "sonner";
 
+import { runStudioAgent } from "@/app/dashboard/ai-studio/actions";
 import { agentIcons } from "@/components/ai-studio/agent-icons";
 import { useCredits } from "@/components/dashboard/credit-provider";
 import { channels, masterPrompt } from "@/config/constellation";
-import { simulateAgentReply } from "@/lib/agent-reply";
 import { formatCredits } from "@/lib/format";
 import type { ChannelId, DemoAgent } from "@/lib/types";
 import { cn } from "@/lib/utils";
@@ -88,7 +88,7 @@ export function AiStudio({
   const [threads, setThreads] = useState<Record<string, ChatMessage[]>>({});
   const rawLinks = useSyncExternalStore(subscribeLinks, readLinks, () => "{}");
   const links = parseLinks(rawLinks);
-  const { balance, spend } = useCredits();
+  const { balance, syncBalance } = useCredits();
   const selected = agents.find((agent) => agent.id === selectedId) ?? null;
   const activeChannel = selected?.channels.includes(channelId) ? channelId : (selected?.channels[0] ?? "whatsapp");
   const channel = channels.find((item) => item.id === activeChannel) ?? channels[0];
@@ -142,59 +142,27 @@ export function AiStudio({
     setDraft("");
     setPending(true);
 
-    const reply = simulateAgentReply(agent, note, channelName, destination);
-    let content = reply;
+    const result = await runStudioAgent({ agentId: agent.id, note, channel: channelName, destination }).catch(() => ({
+      ok: false as const,
+      error: "No se pudo ejecutar el agente. Intenta de nuevo.",
+      credits: undefined,
+      connectUrl: null,
+    }));
+    syncBalance(result.credits, result.ok ? `${agent.name}: ${note.slice(0, 60)}` : undefined);
 
-    if (channelName === "whatsapp") {
-      if (!destination) {
-        content = `${reply}\n\nVincula el número de WhatsApp para enviarlo.`;
-      } else {
-        const response = await fetch("/api/ai/whatsapp", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ to: destination, text: reply }),
-        });
-        const payload = (await response.json().catch(() => null)) as {
-          error?: string;
-          sent?: boolean;
-          connectUrl?: string | null;
-        } | null;
-        if (payload?.sent) {
-          const charged = spend({
-            agentName: agent.name,
-            creditCost: agent.creditCost,
-            note,
-          });
-          content = charged
-            ? `${reply}\n\nEnviado por WhatsApp a ${destination}.`
-            : `${reply}\n\nWhatsApp lo envió, pero no alcanzó el saldo para descontar créditos.`;
-          toast.success("Mensaje enviado por WhatsApp", { description: destination });
-        } else {
-          content = payload?.connectUrl
-            ? `${reply}\n\nConecta WhatsApp al proyecto Lira y vuelve a ejecutar:\n${payload.connectUrl}`
-            : `${reply}\n\n${payload?.error ?? "WhatsApp no aceptó el envío."}`;
-          toast.error("WhatsApp no envió el mensaje", {
-            description: payload?.connectUrl ? "Abre el enlace del panel para conectar el proyecto Lira." : (payload?.error ?? "Revisa la conexión de Composio."),
-          });
-        }
-      }
-    } else {
-      const charged = spend({
-        agentName: agent.name,
-        creditCost: agent.creditCost,
-        note,
-      });
-      if (!charged) {
-        setPending(false);
-        toast.error("Créditos insuficientes", {
-          description: `${agent.name} requiere ${agent.creditCost} créditos.`,
-        });
-        return;
-      }
-      toast.success("Borrador listo", { description: `${agent.creditCost} créditos · ${agent.star}` });
+    if (!result.ok) {
+      const content = result.connectUrl
+        ? `Conecta WhatsApp al proyecto Lira y vuelve a ejecutar:\n${result.connectUrl}`
+        : result.error;
+      appendMessage(agent.id, { id: crypto.randomUUID(), role: "assistant", content });
+      toast.error("El agente no terminó", { description: result.error });
+      setPending(false);
+      return;
     }
 
-    appendMessage(agent.id, { id: crypto.randomUUID(), role: "assistant", content });
+    if (result.sent) toast.success("Mensaje enviado por WhatsApp", { description: destination });
+    else toast.success("Borrador listo", { description: `${agent.creditCost} créditos · ${agent.star}` });
+    appendMessage(agent.id, { id: crypto.randomUUID(), role: "assistant", content: result.content });
     setPending(false);
   }
 

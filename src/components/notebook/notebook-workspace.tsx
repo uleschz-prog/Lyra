@@ -6,6 +6,7 @@ import { toast } from "sonner";
 
 import { discardCreation, storeCreation } from "@/app/dashboard/creations/actions";
 import { CreationHistory } from "@/components/creations/creation-history";
+import { useCredits } from "@/components/dashboard/credit-provider";
 import { Button } from "@/components/ui/button";
 import type { CreationRecord } from "@/lib/creations";
 import { studioVoices } from "@/lib/ai/voices";
@@ -76,6 +77,7 @@ const kindLabel: Record<SourceKind, string> = {
 };
 
 export function NotebookWorkspace({ initialPieces = [] }: { initialPieces?: CreationRecord[] }) {
+  const { syncBalance } = useCredits();
   const [sources, setSources] = useState<Source[]>(initialSources);
   const [panel, setPanel] = useState<Panel>("chat");
   const [messages, setMessages] = useState<ChatMessage[]>([]);
@@ -147,7 +149,13 @@ export function NotebookWorkspace({ initialPieces = [] }: { initialPieces?: Crea
         sources: sources.map(({ title, kind, text }) => ({ title, kind, text })),
       }),
     });
-    const data = (await response.json()) as { text?: string; error?: string; mode?: string };
+    const data = (await response.json().catch(() => ({}))) as {
+      text?: string;
+      error?: string;
+      mode?: string;
+      credits?: number;
+    };
+    syncBalance(data.credits, response.ok ? "Notebook" : undefined);
     if (!response.ok || !data.text) {
       toast.error(data.error ?? "No se pudo consultar el notebook.");
       return null;
@@ -258,6 +266,7 @@ export function NotebookWorkspace({ initialPieces = [] }: { initialPieces?: Crea
       const contentType = response.headers.get("content-type") ?? "";
 
       if (contentType.includes("audio")) {
+        syncBalance(Number(response.headers.get("x-lyra-credits") ?? Number.NaN), "Voz · narración");
         const blob = await response.blob();
         const nextUrl = URL.createObjectURL(blob);
         setAudioUrl((current) => {
@@ -270,7 +279,13 @@ export function NotebookWorkspace({ initialPieces = [] }: { initialPieces?: Crea
         return;
       }
 
-      const data = (await response.json()) as { error?: string; message?: string; mode?: string };
+      const data = (await response.json().catch(() => ({}))) as {
+        error?: string;
+        message?: string;
+        mode?: string;
+        credits?: number;
+      };
+      syncBalance(data.credits);
       if (!response.ok) {
         toast.error(data.error ?? "No se pudo preparar el audio.");
         return;

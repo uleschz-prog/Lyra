@@ -4,18 +4,12 @@ import { createContext, useCallback, useContext, useMemo, useRef, useState, type
 
 import type { WalletTransaction } from "@/lib/types";
 
-type SpendInput = {
-  agentName: string;
-  creditCost: number;
-  note: string;
-};
-
 type CreditContextValue = {
   balance: number;
   totalEarnedCommissions: number;
   transactions: WalletTransaction[];
-  spend: (input: SpendInput) => boolean;
-  addCredits: (amount: number, description: string) => void;
+  /** Muestra el saldo que devolvió el servidor y, si hubo cobro, lo agrega al historial visible. */
+  syncBalance: (credits: number | undefined, description?: string) => void;
 };
 
 const CreditContext = createContext<CreditContextValue | null>(null);
@@ -33,45 +27,27 @@ export function CreditProvider({
 }) {
   const [balance, setBalance] = useState(initialBalance);
   const [transactions, setTransactions] = useState(initialTransactions);
+
   const balanceRef = useRef(initialBalance);
 
-  const spend = useCallback(
-    (input: SpendInput) => {
-      if (balanceRef.current < input.creditCost) return false;
-
-      balanceRef.current -= input.creditCost;
-      setBalance(balanceRef.current);
+  const syncBalance = useCallback((credits: number | undefined, description?: string) => {
+    if (typeof credits !== "number" || !Number.isFinite(credits)) return;
+    const delta = credits - balanceRef.current;
+    balanceRef.current = credits;
+    setBalance(credits);
+    if (description && delta !== 0) {
       setTransactions((current) => [
         {
           id: crypto.randomUUID(),
-          description: `${input.agentName}: ${input.note}`,
+          description,
           amountUsd: 0,
-          creditDelta: -input.creditCost,
-          kind: "CREDIT_SPEND",
+          creditDelta: delta,
+          kind: delta < 0 ? "CREDIT_SPEND" : "ADJUSTMENT",
           createdAt: new Date().toISOString(),
         },
         ...current,
       ]);
-
-      return true;
-    },
-    [],
-  );
-
-  const addCredits = useCallback((amount: number, description: string) => {
-    balanceRef.current += amount;
-    setBalance(balanceRef.current);
-    setTransactions((current) => [
-      {
-        id: crypto.randomUUID(),
-        description,
-        amountUsd: amount,
-        creditDelta: amount,
-        kind: "CREDIT_PURCHASE",
-        createdAt: new Date().toISOString(),
-      },
-      ...current,
-    ]);
+    }
   }, []);
 
   const value = useMemo(
@@ -79,10 +55,9 @@ export function CreditProvider({
       balance,
       totalEarnedCommissions,
       transactions,
-      spend,
-      addCredits,
+      syncBalance,
     }),
-    [addCredits, balance, spend, totalEarnedCommissions, transactions],
+    [balance, syncBalance, totalEarnedCommissions, transactions],
   );
 
   return <CreditContext.Provider value={value}>{children}</CreditContext.Provider>;

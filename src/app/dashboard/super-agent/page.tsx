@@ -1,8 +1,14 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import { redirect } from "next/navigation";
 
+import { listVegaChats } from "@/app/dashboard/super-agent/actions";
 import { AgentNight } from "@/components/landing/agent-night";
+import { VegaChat } from "@/components/vega/vega-chat";
+import { brand } from "@/config/brand";
 import { getCurrentUser } from "@/lib/auth/profile";
+import { canUseVega } from "@/lib/vega/access";
+import { isUserToolkit } from "@/lib/vega/apps";
 
 export const metadata: Metadata = {
   title: "Super agente",
@@ -15,17 +21,26 @@ const powers = [
   { title: "Coordina", text: "Dirige a tus agentes para que cada cliente reciba seguimiento." },
 ];
 
-export default async function SuperAgentPage() {
+export default async function SuperAgentPage({ searchParams }: { searchParams: Promise<{ conexion?: string }> }) {
   const user = await getCurrentUser();
-  const active = user?.package === "FOUNDER";
+  if (!user) redirect(brand.links.login);
+
+  if (canUseVega(user)) {
+    const [chats, { conexion }] = await Promise.all([listVegaChats(), searchParams]);
+    return (
+      <VegaChat
+        firstName={user.name.split(" ")[0] || user.name}
+        initialChats={chats}
+        justConnected={conexion && isUserToolkit(conexion) ? conexion : null}
+      />
+    );
+  }
 
   return (
     <div className="mx-auto max-w-5xl space-y-8">
       <header className="text-center">
-        <p className="text-[11px] font-medium tracking-[0.22em] text-[#7C3AED] uppercase">
-          {active ? "Activo con Founder" : "Exclusivo Founder"}
-        </p>
-        <h1 className="mt-3 text-3xl font-semibold tracking-tight text-[#1E1E24] sm:text-4xl">Lyra superagente</h1>
+        <p className="text-[11px] font-medium tracking-[0.22em] text-[#7C3AED] uppercase">Exclusivo Founder y Corporate</p>
+        <h1 className="mt-3 text-3xl font-semibold tracking-tight text-[#1E1E24] sm:text-4xl">Vega, tu superagente</h1>
         <p className="mx-auto mt-3 max-w-xl text-sm leading-relaxed text-[#5C5854]">
           Un agente que vende y cobra por ti mientras duermes, al mando de todos tus agentes.
         </p>
@@ -45,15 +60,9 @@ export default async function SuperAgentPage() {
       </section>
 
       <div className="flex justify-center">
-        {active ? (
-          <Link href="/dashboard/ai-studio" className="inline-flex rounded-full bg-[#1E1E24] px-6 py-3 text-sm font-medium text-white">
-            Configurar mis agentes
-          </Link>
-        ) : (
-          <Link href="/dashboard/plan" className="inline-flex rounded-full bg-[#7C3AED] px-6 py-3 text-sm font-medium text-white">
-            Activar con Founder
-          </Link>
-        )}
+        <Link href="/dashboard/plan" className="inline-flex rounded-full bg-[#7C3AED] px-6 py-3 text-sm font-medium text-white">
+          Activar con Founder o Corporate
+        </Link>
       </div>
     </div>
   );
