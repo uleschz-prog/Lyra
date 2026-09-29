@@ -13,6 +13,7 @@ import {
   Plug,
   Square,
   Trash2,
+  User,
   X,
 } from "lucide-react";
 import Link from "next/link";
@@ -32,6 +33,7 @@ import { useCredits } from "@/components/dashboard/credit-provider";
 import { ActionCard } from "@/components/vega/action-card";
 import { ConnectionsPanel } from "@/components/vega/connections-panel";
 import { MemoryPanel } from "@/components/vega/memory-panel";
+import { ProfilePanel } from "@/components/vega/profile-panel";
 import { TasksPanel } from "@/components/vega/tasks-panel";
 import { VegaGreeting, VegaMark } from "@/components/vega/vega-mark";
 import { RichText } from "@/components/vega/rich-text";
@@ -61,7 +63,7 @@ export function VegaChat({
   const [chats, setChats] = useState(initialChats);
   const [activeId, setActiveId] = useState<string | null>(null);
   const [messages, setMessages] = useState<ChatItem[]>([]);
-  const [panel, setPanel] = useState<"connections" | "memory" | "tasks" | null>(justConnected ? "connections" : null);
+  const [panel, setPanel] = useState<"connections" | "memory" | "tasks" | "profile" | null>(justConnected ? "connections" : null);
   const [draft, setDraft] = useState("");
   const [streaming, setStreaming] = useState(false);
   const [mood, setMood] = useState<VegaMood>("neutral");
@@ -257,6 +259,7 @@ export function VegaChat({
 
   const empty = messages.length === 0;
   const panelButtons = [
+    { id: "profile", label: "Perfil", hint: "Tu negocio, metas y tono", icon: User },
     { id: "tasks", label: "Tareas", hint: "Recordatorios y trabajos programados", icon: CalendarClock },
     { id: "memory", label: "Memoria", hint: "Lo que Vega recuerda de ti", icon: Brain },
     { id: "connections", label: "Conexiones", hint: "Correo, agenda y tus apps", icon: Plug },
@@ -425,6 +428,7 @@ export function VegaChat({
         ) : null}
 
         {panel === "connections" ? <ConnectionsPanel onClose={() => setPanel(null)} /> : null}
+        {panel === "profile" ? <ProfilePanel onClose={() => setPanel(null)} /> : null}
         {panel === "memory" ? <MemoryPanel onClose={() => setPanel(null)} /> : null}
         {panel === "tasks" ? <TasksPanel onClose={() => setPanel(null)} /> : null}
 

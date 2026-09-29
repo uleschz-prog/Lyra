@@ -11,6 +11,7 @@ import { canUseVega } from "@/lib/vega/access";
 import { isUserToolkit, noConnections } from "@/lib/vega/apps";
 import type { VegaActionView, VegaSource } from "@/lib/vega/events";
 import { forgetAllMemories, forgetMemory, listMemories, saveMemory, type VegaMemoryView } from "@/lib/vega/memory";
+import { getVegaProfile, saveVegaProfile, type VegaProfile } from "@/lib/vega/profile";
 import { deleteTask, listTasks, setTaskStatus, type VegaTaskView } from "@/lib/vega/tasks";
 import { actionView, decideAction } from "@/lib/vega/decide";
 
@@ -108,6 +109,19 @@ export async function vegaConnections() {
 export async function vegaMemories(): Promise<VegaMemoryView[]> {
   const user = await vegaUser();
   return user ? listMemories(user.id) : [];
+}
+
+export async function vegaProfile(): Promise<VegaProfile> {
+  const user = await vegaUser();
+  if (!user) return { business: null, goals: null, tone: null, markets: null, services: null, hours: null, team: null, notes: null };
+  return getVegaProfile(user.id).catch(() => ({ business: null, goals: null, tone: null, markets: null, services: null, hours: null, team: null, notes: null }));
+}
+
+export async function updateVegaProfile(input: Partial<VegaProfile>): Promise<{ ok: boolean; error?: string }> {
+  const user = await vegaUser();
+  if (!user) return { ok: false, error: "Vega está incluida en Founder, Corporate y Vega Partner." };
+  const saved = await saveVegaProfile(user.id, input);
+  return saved.ok ? { ok: true } : { ok: false, error: saved.error };
 }
 
 export async function addVegaMemory(content: string) {
