@@ -22,6 +22,7 @@ enum PackageType {
   VEGA
   POLARIS
   LYRA_MASTER
+  VEGA_PARTNER
 }
 
 enum Rank {
@@ -98,9 +99,27 @@ model User {
   vegaWhatsapp       String?
   activationCodes    ActivationCode[]    @relation("ActivationOwner")
   activation         ActivationCode?     @relation("ActivationUsedBy")
+  vegaProfile        UserProfile?
 
   @@index([sponsorId])
   @@index([rank])
+}
+
+/// Perfil estructurado del socio; Vega lo carga siempre como contexto.
+model UserProfile {
+  id             String   @id @default(cuid())
+  userId         String   @unique
+  business       String?  @db.Text // Qué vende o hace el socio.
+  goals          String?  @db.Text // Metas de ventas, red o negocio.
+  tone           String?  @db.Text // Tono preferido en los mensajes.
+  markets        String?  @db.Text // Mercados o nichos.
+  services       String?  @db.Text // Productos o servicios.
+  hours          String?  @db.Text // Horarios y disponibilidad.
+  team           String?  @db.Text // Personas clave.
+  notes          String?  @db.Text // Contexto adicional.
+  updatedAt      DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
 
 /// Código prepagado con créditos de activación. La cuenta que lo usa no genera puntos.

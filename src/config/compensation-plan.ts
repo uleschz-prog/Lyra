@@ -68,6 +68,21 @@ export const signupPlans = [
     activationCredits: 5000,
     levels: 6,
   },
+  {
+    id: "VEGA_PARTNER",
+    label: "Vega Partner",
+    subtitle: "Superagente Vega y tu red por $50 al mes",
+    points: [
+      "150 créditos de entrada",
+      "Chispa de 10% y Órbita de 2 niveles",
+      "Superagente Vega, Telegram y academia",
+      "Recarga mínima de $50 al mes siguiente",
+    ],
+    price: 50,
+    rebuy: 50,
+    credits: 150,
+    levels: 2,
+  },
 ] as const;
 
 export type SignupPlanId = (typeof signupPlans)[number]["id"];
@@ -196,7 +211,7 @@ const bonusProfiles: Record<"STARTED" | "PRO" | "FOUNDER" | "CORPORATE", BonusPr
 
 export function bonusProfile(packageId: string | null | undefined): BonusProfile | null {
   if (!packageId || packageId === "NONE") return null;
-  if (packageId === "STARTED" || packageId === "FREE" || packageId === "VEGA" || packageId === "POLARIS") return bonusProfiles.STARTED;
+  if (packageId === "STARTED" || packageId === "FREE" || packageId === "VEGA" || packageId === "POLARIS" || packageId === "VEGA_PARTNER") return bonusProfiles.STARTED;
   if (packageId === "PRO" || packageId === "LYRA_MASTER") return bonusProfiles.PRO;
   if (packageId === "FOUNDER" || packageId === "CORPORATE") return bonusProfiles[packageId];
   return null;
@@ -222,6 +237,7 @@ export function creditRechargeUsd(packageId: string | null | undefined) {
   if (packageId === "CORPORATE") return 100;
   if (packageId === "PRO" || packageId === "FOUNDER") return 50;
   if (packageId === "LYRA_MASTER") return 100;
+  if (packageId === "VEGA_PARTNER") return 50;
   if (packageId === "STARTED" || packageId === "POLARIS" || packageId === "VEGA" || packageId === "FREE") return 25;
   return null;
 }

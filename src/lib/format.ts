@@ -28,6 +28,7 @@ export const packageLabel: Record<PackageType, string> = {
   VEGA: "Free",
   POLARIS: "Started",
   LYRA_MASTER: "Pro",
+  VEGA_PARTNER: "Vega Partner",
 };
 
 export function canAccess(userRank: Rank, required: Rank) {

@@ -4,6 +4,7 @@ import { appToolNames, appTools, executeAppAction, runAppTool, type AppDraft } f
 import type { VegaConnections } from "@/lib/vega/apps";
 import type { FunctionDeclaration } from "@/lib/vega/gemini-stream";
 import { forgetMemory, MEMORY_MAX_LENGTH, saveMemory } from "@/lib/vega/memory";
+import { profileFields, saveVegaProfile } from "@/lib/vega/profile";
 import {
   createTask,
   DAILY_HOUR,
@@ -38,7 +39,7 @@ const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const localDateTime = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(:\d{2})?$/;
 
 /** Herramientas que no cobran el extra de créditos. */
-export const freeTools = new Set(["recordar", "olvidar", "programar_tarea", "ver_tareas", "cancelar_tarea", "preparar_whatsapp", "no_molestar_whatsapp"]);
+export const freeTools = new Set(["recordar", "olvidar", "programar_tarea", "ver_tareas", "cancelar_tarea", "preparar_whatsapp", "no_molestar_whatsapp", "actualizar_perfil"]);
 const taskTools: FunctionDeclaration[] = [
   {
     name: "programar_tarea",
@@ -92,6 +93,24 @@ export function vegaTools(connections: VegaConnections, webSearch: boolean): Fun
         type: "object",
         properties: { id: { type: "string", description: "El id entre corchetes del dato recordado." } },
         required: ["id"],
+      },
+    },
+    {
+      name: "actualizar_perfil",
+      description:
+        "Actualiza el perfil estructurado del socio: su negocio, metas, tono preferido, mercados, servicios, horarios, personas clave o notas. Úsalo cuando el socio cuente o cambie alguno de estos datos. Solo envía el campo que cambia; lo que no mandes se conserva.",
+      parameters: {
+        type: "object",
+        properties: {
+          negocio: { type: "string", description: "Qué vende o hace el socio." },
+          metas: { type: "string", description: "Metas de ventas, red o negocio." },
+          tono: { type: "string", description: "Tono preferido en los mensajes." },
+          mercados: { type: "string", description: "Mercados o nichos." },
+          servicios: { type: "string", description: "Productos o servicios." },
+          horarios: { type: "string", description: "Horarios y disponibilidad." },
+          equipo: { type: "string", description: "Personas clave." },
+          notas: { type: "string", description: "Contexto adicional." },
+        },
       },
     },
     ...taskTools,
@@ -248,6 +267,21 @@ export async function runVegaTool(userId: string, name: string, args: Record<str
     const removed = id ? await forgetMemory(userId, id) : false;
     if (!removed) return { kind: "invalid", response: { error: "No encontré ese dato en la memoria." } };
     return { kind: "result", status: "Borré un dato de la memoria", response: { borrado: true } };
+  }
+
+  if (name === "actualizar_perfil") {
+    const saved = await saveVegaProfile(userId, {
+      ...(args.negocio !== undefined ? { business: text(args.negocio, 2000) } : {}),
+      ...(args.metas !== undefined ? { goals: text(args.metas, 2000) } : {}),
+      ...(args.tono !== undefined ? { tone: text(args.tono, 2000) } : {}),
+      ...(args.mercados !== undefined ? { markets: text(args.mercados, 2000) } : {}),
+      ...(args.servicios !== undefined ? { services: text(args.servicios, 2000) } : {}),
+      ...(args.horarios !== undefined ? { hours: text(args.horarios, 2000) } : {}),
+      ...(args.equipo !== undefined ? { team: text(args.equipo, 2000) } : {}),
+      ...(args.notas !== undefined ? { notes: text(args.notas, 2000) } : {}),
+    });
+    if (!saved.ok) return { kind: "invalid", response: { error: saved.error } };
+    return { kind: "result", status: "Actualicé el perfil del socio", response: { perfil: saved.profile } };
   }
 
   if (name === "programar_tarea") {

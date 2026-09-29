@@ -11,6 +11,7 @@ import { noConnections } from "@/lib/vega/apps";
 import type { VegaEvent, VegaMood } from "@/lib/vega/events";
 import { openGeminiStream, type FunctionDeclaration, type GeminiContent, type GeminiPart } from "@/lib/vega/gemini-stream";
 import { listMemories } from "@/lib/vega/memory";
+import { getVegaProfile } from "@/lib/vega/profile";
 import { conversationTitle, vegaSystemPrompt } from "@/lib/vega/prompt";
 import { freeTools, runVegaTool, vegaTools } from "@/lib/vega/tools";
 
@@ -52,6 +53,7 @@ export function statusLabel(name: string) {
   if (name === "cancelar_tarea") return "Cancelando la tarea…";
   if (name === "recordar") return "Guardando en memoria…";
   if (name === "olvidar") return "Borrando de la memoria…";
+  if (name === "actualizar_perfil") return "Actualizando tu perfil…";
   if (name === "buscar_web") return "Buscando en la web…";
   if (name === "leer_correos") return "Revisando tu Gmail…";
   if (name === "ver_agenda") return "Revisando tu agenda…";
@@ -110,7 +112,17 @@ export async function prepareVegaTurn(
   const webSearch = Boolean(process.env.EXA_API_KEY);
   const tools = vegaTools(connections, webSearch);
   const memories = await listMemories(user.id).catch(() => []);
-  const system = [vegaSystemPrompt(user, connections, webSearch, memories), input.channelNote].filter(Boolean).join("\n");
+  const profile = await getVegaProfile(user.id).catch(() => ({
+    business: null,
+    goals: null,
+    tone: null,
+    markets: null,
+    services: null,
+    hours: null,
+    team: null,
+    notes: null,
+  }));
+  const system = [vegaSystemPrompt(user, connections, webSearch, memories, profile), input.channelNote].filter(Boolean).join("\n");
 
   const first = await openGeminiStream(system, contents, tools);
   if (!first.ok) {

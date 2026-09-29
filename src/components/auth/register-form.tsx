@@ -20,6 +20,7 @@ function planFromIdea(idea: string): SignupPlanId | null {
   const text = idea.toLowerCase();
   if (/founder|1000/.test(text)) return "FOUNDER";
   if (/\bpro\b|499/.test(text)) return "PRO";
+  if (/vega\s*partner|partner|\b50\b/.test(text)) return "VEGA_PARTNER";
   if (/started|\b99\b/.test(text)) return "STARTED";
   return null;
 }

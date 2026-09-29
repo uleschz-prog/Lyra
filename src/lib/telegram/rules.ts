@@ -1,6 +1,6 @@
 import type { AuthProfile } from "@/lib/types";
 
-export const telegramPlans = ["PRO", "FOUNDER", "CORPORATE"] as const;
+export const telegramPlans = ["PRO", "FOUNDER", "CORPORATE", "VEGA_PARTNER"] as const;
 
 export function canUseTelegram(user: Pick<AuthProfile, "role" | "package"> | null) {
   if (!user) return false;

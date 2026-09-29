@@ -1,5 +1,5 @@
 export type Role = "ADMIN" | "MEMBER";
-export type PackageType = "NONE" | "FREE" | "STARTED" | "PRO" | "FOUNDER" | "CORPORATE" | "VEGA" | "POLARIS" | "LYRA_MASTER";
+export type PackageType = "NONE" | "FREE" | "STARTED" | "PRO" | "FOUNDER" | "CORPORATE" | "VEGA" | "POLARIS" | "LYRA_MASTER" | "VEGA_PARTNER";
 export type Rank = "ASTRA" | "NOVA" | "ALPHA" | "PULSAR" | "VEGA" | "CONSTELLATION";
 
 export type AuthProfile = {

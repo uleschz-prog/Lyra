@@ -23,6 +23,7 @@ const planVoice = {
   PRO: "Todo lo de Started, con agentes autónomos.",
   FOUNDER: "Dueño de la red, con Lyra superagente.",
   CORPORATE: "El doble de créditos y 5,000 para activar a tu equipo.",
+  VEGA_PARTNER: "Superagente Vega, Telegram y tu red por $50 al mes.",
 } as const;
 
 const percent = (value: number) => `${Math.round(value * 100)}%`;

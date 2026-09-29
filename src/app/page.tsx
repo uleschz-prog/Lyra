@@ -37,6 +37,7 @@ const planIdeas = {
   PRO: "Quiero el plan Pro de 499",
   FOUNDER: "Quiero el plan Founder de 1000",
   CORPORATE: "Quiero el plan Corporate de 5000",
+  VEGA_PARTNER: "Quiero el plan Vega Partner de 50",
 } as const;
 
 export default function HomePage() {
