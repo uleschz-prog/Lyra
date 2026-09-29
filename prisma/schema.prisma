@@ -101,6 +101,7 @@ model User {
   activation         ActivationCode?     @relation("ActivationUsedBy")
   vegaProfile        UserProfile?
   vegaAutonomy       VegaAutonomy?
+  whatsappConnection WhatsappConnection?
 
   @@index([sponsorId])
   @@index([rank])
@@ -136,6 +137,70 @@ model VegaAutonomy {
   updatedAt  DateTime @updatedAt
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+/// WhatsApp Business (Meta Cloud API) del socio: un número por cuenta.
+model WhatsappConnection {
+  id            String    @id @default(cuid())
+  userId        String    @unique
+  phoneNumberId String    @unique
+  instructions  String    @default("") @db.Text
+  ownerPhone    String?   @unique
+  status        String    @default("active")
+  automation    Boolean   @default(true)
+  lastError     String?
+  lastWebhookAt DateTime?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  user     User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  chats    WhatsappChat[]
+  messages WhatsappMessage[]
+}
+
+/// Estado de un contacto que escribe al WhatsApp Business del socio.
+model WhatsappChat {
+  id                  String    @id @default(cuid())
+  userId              String
+  connectionId        String
+  phone               String
+  name                String?
+  stage               String    @default("nuevo")
+  intent              String?
+  notes               String?   @db.Text
+  automation          String    @default("active")
+  autoSent            Int       @default(0)
+  lastPendingActionId String?
+  lastInboundAt       DateTime?
+  optedOutAt          DateTime?
+  createdAt           DateTime  @default(now())
+  updatedAt           DateTime  @updatedAt
+
+  connection WhatsappConnection @relation(fields: [connectionId], references: [id], onDelete: Cascade)
+  messages   WhatsappMessage[]
+
+  @@unique([connectionId, phone])
+  @@index([userId, updatedAt])
+}
+
+/// Bitácora de mensajes de WhatsApp; waMessageId evita reprocesar duplicados.
+model WhatsappMessage {
+  id           String   @id @default(cuid())
+  userId       String
+  connectionId String
+  chatRowId    String?
+  waMessageId  String?  @unique
+  direction    String
+  senderType   String
+  text         String   @db.Text
+  status       String   @default("received")
+  error        String?
+  createdAt    DateTime @default(now())
+
+  connection WhatsappConnection @relation(fields: [connectionId], references: [id], onDelete: Cascade)
+  chat       WhatsappChat?      @relation(fields: [chatRowId], references: [id], onDelete: Cascade)
+
+  @@index([chatRowId, createdAt])
 }
 
 /// Código prepagado con créditos de activación. La cuenta que lo usa no genera puntos.
