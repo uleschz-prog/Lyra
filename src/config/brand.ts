@@ -30,6 +30,7 @@ export const brand = {
     dashboard: "/dashboard",
     network: "/dashboard/network",
     plan: "/dashboard/plan",
+    upgrade: "/dashboard/upgrade",
     academy: "/dashboard/academy",
     aiStudio: "/dashboard/ai-studio",
     notebook: "/dashboard/notebook",

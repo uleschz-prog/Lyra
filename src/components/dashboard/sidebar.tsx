@@ -119,13 +119,13 @@ export function Sidebar({ user, onClose }: { user: AuthProfile; onClose?: () => 
           </Link>
         ) : null}
         <Link
-          href={brand.links.plan}
+          href={brand.links.upgrade}
           onClick={onClose}
           className="flex items-center gap-3 rounded-2xl border border-[#E7E2DA] px-3 py-3 transition-colors hover:border-[#C4B5FD] dark:border-white/12 dark:hover:border-[#A78BFA]"
         >
           <span className="min-w-0 flex-1">
             <span className="block text-sm font-medium text-[#1E1E24] dark:text-[#F2F0F7]">Mejorar tu plan</span>
-            <span className="mt-0.5 block text-xs text-[#8A8680] dark:text-[#9B96AC]">Más créditos en Pro</span>
+            <span className="mt-0.5 block text-xs text-[#8A8680] dark:text-[#9B96AC]">Sube de nivel pagando la diferencia</span>
           </span>
           <Gift className="h-4 w-4 shrink-0 text-[#7C3AED]" aria-hidden />
         </Link>

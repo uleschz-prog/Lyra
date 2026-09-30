@@ -4,6 +4,7 @@ import {
   Aperture,
   Briefcase,
   CalendarDays,
+  ChevronDown,
   Globe,
   Mail,
   MessageCircle,
@@ -19,7 +20,7 @@ import { useState, useSyncExternalStore } from "react";
 import { toast } from "sonner";
 
 import { runStudioAgent } from "@/app/dashboard/ai-studio/actions";
-import { agentIcons } from "@/components/ai-studio/agent-icons";
+import { agentArtFor, agentIcons } from "@/components/ai-studio/agent-icons";
 import { useCredits } from "@/components/dashboard/credit-provider";
 import { channels, masterPrompt } from "@/config/constellation";
 import { formatCredits } from "@/lib/format";
@@ -84,6 +85,7 @@ export function AiStudio({
   const [draft, setDraft] = useState("");
   const [handleDraft, setHandleDraft] = useState("");
   const [promptOpen, setPromptOpen] = useState(false);
+  const [railOpen, setRailOpen] = useState(true);
   const [pending, setPending] = useState(false);
   const [threads, setThreads] = useState<Record<string, ChatMessage[]>>({});
   const rawLinks = useSyncExternalStore(subscribeLinks, readLinks, () => "{}");
@@ -204,48 +206,82 @@ export function AiStudio({
 
       <div className="grid gap-4 lg:grid-cols-[minmax(0,280px)_minmax(0,1fr)] xl:grid-cols-[340px_minmax(0,1fr)]">
         <div className={cn("space-y-2", selected && "hidden lg:block")}>
-          {agents.map((agent) => {
-            const Icon = agentIcons[agent.id] ?? Star;
-            const active = agent.id === selectedId;
-            return (
-              <button
-                key={agent.id}
-                type="button"
-                onClick={() => selectAgent(agent.id)}
-                className={cn(
-                  "relative w-full overflow-hidden rounded-xl border bg-surface/80 p-4 text-left backdrop-blur-md transition-colors",
-                  active
-                    ? "border-accent-purple"
-                    : "border-border hover:border-[#C9C3BA]",
-                )}
-              >
-                <span className="flex items-start gap-3">
-                  <span className="grid h-9 w-9 shrink-0 place-items-center rounded-lg border border-border bg-[#F4F1EC] text-accent-purple">
-                    <Icon className="h-4 w-4" aria-hidden />
+          <button
+            type="button"
+            onClick={() => setRailOpen((open) => !open)}
+            aria-expanded={railOpen}
+            className="flex w-full items-center justify-between rounded-xl border border-border bg-surface/80 px-4 py-3 text-left backdrop-blur-md transition-colors hover:border-[#C9C3BA]"
+          >
+            <span className="inline-flex items-center gap-2 text-[10px] tracking-[0.16em] text-[#8A8680] uppercase">
+              <Sparkles className="h-3.5 w-3.5 text-accent-purple" aria-hidden />
+              Constelación · {agents.length} agentes
+            </span>
+            <ChevronDown
+              className={cn("h-4 w-4 text-[#8A8680] transition-transform", railOpen && "rotate-180")}
+              aria-hidden
+            />
+          </button>
+
+          <div
+            className={cn(
+              "space-y-2 overflow-hidden transition-all duration-300",
+              railOpen ? "max-h-[2000px] opacity-100" : "pointer-events-none max-h-0 opacity-0",
+            )}
+          >
+            {agents.map((agent) => {
+              const Icon = agentIcons[agent.id] ?? Star;
+              const art = agentArtFor(agent.id);
+              const active = agent.id === selectedId;
+              return (
+                <button
+                  key={agent.id}
+                  type="button"
+                  onClick={() => selectAgent(agent.id)}
+                  className={cn(
+                    "relative w-full overflow-hidden rounded-xl border bg-surface/80 text-left backdrop-blur-md transition-all",
+                    active
+                      ? "border-accent-purple shadow-[0_14px_34px_-20px_rgba(124,58,237,0.7)]"
+                      : "border-border hover:border-[#C9C3BA]",
+                  )}
+                >
+                  {/* Cabecera de imagen alusiva al bot */}
+                  <span className={cn("relative flex h-16 w-full items-center justify-center bg-gradient-to-br", art.gradient)}>
+                    <span className="absolute inset-0 bg-[radial-gradient(circle_at_30%_20%,rgba(255,255,255,0.35),transparent_60%)]" />
+                    <span className="absolute left-3 top-3 grid h-8 w-8 place-items-center rounded-lg bg-white/20 text-white backdrop-blur-sm">
+                      <Icon className="h-4 w-4" aria-hidden />
+                    </span>
+                    <span className="relative text-3xl drop-shadow-sm" aria-hidden>
+                      {art.glyph}
+                    </span>
+                    {active ? (
+                      <span className="absolute right-3 top-3 inline-flex items-center gap-1 rounded-full bg-white/25 px-2 py-0.5 text-[10px] font-medium text-white backdrop-blur-sm">
+                        <span className="h-1.5 w-1.5 rounded-full bg-white" /> Activo
+                      </span>
+                    ) : null}
                   </span>
-                  <span className="min-w-0">
+
+                  <span className="block p-4">
                     <span className="inline-flex items-center gap-2 font-semibold tracking-tight text-[#1E1E24]">
-                      {active ? <span className="h-1.5 w-1.5 rounded-full bg-[#10B981]" /> : null}
                       {agent.name}
                     </span>
-                    <span className="mt-0.5 block text-[10px] tracking-[0.16em] text-[#7C3AED] uppercase">
+                    <span className="mt-0.5 block text-[10px] tracking-[0.16em] uppercase" style={{ color: art.accent }}>
                       {agent.star}
                     </span>
                     <span className="mt-1 block text-xs leading-relaxed text-[#5C5854]">{agent.description}</span>
+                    <span className="mt-3 flex items-center justify-between">
+                      <span className="rounded-full border border-border bg-[#F4F1EC] px-2.5 py-0.5 text-[10px] tracking-[0.12em] text-[#5C5854] uppercase">
+                        {agent.category}
+                      </span>
+                      <span className="inline-flex items-center gap-1 text-xs text-[#7C3AED]">
+                        <Sparkles className="h-3.5 w-3.5" aria-hidden />
+                        {agent.creditCost}
+                      </span>
+                    </span>
                   </span>
-                </span>
-                <span className="mt-3 flex items-center justify-between pl-1">
-                  <span className="rounded-full border border-border bg-[#F4F1EC] px-2.5 py-0.5 text-[10px] tracking-[0.12em] text-[#5C5854] uppercase">
-                    {agent.category}
-                  </span>
-                  <span className="inline-flex items-center gap-1 text-xs text-[#7C3AED]">
-                    <Sparkles className="h-3.5 w-3.5" aria-hidden />
-                    {agent.creditCost}
-                  </span>
-                </span>
-              </button>
-            );
-          })}
+                </button>
+              );
+            })}
+          </div>
         </div>
 
         <section
@@ -264,8 +300,23 @@ export function AiStudio({
                 >
                   Ver la constelación
                 </button>
+                <div className="relative mb-4 flex items-center gap-4 overflow-hidden rounded-2xl border border-border">
+                  <span className={cn("absolute inset-0 bg-gradient-to-br", agentArtFor(selected.id).gradient)} />
+                  <span className="absolute inset-0 bg-[radial-gradient(circle_at_25%_10%,rgba(255,255,255,0.35),transparent_60%)]" />
+                  <span className="relative grid h-full shrink-0 place-items-center px-5 py-4 text-4xl" aria-hidden>
+                    {agentArtFor(selected.id).glyph}
+                  </span>
+                  <span className="relative min-w-0 flex-1 py-4 pr-4">
+                    <span className="block text-[10px] tracking-[0.18em] text-white/80 uppercase">
+                      Consola de ejecución
+                    </span>
+                    <span className="mt-1 block truncate text-xl font-semibold tracking-tight text-white sm:text-2xl">
+                      {selected.name}
+                    </span>
+                  </span>
+                </div>
                 <p className="text-[10px] tracking-[0.18em] text-[#8A8680] uppercase">
-                  Consola de ejecución
+                  Estado del agente
                 </p>
                 <div className="mt-3 flex flex-wrap items-start justify-between gap-3">
                   <div>
