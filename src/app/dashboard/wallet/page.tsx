@@ -5,6 +5,7 @@ import { redirect } from "next/navigation";
 import { PageHeader } from "@/components/dashboard/page-header";
 import { ActivationCodes } from "@/components/wallet/activation-codes";
 import { CreditRecharge } from "@/components/wallet/credit-recharge";
+import { UsdtWallet } from "@/components/wallet/usdt-wallet";
 import { WalletPanel } from "@/components/wallet/wallet-panel";
 import { brand } from "@/config/brand";
 import { creditRechargeUsd, isFounderPackage, rebuyStatus } from "@/config/compensation-plan";
@@ -109,6 +110,7 @@ export default async function WalletPage({
           remaining={status.remaining}
           quotes={quotes}
         />
+        <UsdtWallet address={user.usdtTrc20} />
         <WalletPanel />
       </div>
     </>

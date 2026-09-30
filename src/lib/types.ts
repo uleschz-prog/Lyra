@@ -22,6 +22,7 @@ export type AuthProfile = {
   activationCredits: number;
   pendingPackage: string | null;
   avatar: string | null;
+  usdtTrc20: string | null;
 };
 export type TransactionKind =
   | "COMMISSION"

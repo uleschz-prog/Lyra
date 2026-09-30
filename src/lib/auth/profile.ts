@@ -22,6 +22,7 @@ const profileSelect = {
   activationCredits: true,
   alphaFastTrackUntil: true,
   avatar: true,
+  usdtTrc20: true,
 } as const;
 
 export async function getCurrentUser(): Promise<AuthProfile | null> {

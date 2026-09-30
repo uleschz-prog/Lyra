@@ -17,6 +17,24 @@ import { createMercadoPagoCheckout, mercadoPagoReady, type MpPurpose } from "@/l
 import { signupCheckout } from "@/lib/payments/signup";
 import { getPrisma } from "@/lib/prisma";
 
+const USDT_TRC20_RE = /^T[1-9A-HJ-NP-Za-km-z]{33}$/;
+
+export async function saveUsdtWallet(
+  address: string,
+): Promise<{ ok: true; usdtTrc20: string | null } | { ok: false; error: string }> {
+  const user = await getCurrentUser();
+  if (!user) return { ok: false, error: "Inicia sesión para guardar tu wallet." };
+
+  const value = address.trim();
+  if (value && !USDT_TRC20_RE.test(value)) {
+    return { ok: false, error: "La dirección USDT TRC20 debe empezar con T y tener 34 caracteres." };
+  }
+
+  await getPrisma().user.update({ where: { id: user.id }, data: { usdtTrc20: value || null } });
+  revalidatePath("/dashboard/wallet");
+  return { ok: true, usdtTrc20: value || null };
+}
+
 export async function startCheckout(purpose: MpPurpose) {
   const user = await getCurrentUser();
   if (!user) return { ok: false as const, error: "Inicia sesión para pagar." };
