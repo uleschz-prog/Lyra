@@ -40,6 +40,7 @@ enum TransactionKind {
   CREDIT_SPEND
   ADJUSTMENT
   REBUY
+  PAYOUT
 }
 
 /// Cierre de la red: cada fila une a un afiliado con un ancestro y la distancia entre ambos.
@@ -97,6 +98,7 @@ model User {
   vegaWhatsappBlocks VegaWhatsappBlock[]
   telegramConnection TelegramConnection?
   vegaWhatsapp       String?
+  usdtTrc20          String?
   activationCodes    ActivationCode[]    @relation("ActivationOwner")
   activation         ActivationCode?     @relation("ActivationUsedBy")
   vegaProfile        UserProfile?

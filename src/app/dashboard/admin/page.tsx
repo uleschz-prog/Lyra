@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 
 import { AdminUsers, type AdminUserRow } from "@/components/admin/admin-users";
+import { SettleCommissions } from "@/components/admin/settle-commissions";
 import { PageHeader } from "@/components/dashboard/page-header";
 import { CloseMonth } from "@/components/plan/close-month";
 import { getCurrentUser } from "@/lib/auth/profile";
@@ -29,6 +30,7 @@ export default async function AdminPage() {
       credits: true,
       activationCredits: true,
       walletBalance: true,
+      usdtTrc20: true,
       createdAt: true,
       suspendedUntil: true,
       sponsor: { select: { name: true } },
@@ -47,6 +49,7 @@ export default async function AdminPage() {
     credits: user.credits,
     activationCredits: user.activationCredits,
     walletBalance: user.walletBalance,
+    usdtTrc20: user.usdtTrc20,
     sponsorName: user.sponsor?.name ?? null,
     referrals: user._count.referrals,
     createdAt: user.createdAt.toISOString(),
@@ -58,9 +61,12 @@ export default async function AdminPage() {
       <PageHeader
         eyebrow="Administración"
         title="Panel admin"
-        description="Cierra el mes, valida inscripciones, ajusta créditos, edita datos de acceso, suspende o borra cuentas y descarga el respaldo de socios."
+        description="Cierra el mes, valida inscripciones, ajusta créditos, cambia paquetes, administra wallets USDT, corta comisiones, edita datos de acceso, suspende o borra cuentas y descarga el respaldo de socios."
       />
       <CloseMonth />
+      <div className="mt-5">
+        <SettleCommissions />
+      </div>
       <div className="mt-8">
         <AdminUsers users={rows} />
       </div>

@@ -1,19 +1,33 @@
 "use client";
 
-import { Copy, Download, KeyRound, Search, ShieldCheck, Trash2, UserCheck, UserX } from "lucide-react";
+import { Copy, Download, KeyRound, Search, ShieldCheck, Trash2, UserCheck, UserX, Wallet } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useMemo, useState, useTransition } from "react";
 import { toast } from "sonner";
 
 import {
   adjustCredits,
+  changePackage,
   deleteAccount,
+  getCommissionHistory,
   resetPassword,
+  setUsdtWallet,
+  settleCommissions,
   suspendAccount,
   updateProfile,
   validateRegistration,
 } from "@/app/dashboard/admin/actions";
+import { isSignupPlanId } from "@/config/compensation-plan";
 import { formatCredits, formatUsd } from "@/lib/format";
+import { cn } from "@/lib/utils";
+
+export type CommissionRow = {
+  id: string;
+  kind: string;
+  description: string;
+  amount: number;
+  createdAt: string;
+};
 
 export type AdminUserRow = {
   id: string;
@@ -26,6 +40,7 @@ export type AdminUserRow = {
   credits: number;
   activationCredits: number;
   walletBalance: number;
+  usdtTrc20: string | null;
   sponsorName: string | null;
   referrals: number;
   createdAt: string;
@@ -41,6 +56,8 @@ const filters: { id: Filter; label: string }[] = [
 ];
 
 const planLabel = (id: string | null) => (id ? id.charAt(0) + id.slice(1).toLowerCase() : "Sin plan");
+
+const packageOptions = ["STARTED", "PRO", "FOUNDER", "CORPORATE", "VEGA_PARTNER"] as const;
 
 const shortDate = (iso: string) =>
   new Date(iso).toLocaleDateString("es-MX", { day: "numeric", month: "short", year: "numeric" });
@@ -172,6 +189,10 @@ function UserEditor({ user, onClose }: { user: AdminUserRow; onClose: () => void
   const [password, setPassword] = useState("");
   const [shownPassword, setShownPassword] = useState<string | null>(null);
   const [days, setDays] = useState("7");
+  const [packageId, setPackageId] = useState(user.packageId ?? "STARTED");
+  const [usdt, setUsdt] = useState(user.usdtTrc20 ?? "");
+  const [commissionHistory, setCommissionHistory] = useState<CommissionRow[] | null>(null);
+  const [loadingHistory, setLoadingHistory] = useState(false);
 
   function run<T extends { ok: boolean }>(action: () => Promise<T>, success: string, after?: (result: T) => void) {
     startTransition(async () => {
@@ -209,6 +230,23 @@ function UserEditor({ user, onClose }: { user: AdminUserRow; onClose: () => void
     run(() => suspendAccount(user.id, value), "Cuenta suspendida");
   }
 
+  function loadHistory() {
+    if (commissionHistory) {
+      setCommissionHistory(null);
+      return;
+    }
+    setLoadingHistory(true);
+    startTransition(async () => {
+      const result = await getCommissionHistory(user.id);
+      setLoadingHistory(false);
+      if (!result.ok) {
+        toast.error((result as unknown as { error: string }).error);
+        return;
+      }
+      setCommissionHistory(result.rows);
+    });
+  }
+
   function remove() {
     const typed = window.prompt(
       `Para borrar a ${user.name} de forma definitiva escribe su usuario: ${user.username}\nSu equipo pasa a su patrocinador.`,
@@ -233,8 +271,48 @@ function UserEditor({ user, onClose }: { user: AdminUserRow; onClose: () => void
         <span>Alta: {shortDate(user.createdAt)}</span>
         <span>Patrocinador: {user.sponsorName ?? "—"}</span>
         <span>Directos: {user.referrals}</span>
-        <span>Comisiones: {formatUsd(user.walletBalance)}</span>
+        <span>Comisiones acumuladas: {formatUsd(user.walletBalance)}</span>
+        <span>Wallet USDT: {user.usdtTrc20 ?? "—"}</span>
         <span>Créditos de activación: {formatCredits(user.activationCredits)}</span>
+      </div>
+
+      <div className={panel}>
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <p className={title}>Registro de comisiones</p>
+            <p className="mt-1 text-xs text-[#5C5854]">Comisiones ganadas y cortes entregados a este socio.</p>
+          </div>
+          <button
+            type="button"
+            disabled={loadingHistory}
+            onClick={loadHistory}
+            className={`${secondary} inline-flex items-center gap-2`}
+          >
+            {loadingHistory ? "Cargando…" : commissionHistory ? "Ocultar" : "Ver registro"}
+          </button>
+        </div>
+        {commissionHistory ? (
+          commissionHistory.length === 0 ? (
+            <p className="mt-4 text-sm text-[#8A8680]">Sin comisiones registradas todavía.</p>
+          ) : (
+            <ul className="mt-4 max-h-72 space-y-2 overflow-y-auto pr-1">
+              {commissionHistory.map((row) => (
+                <li key={row.id} className="flex items-start justify-between gap-3 rounded-lg border border-[#F0ECE6] bg-white px-3 py-2">
+                  <div className="min-w-0">
+                    <p className="truncate text-sm text-[#1E1E24]">{row.description}</p>
+                    <p className="text-xs text-[#8A8680]">
+                      {row.kind === "PAYOUT" ? "Corte entregado" : "Comisión"} · {shortDate(row.createdAt)}
+                    </p>
+                  </div>
+                  <span className={cn("shrink-0 text-sm font-medium whitespace-nowrap tabular-nums", row.amount < 0 ? "text-[#B42318]" : "text-[#059669]")}>
+                    {row.amount < 0 ? "" : "+"}
+                    {formatUsd(row.amount)}
+                  </span>
+                </li>
+              ))}
+            </ul>
+          )
+        ) : null}
       </div>
 
       {user.pendingPackage ? (
@@ -306,6 +384,61 @@ function UserEditor({ user, onClose }: { user: AdminUserRow; onClose: () => void
                 Quitar créditos
               </button>
             </div>
+          </div>
+        </div>
+
+        <div className={panel}>
+          <p className={title}>Paquete de la cuenta</p>
+          <p className="mt-2 text-xs leading-5 text-[#5C5854]">
+            Cambia el paquete inicial o actual del socio. Esto no vuelve a cobrar comisiones; solo ajusta su nivel de bonos y accesos.
+          </p>
+          <div className="mt-3 space-y-2">
+            <select value={packageId} onChange={(event) => setPackageId(event.target.value)} className={field}>
+              {packageOptions.map((option) => (
+                <option key={option} value={option}>
+                  {planLabel(option)}
+                </option>
+              ))}
+            </select>
+            <button
+              type="button"
+              disabled={busy || packageId === user.packageId}
+              onClick={() => {
+                const label = planLabel(packageId);
+                if (window.confirm(`¿Cambiar el paquete de ${user.name} a ${label}?`)) {
+                  run(() => changePackage(user.id, packageId), `Paquete: ${label}`);
+                }
+              }}
+              className={primary}
+            >
+              Guardar paquete
+            </button>
+          </div>
+        </div>
+
+        <div className={panel}>
+          <p className={title}>Wallet USDT (TRC20)</p>
+          <p className="mt-2 text-xs leading-5 text-[#5C5854]">
+            Dirección donde recibe sus comisiones en cada corte. Red Tron (TRC20); empieza con T y tiene 34 caracteres.
+          </p>
+          <div className="mt-3 space-y-2">
+            <input
+              value={usdt}
+              onChange={(event) => setUsdt(event.target.value)}
+              className={field}
+              placeholder="T..."
+              autoComplete="off"
+              spellCheck={false}
+            />
+            <button
+              type="button"
+              disabled={busy || usdt.trim() === (user.usdtTrc20 ?? "")}
+              onClick={() => run(() => setUsdtWallet(user.id, usdt), "Wallet USDT guardada")}
+              className={`${primary} inline-flex items-center gap-2`}
+            >
+              <Wallet className="size-4" />
+              Guardar wallet
+            </button>
           </div>
         </div>
 
