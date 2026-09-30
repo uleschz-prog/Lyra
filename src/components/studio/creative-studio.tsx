@@ -1,6 +1,6 @@
 "use client";
 
-import { Download, Pencil, Trash2 } from "lucide-react";
+import { Download, Pencil, Play, Sparkles, Trash2, Upload } from "lucide-react";
 import { useEffect, useState, type ReactNode } from "react";
 import { toast } from "sonner";
 
@@ -8,6 +8,17 @@ import { discardCreation, storeCreation } from "@/app/dashboard/creations/action
 import { CreationHistory } from "@/components/creations/creation-history";
 import { useCredits } from "@/components/dashboard/credit-provider";
 import { Button } from "@/components/ui/button";
+import {
+  GenerateButton,
+  imageStyles,
+  imageTemplates,
+  StudioHero,
+  StudioSection,
+  StylePicker,
+  TemplateCard,
+  videoStyles,
+  videoTemplates,
+} from "@/components/studio/studio-pieces";
 import type { CreationRecord } from "@/lib/creations";
 import { cn } from "@/lib/utils";
 
@@ -30,10 +41,10 @@ type SearchResult = {
   highlight: string;
 };
 
-const tabs: { id: StudioTab; label: string }[] = [
-  { id: "video", label: "Video" },
-  { id: "image", label: "Imagen" },
-  { id: "search", label: "Búsqueda" },
+const tabs: { id: StudioTab; label: string; hint: string }[] = [
+  { id: "video", label: "Video", hint: "Guion, voz y estilo" },
+  { id: "image", label: "Imagen", hint: "Piezas y portadas" },
+  { id: "search", label: "Inspiración", hint: "Busca referencias" },
 ];
 
 export function CreativeStudio({ initialPieces = [] }: { initialPieces?: CreationRecord[] }) {
@@ -43,25 +54,36 @@ export function CreativeStudio({ initialPieces = [] }: { initialPieces?: Creatio
 
   return (
     <div className="space-y-5">
-      <div role="tablist" aria-label="Estudio creativo" className="flex flex-wrap gap-2">
-        {tabs.map((item) => (
-          <button
-            key={item.id}
-            type="button"
-            role="tab"
-            aria-selected={tab === item.id}
-            onClick={() => setTab(item.id)}
-            className={cn(
-              "rounded-full border px-4 py-2 text-sm transition-all duration-300 ease-in-out",
-              tab === item.id
-                ? "border-[#7C3AED]/30 bg-[#7C3AED]/10 text-[#1E1E24]"
-                : "border-border bg-[#F4F1EC] text-[#5C5854] hover:border-[#C9C3BA] hover:text-[#1E1E24]",
-            )}
-          >
-            {item.label}
-          </button>
-        ))}
+      <StudioHero
+        title="Crea como en un patio de juegos"
+        subtitle="Elige una plantilla, cámbiale el estilo y mírala antes de generar. Video, imagen y voz en un solo lugar."
+        stat={`${initialPieces.length} ${initialPieces.length === 1 ? "pieza guardada" : "piezas guardadas"}`}
+      />
+
+      <div role="tablist" aria-label="Estudio creativo" className="grid gap-2 sm:grid-cols-3">
+        {tabs.map((item) => {
+          const active = tab === item.id;
+          return (
+            <button
+              key={item.id}
+              type="button"
+              role="tab"
+              aria-selected={active}
+              onClick={() => setTab(item.id)}
+              className={cn(
+                "rounded-2xl border p-3 text-left transition-all duration-300",
+                active
+                  ? "border-[#7C3AED] bg-[#F5F3FF] shadow-[0_18px_40px_-30px_rgba(124,58,237,0.8)]"
+                  : "border-[#E7E2DA] bg-white hover:border-[#C4B5FD]",
+              )}
+            >
+              <p className={cn("text-sm font-semibold", active ? "text-[#5B21B6]" : "text-[#1E1E24]")}>{item.label}</p>
+              <p className="mt-0.5 text-xs text-[#8A8680]">{item.hint}</p>
+            </button>
+          );
+        })}
       </div>
+
       {tab === "video" ? (
         <VideoPanel
           restore={opened}
@@ -105,7 +127,7 @@ function VideoPanel({
 }) {
   const [format, setFormat] = useState("9:16");
   const [duration, setDuration] = useState("30 s");
-  const [look, setLook] = useState("Claro");
+  const [look, setLook] = useState("vlog");
   const [voice, setVoice] = useState("Cálida");
   const [music, setMusic] = useState("Suave");
   const [captions, setCaptions] = useState("Con subtítulos");
@@ -120,11 +142,14 @@ function VideoPanel({
   const [editing, setEditing] = useState(false);
   const [bar, setBar] = useState(0);
   const [pieceId, setPieceId] = useState<string | null>(null);
+  const [activeTemplate, setActiveTemplate] = useState<string | null>(null);
+  const [restoredId, setRestoredId] = useState<string | null>(null);
 
   const busy = pending || job?.status === "processing";
+  const style = videoStyles.find((item) => item.id === look) ?? videoStyles[0];
 
-  useEffect(() => {
-    if (!restore || restore.kind !== "video") return;
+  if (restore && restore.kind === "video" && restore.id !== restoredId) {
+    setRestoredId(restore.id);
     setTitle(restore.title);
     setScript(restore.body);
     setPieceId(restore.id);
@@ -135,29 +160,47 @@ function VideoPanel({
       videoUrl: restore.media,
       message: restore.title,
     });
-  }, [restore]);
+  }
 
   useEffect(() => {
     if (!busy) return;
-    setBar((current) => (current > 0 && current < 100 ? current : 8));
+    const start = window.setTimeout(() => setBar((current) => (current > 0 && current < 100 ? current : 8)), 0);
     const timer = window.setInterval(() => {
       setBar((current) => (current >= 92 ? 92 : Math.min(92, current + (current < 40 ? 6 : 2))));
     }, 450);
-    return () => window.clearInterval(timer);
+    return () => {
+      window.clearTimeout(start);
+      window.clearInterval(timer);
+    };
   }, [busy]);
 
   useEffect(() => {
     if (busy) return;
-    setBar((current) => (current > 0 && current < 100 ? 100 : current));
-    const timer = window.setTimeout(() => setBar(0), 700);
-    return () => window.clearTimeout(timer);
+    const timer = window.setTimeout(() => setBar((current) => (current > 0 && current < 100 ? 100 : current)), 0);
+    const reset = window.setTimeout(() => setBar(0), 700);
+    return () => {
+      window.clearTimeout(timer);
+      window.clearTimeout(reset);
+    };
   }, [busy]);
+
+  function applyTemplate(id: string) {
+    const template = videoTemplates.find((item) => item.id === id);
+    if (!template) return;
+    setActiveTemplate(id);
+    setTitle(template.title);
+    setScript(template.script);
+    setDetail(template.detail);
+    setDuration(template.duration);
+    setLook(template.styleId);
+    toast.success(`Plantilla "${template.title}" lista para editar`);
+  }
 
   async function generate() {
     setPending(true);
     try {
       const visual = images.length > 0 ? ` Imágenes de referencia: ${images.map((image) => image.name).join(", ")}.` : "";
-      const brief = ` Formato ${format}. Duración ${duration}. Estilo ${look}. Voz ${voice}. Música ${music}. ${captions}.${detail.trim() ? ` Debe verse: ${detail.trim()}.` : ""}`;
+      const brief = ` Formato ${format}. Duración ${duration}. Estilo ${style.name}. Voz ${voice}. Música ${music}. ${captions}.${detail.trim() ? ` Debe verse: ${detail.trim()}.` : ""}`;
       const response = await fetch("/api/ai/video", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -241,96 +284,154 @@ function VideoPanel({
   const frame = format === "16:9" ? "aspect-video max-w-xl" : format === "1:1" ? "aspect-square max-w-sm" : "aspect-[9/16] max-w-[220px]";
 
   return (
-    <section className="grid gap-6 rounded-3xl border border-[#E7E2DA] bg-white p-4 sm:p-6 lg:grid-cols-[minmax(0,0.9fr)_minmax(0,1.1fr)]">
-      <div>
-        <p className="text-[11px] uppercase tracking-[0.22em] text-[#8A8680]">Video</p>
-        <h2 className="mt-2 text-2xl font-semibold tracking-tight text-[#1E1E24]">Imagen, voz y detalle</h2>
-        <Choice label="Formato" value={format} options={["9:16", "1:1", "16:9"]} onChange={setFormat} />
-        <Choice label="Duración" value={duration} options={["15 s", "30 s", "60 s"]} onChange={setDuration} />
-        <Choice label="Estilo" value={look} options={["Claro", "Cine", "Producto"]} onChange={setLook} />
-        <Choice label="Voz" value={voice} options={["Cálida", "Firme", "Enérgica"]} onChange={setVoice} />
-        <Choice label="Música" value={music} options={["Suave", "Épica", "Sin música"]} onChange={setMusic} />
-        <Choice label="Texto en pantalla" value={captions} options={["Con subtítulos", "Sin subtítulos"]} onChange={setCaptions} />
-        <Field label="Título" id="video-title">
-          <input id="video-title" value={title} onChange={(event) => setTitle(event.target.value)} className={fieldClass} />
-        </Field>
-        <Field label="Qué tiene que verse" id="video-detail">
-          <input id="video-detail" value={detail} onChange={(event) => setDetail(event.target.value)} placeholder="Nombre, oferta, logo, ciudad" className={fieldClass} />
-        </Field>
-        <Field label="Guion · la voz" id="video-script">
-          <textarea id="video-script" value={script} onChange={(event) => setScript(event.target.value)} rows={5} className={`${fieldClass} resize-none`} />
-        </Field>
-        <Field label="Imágenes del plano" id="video-images">
-          <input id="video-images" type="file" accept="image/*" multiple onChange={(event) => addImages(event.target.files)} className="block w-full text-sm text-[#5C5854]" />
-        </Field>
-        {images.length > 0 ? (
-          <ul className="mt-3 grid grid-cols-3 gap-2">
-            {images.map((image) => (
-              <li key={image.id} className="overflow-hidden rounded-xl border border-[#E7E2DA]">
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img src={image.url} alt={image.name} className="h-20 w-full object-cover" />
-              </li>
-            ))}
-          </ul>
-        ) : null}
-        <Button type="button" variant="constellation" className="mt-5" disabled={pending || script.trim().length < 12} onClick={() => void generate()}>
-          {pending ? "Creando" : "Crear video"}
-        </Button>
-      </div>
-      <div className="flex min-h-[420px] flex-col rounded-2xl bg-[#F7F5F2] p-4">
-        {bar > 0 ? (
-          <div className="mb-4">
-            <div className="flex items-center justify-between text-sm text-[#1E1E24]">
-              <p>Creando el video</p>
-              <p className="tabular-nums text-[#7C3AED]">{Math.round(bar)}%</p>
-            </div>
-            <div className="mt-2 h-1 overflow-hidden rounded-full bg-[#E7E2DA]" role="progressbar" aria-valuenow={Math.round(bar)} aria-valuemin={0} aria-valuemax={100} aria-label="Creación del video">
-              <div className="h-full bg-[#7C3AED]" style={{ width: `${bar}%` }} />
-            </div>
-          </div>
-        ) : null}
-        <div
-          className={`relative mx-auto flex w-full flex-1 flex-col justify-end overflow-hidden rounded-2xl bg-[#1E1E24] bg-cover bg-center p-4 text-white ${frame}`}
-          style={images[0] ? { backgroundImage: `linear-gradient(to top, rgba(30,30,36,0.85), rgba(30,30,36,0.1)), url(${images[0].url})` } : undefined}
-        >
-          <p className="text-[11px] uppercase tracking-[0.18em] text-white/60">{format} · {duration} · {look}</p>
-          <p className="mt-2 text-lg font-medium">{title || "Sin título"}</p>
-          {detail ? <p className="mt-2 text-sm text-white/80">{detail}</p> : null}
-          <p className="mt-3 text-[11px] text-white/60">Voz {voice.toLowerCase()} · {music.toLowerCase()} · {captions.toLowerCase()}</p>
+    <div className="space-y-5">
+      <StudioSection
+        eyebrow="Empieza con una plantilla"
+        title="Toca una idea y queda lista para editar"
+        hint="Las plantillas traen guion, estilo y duración listos. Solo cambia lo tuyo."
+      >
+        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
+          {videoTemplates.map((template) => (
+            <TemplateCard
+              key={template.id}
+              gradient={template.gradient}
+              title={template.title}
+              tag={template.tag}
+              meta={template.duration}
+              active={activeTemplate === template.id}
+              onClick={() => applyTemplate(template.id)}
+            />
+          ))}
         </div>
-        {job ? (
-          <div className="mt-4 space-y-3">
-            <div className="flex flex-wrap gap-2">
-              <button type="button" onClick={() => void downloadVideo()} className="inline-flex items-center gap-1.5 rounded-lg border border-[#E7E2DA] bg-white px-2.5 py-1.5 text-xs text-[#1E1E24]">
-                <Download className="h-3.5 w-3.5" aria-hidden />
-                Descargar
-              </button>
-              <button type="button" onClick={() => setEditing((current) => !current)} className="inline-flex items-center gap-1.5 rounded-lg border border-[#E7E2DA] bg-white px-2.5 py-1.5 text-xs text-[#1E1E24]">
-                <Pencil className="h-3.5 w-3.5" aria-hidden />
-                {editing ? "Cerrar" : "Editar"}
-              </button>
-              <button type="button" onClick={removePiece} className="inline-flex items-center gap-1.5 rounded-lg border border-[#E7E2DA] bg-white px-2.5 py-1.5 text-xs text-[#9A3B2F]">
-                <Trash2 className="h-3.5 w-3.5" aria-hidden />
-                Eliminar
-              </button>
+      </StudioSection>
+
+      <section className="grid gap-6 rounded-3xl border border-[#E7E2DA] bg-white p-4 sm:p-6 lg:grid-cols-[minmax(0,0.95fr)_minmax(0,1.05fr)]">
+        <div>
+          <p className="text-[11px] tracking-[0.22em] uppercase text-[#8A8680]">Video</p>
+          <h2 className="mt-2 text-2xl font-semibold tracking-tight text-[#1E1E24]">Arma tu plano</h2>
+          <p className="mt-1 text-sm text-[#5C5854]">Cambia el encuadre y el estilo; el preview se actualiza en vivo.</p>
+
+          <StylePicker styles={videoStyles} value={look} onChange={setLook} label="Estilo visual" />
+
+          <Choice label="Formato" value={format} options={["9:16", "1:1", "16:9"]} onChange={setFormat} />
+          <Choice label="Duración" value={duration} options={["15 s", "30 s", "60 s"]} onChange={setDuration} />
+          <Choice label="Voz" value={voice} options={["Cálida", "Firme", "Enérgica"]} onChange={setVoice} />
+          <Choice label="Música" value={music} options={["Suave", "Épica", "Sin música"]} onChange={setMusic} />
+          <Choice label="Texto en pantalla" value={captions} options={["Con subtítulos", "Sin subtítulos"]} onChange={setCaptions} />
+
+          <Field label="Título" id="video-title">
+            <input id="video-title" value={title} onChange={(event) => setTitle(event.target.value)} className={fieldClass} />
+          </Field>
+          <Field label="Qué tiene que verse" id="video-detail">
+            <input id="video-detail" value={detail} onChange={(event) => setDetail(event.target.value)} placeholder="Nombre, oferta, logo, ciudad" className={fieldClass} />
+          </Field>
+          <Field label="Guion · la voz" id="video-script">
+            <textarea id="video-script" value={script} onChange={(event) => setScript(event.target.value)} rows={5} className={`${fieldClass} resize-none`} />
+          </Field>
+          <Field label="Imágenes del plano" id="video-images">
+            <label
+              htmlFor="video-images"
+              className="mt-2 flex cursor-pointer items-center justify-center gap-2 rounded-xl border border-dashed border-[#C4B5FD] bg-[#F5F3FF] px-4 py-3 text-sm text-[#5B21B6] transition-colors hover:bg-[#EDE9FE]"
+            >
+              <Upload className="h-4 w-4" aria-hidden />
+              Sube hasta 6 imágenes
+            </label>
+            <input id="video-images" type="file" accept="image/*" multiple onChange={(event) => addImages(event.target.files)} className="sr-only" />
+          </Field>
+          {images.length > 0 ? (
+            <ul className="mt-3 grid grid-cols-3 gap-2">
+              {images.map((image) => (
+                <li key={image.id} className="overflow-hidden rounded-xl border border-[#E7E2DA]">
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img src={image.url} alt={image.name} className="h-20 w-full object-cover" />
+                </li>
+              ))}
+            </ul>
+          ) : null}
+
+          <GenerateButton label="Crear video" busyLabel="Creando…" disabled={pending || script.trim().length < 12} onClick={() => void generate()} />
+        </div>
+
+        <div className="flex min-h-[440px] flex-col rounded-2xl bg-gradient-to-b from-[#F7F5F2] to-[#EFEAE3] p-4">
+          {bar > 0 ? (
+            <div className="mb-4">
+              <div className="flex items-center justify-between text-sm text-[#1E1E24]">
+                <p className="flex items-center gap-1.5">
+                  <Sparkles className="h-3.5 w-3.5 text-[#7C3AED]" aria-hidden />
+                  Creando el video
+                </p>
+                <p className="tabular-nums text-[#7C3AED]">{Math.round(bar)}%</p>
+              </div>
+              <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-[#E7E2DA]" role="progressbar" aria-valuenow={Math.round(bar)} aria-valuemin={0} aria-valuemax={100} aria-label="Creación del video">
+                <div className="h-full bg-gradient-to-r from-[#7C3AED] to-[#DB2777]" style={{ width: `${bar}%` }} />
+              </div>
             </div>
-            <p className="text-sm text-[#5C5854]">{job.message ?? job.error}</p>
-            {job.videoUrl ? <video controls src={job.videoUrl} className="w-full rounded-xl" /> : null}
-            {job.scenes ? (
-              <ol className="grid gap-2">
-                {job.scenes.map((scene) => (
-                  <li key={scene.index} className="rounded-xl bg-white px-3 py-2 text-sm text-[#5C5854]">
-                    Plano {scene.index}. {scene.line}
-                  </li>
-                ))}
-              </ol>
-            ) : null}
+          ) : null}
+
+          <p className="mb-2 text-[11px] tracking-[0.22em] uppercase text-[#8A8680]">Preview en vivo</p>
+          <div className="flex flex-1 items-center justify-center">
+            <div
+              className={`relative flex w-full flex-col justify-end overflow-hidden rounded-2xl bg-[#1E1E24] bg-cover bg-center p-4 text-white shadow-[0_24px_60px_-30px_rgba(30,30,36,0.9)] ${frame}`}
+              style={images[0] ? { backgroundImage: `linear-gradient(to top, rgba(30,30,36,0.9), rgba(30,30,36,0.15)), url(${images[0].url})` } : undefined}
+            >
+              <span className={`pointer-events-none absolute inset-0 bg-gradient-to-br opacity-70 ${style.gradient}`} aria-hidden />
+              <span className="pointer-events-none absolute -top-10 -right-8 h-32 w-32 rounded-full bg-white/20 blur-2xl vega-pulse" aria-hidden />
+              <span className="absolute top-3 left-3 flex items-center gap-1.5 rounded-full bg-black/40 px-2.5 py-1 text-[10px] font-medium backdrop-blur">
+                <span className="h-1.5 w-1.5 rounded-full bg-[#10B981]" />
+                {style.name} · {format} · {duration}
+              </span>
+              <div className="relative">
+                <p className="text-lg font-medium drop-shadow">{title || "Sin título"}</p>
+                {detail ? <p className="mt-2 text-sm text-white/85 drop-shadow">{detail}</p> : null}
+                <p className="mt-3 text-[11px] text-white/70">
+                  Voz {voice.toLowerCase()} · {music.toLowerCase()} · {captions.toLowerCase()}
+                </p>
+              </div>
+              {!job ? (
+                <span className="absolute inset-0 grid place-items-center">
+                  <span className="grid h-14 w-14 place-items-center rounded-full bg-white/25 backdrop-blur">
+                    <Play className="h-5 w-5 translate-x-[1px] fill-white text-white" aria-hidden />
+                  </span>
+                </span>
+              ) : null}
+            </div>
           </div>
-        ) : (
-          <p className="mt-4 text-sm text-[#8A8680]">El encuadre cambia con el formato. El detalle entra en el plano.</p>
-        )}
-      </div>
-    </section>
+
+          {job ? (
+            <div className="mt-4 space-y-3">
+              <div className="flex flex-wrap gap-2">
+                <button type="button" onClick={() => void downloadVideo()} className="inline-flex items-center gap-1.5 rounded-lg border border-[#E7E2DA] bg-white px-2.5 py-1.5 text-xs text-[#1E1E24]">
+                  <Download className="h-3.5 w-3.5" aria-hidden />
+                  Descargar
+                </button>
+                <button type="button" onClick={() => setEditing((current) => !current)} className="inline-flex items-center gap-1.5 rounded-lg border border-[#E7E2DA] bg-white px-2.5 py-1.5 text-xs text-[#1E1E24]">
+                  <Pencil className="h-3.5 w-3.5" aria-hidden />
+                  {editing ? "Cerrar" : "Editar"}
+                </button>
+                <button type="button" onClick={removePiece} className="inline-flex items-center gap-1.5 rounded-lg border border-[#E7E2DA] bg-white px-2.5 py-1.5 text-xs text-[#9A3B2F]">
+                  <Trash2 className="h-3.5 w-3.5" aria-hidden />
+                  Eliminar
+                </button>
+              </div>
+              <p className="text-sm text-[#5C5854]">{job.message ?? job.error}</p>
+              {job.videoUrl ? <video controls src={job.videoUrl} className="w-full rounded-xl" /> : null}
+              {job.scenes ? (
+                <ol className="grid gap-2 sm:grid-cols-3">
+                  {job.scenes.map((scene) => (
+                    <li key={scene.index} className="rounded-xl border border-[#E7E2DA] bg-white px-3 py-2 text-sm text-[#5C5854]">
+                      <span className="text-[10px] tracking-[0.18em] uppercase text-[#8A8680]">Plano {scene.index}</span>
+                      <p className="mt-1">{scene.line}</p>
+                    </li>
+                  ))}
+                </ol>
+              ) : null}
+            </div>
+          ) : (
+            <p className="mt-4 text-center text-sm text-[#8A8680]">El encuadre cambia con el formato. El detalle entra en el plano.</p>
+          )}
+        </div>
+      </section>
+    </div>
   );
 }
 
@@ -366,8 +467,8 @@ function Choice({
             type="button"
             onClick={() => onChange(option)}
             className={cn(
-              "rounded-full border px-3 py-1.5 text-sm",
-              value === option ? "border-[#1E1E24] bg-[#1E1E24] text-white" : "border-[#E7E2DA] bg-white text-[#5C5854]",
+              "rounded-full border px-3 py-1.5 text-sm transition-colors",
+              value === option ? "border-[#1E1E24] bg-[#1E1E24] text-white" : "border-[#E7E2DA] bg-white text-[#5C5854] hover:border-[#C4B5FD]",
             )}
           >
             {option}
@@ -388,12 +489,24 @@ function ImagePanel({
   onRemoved: (id: string) => void;
 }) {
   const [format, setFormat] = useState("1:1");
-  const [style, setStyle] = useState("Editorial");
+  const [style, setStyle] = useState("editorial");
   const [title, setTitle] = useState("");
   const [detail, setDetail] = useState("");
   const [imageUrl, setImageUrl] = useState<string | null>(null);
   const [reference, setReference] = useState<string | null>(null);
   const [pieceId, setPieceId] = useState<string | null>(null);
+  const [activeTemplate, setActiveTemplate] = useState<string | null>(null);
+  const [restoredId, setRestoredId] = useState<string | null>(null);
+
+  const chosen = imageStyles.find((item) => item.id === style) ?? imageStyles[0];
+
+  if (restore && restore.kind === "image" && restore.id !== restoredId) {
+    setRestoredId(restore.id);
+    setTitle(restore.title);
+    setDetail(restore.body);
+    setImageUrl(restore.media);
+    setPieceId(restore.id);
+  }
 
   function pickReference(files: FileList | null) {
     const file = files?.[0];
@@ -412,13 +525,15 @@ function ImagePanel({
     });
   }
 
-  useEffect(() => {
-    if (!restore || restore.kind !== "image") return;
-    setTitle(restore.title);
-    setDetail(restore.body);
-    setImageUrl(restore.media);
-    setPieceId(restore.id);
-  }, [restore]);
+  function applyTemplate(id: string) {
+    const template = imageTemplates.find((item) => item.id === id);
+    if (!template) return;
+    setActiveTemplate(id);
+    setTitle(template.title);
+    setDetail(template.detail);
+    setStyle(template.styleId);
+    toast.success(`Plantilla "${template.title}" lista para editar`);
+  }
 
   async function create() {
     const canvas = document.createElement("canvas");
@@ -428,7 +543,13 @@ function ImagePanel({
     canvas.height = wide ? 720 : story ? 1280 : 1080;
     const context = canvas.getContext("2d");
     if (!context) return;
-    context.fillStyle = style === "Cine" ? "#1E1E24" : style === "Producto" ? "#F5F3FF" : "#F7F5F2";
+    const cine = style === "cine";
+    context.fillStyle = cine ? "#1E1E24" : style === "producto" ? "#F5F3FF" : style === "ilustracion" ? "#FDF2F8" : style === "tresd" ? "#ECFEFF" : "#F7F5F2";
+    context.fillRect(0, 0, canvas.width, canvas.height);
+    const grad = context.createLinearGradient(0, 0, canvas.width, canvas.height);
+    grad.addColorStop(0, cine ? "rgba(49,46,129,0.85)" : "rgba(167,139,250,0.28)");
+    grad.addColorStop(1, "rgba(219,39,119,0.18)");
+    context.fillStyle = grad;
     context.fillRect(0, 0, canvas.width, canvas.height);
     const photo = reference ? await loadImage(reference) : null;
     if (photo) {
@@ -436,15 +557,18 @@ function ImagePanel({
       const w = photo.width * scale;
       const h = photo.height * scale;
       context.drawImage(photo, (canvas.width - w) / 2, (canvas.height - h) / 2, w, h);
-      context.fillStyle = style === "Cine" ? "rgba(30,30,36,0.6)" : "rgba(247,245,242,0.72)";
+      context.fillStyle = cine ? "rgba(30,30,36,0.55)" : "rgba(247,245,242,0.72)";
       context.fillRect(0, 0, canvas.width, canvas.height);
     }
-    context.fillStyle = style === "Cine" ? "#F7F5F2" : "#1E1E24";
+    context.fillStyle = cine ? "#F7F5F2" : "#1E1E24";
     context.font = "600 64px sans-serif";
     wrapText(context, title || "LYRA", 72, 180, canvas.width - 144, 76);
     context.font = "28px sans-serif";
-    context.fillStyle = style === "Cine" ? "#C8C2BA" : "#5C5854";
+    context.fillStyle = cine ? "#C8C2BA" : "#5C5854";
     wrapText(context, detail || "Detalle de la pieza", 72, canvas.height * 0.55, canvas.width - 144, 40);
+    context.fillStyle = cine ? "rgba(255,255,255,0.85)" : "rgba(124,58,237,0.9)";
+    context.font = "600 26px sans-serif";
+    context.fillText("LYRA", 72, canvas.height - 64);
     const url = canvas.toDataURL("image/png");
     setImageUrl(url);
     const saved = await storeCreation({
@@ -478,62 +602,97 @@ function ImagePanel({
   const frame = format === "16:9" ? "aspect-video" : format === "9:16" ? "aspect-[9/16] max-w-[240px]" : "aspect-square max-w-sm";
 
   return (
-    <section className="grid gap-6 rounded-3xl border border-[#E7E2DA] bg-white p-4 sm:p-6 lg:grid-cols-[minmax(0,0.9fr)_minmax(0,1.1fr)]">
-      <div>
-        <p className="text-[11px] uppercase tracking-[0.22em] text-[#8A8680]">Imagen</p>
-        <h2 className="mt-2 text-2xl font-semibold tracking-tight text-[#1E1E24]">Una pieza, con lo que importa</h2>
-        <Choice label="Formato" value={format} options={["1:1", "9:16", "16:9"]} onChange={setFormat} />
-        <Choice label="Estilo" value={style} options={["Editorial", "Cine", "Producto"]} onChange={setStyle} />
-        <Field label="Texto principal" id="image-title">
-          <input id="image-title" value={title} onChange={(event) => setTitle(event.target.value)} className={fieldClass} />
-        </Field>
-        <Field label="Detalle que debe salir" id="image-detail">
-          <textarea id="image-detail" value={detail} onChange={(event) => setDetail(event.target.value)} rows={4} className={`${fieldClass} resize-none`} />
-        </Field>
-        <Field label="Imagen de referencia" id="image-reference">
-          <input id="image-reference" type="file" accept="image/*" onChange={(event) => pickReference(event.target.files)} className="mt-2 block w-full text-sm text-[#5C5854]" />
-        </Field>
-        {reference ? (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img src={reference} alt="Referencia" className="mt-3 h-20 w-20 rounded-xl border border-[#E7E2DA] object-cover" />
-        ) : null}
-        <Button type="button" variant="constellation" className="mt-5" disabled={title.trim().length < 2} onClick={() => void create()}>
-          Crear imagen
-        </Button>
-      </div>
-      <div className="flex min-h-[420px] flex-col items-center justify-center rounded-2xl bg-[#F7F5F2] p-4">
-        {imageUrl ? (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img src={imageUrl} alt={title || "Imagen"} className={`w-full rounded-2xl object-cover ${frame}`} />
-        ) : (
-          <div
-            className={`flex w-full items-end rounded-2xl bg-[#1E1E24] bg-cover bg-center p-5 text-white ${frame}`}
-            style={reference ? { backgroundImage: `linear-gradient(to top, rgba(30,30,36,0.8), rgba(30,30,36,0.1)), url(${reference})` } : undefined}
-          >
-            <p className="text-sm text-white/70">{format} · {style}</p>
-          </div>
-        )}
-        {imageUrl ? (
-          <div className="mt-4 flex gap-2">
-            <button type="button" onClick={download} className="rounded-lg border border-[#E7E2DA] bg-white px-3 py-1.5 text-xs">Descargar</button>
-            <button
-              type="button"
-              onClick={() => {
-                if (pieceId) {
-                  void discardCreation(pieceId);
-                  onRemoved(pieceId);
-                }
-                setPieceId(null);
-                setImageUrl(null);
-              }}
-              className="rounded-lg border border-[#E7E2DA] bg-white px-3 py-1.5 text-xs text-[#9A3B2F]"
+    <div className="space-y-5">
+      <StudioSection
+        eyebrow="Empieza con una plantilla"
+        title="Piezas listas para tu marca"
+        hint="Toca una idea y ajústala. Cambia el estilo y el preview se actualiza."
+      >
+        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
+          {imageTemplates.map((template) => (
+            <TemplateCard
+              key={template.id}
+              gradient={template.gradient}
+              title={template.title}
+              tag={template.tag}
+              active={activeTemplate === template.id}
+              onClick={() => applyTemplate(template.id)}
+            />
+          ))}
+        </div>
+      </StudioSection>
+
+      <section className="grid gap-6 rounded-3xl border border-[#E7E2DA] bg-white p-4 sm:p-6 lg:grid-cols-[minmax(0,0.95fr)_minmax(0,1.05fr)]">
+        <div>
+          <p className="text-[11px] tracking-[0.22em] uppercase text-[#8A8680]">Imagen</p>
+          <h2 className="mt-2 text-2xl font-semibold tracking-tight text-[#1E1E24]">Una pieza, con lo que importa</h2>
+
+          <StylePicker styles={imageStyles} value={style} onChange={setStyle} label="Estilo visual" />
+
+          <Choice label="Formato" value={format} options={["1:1", "9:16", "16:9"]} onChange={setFormat} />
+          <Field label="Texto principal" id="image-title">
+            <input id="image-title" value={title} onChange={(event) => setTitle(event.target.value)} className={fieldClass} />
+          </Field>
+          <Field label="Detalle que debe salir" id="image-detail">
+            <textarea id="image-detail" value={detail} onChange={(event) => setDetail(event.target.value)} rows={4} className={`${fieldClass} resize-none`} />
+          </Field>
+          <Field label="Imagen de referencia" id="image-reference">
+            <label
+              htmlFor="image-reference"
+              className="mt-2 flex cursor-pointer items-center justify-center gap-2 rounded-xl border border-dashed border-[#C4B5FD] bg-[#F5F3FF] px-4 py-3 text-sm text-[#5B21B6] transition-colors hover:bg-[#EDE9FE]"
             >
-              Eliminar
-            </button>
-          </div>
-        ) : null}
-      </div>
-    </section>
+              <Upload className="h-4 w-4" aria-hidden />
+              Sube una imagen base
+            </label>
+            <input id="image-reference" type="file" accept="image/*" onChange={(event) => pickReference(event.target.files)} className="sr-only" />
+          </Field>
+          {reference ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img src={reference} alt="Referencia" className="mt-3 h-20 w-20 rounded-xl border border-[#E7E2DA] object-cover" />
+          ) : null}
+
+          <GenerateButton label="Crear imagen" busyLabel="Creando…" disabled={title.trim().length < 2} onClick={() => void create()} />
+        </div>
+
+        <div className="flex min-h-[440px] flex-col items-center justify-center rounded-2xl bg-gradient-to-b from-[#F7F5F2] to-[#EFEAE3] p-4">
+          <p className="mb-2 self-start text-[11px] tracking-[0.22em] uppercase text-[#8A8680]">Preview en vivo</p>
+          {imageUrl ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img src={imageUrl} alt={title || "Imagen"} className={`w-full rounded-2xl object-cover shadow-[0_24px_60px_-30px_rgba(30,30,36,0.7)] ${frame}`} />
+          ) : (
+            <div className={`relative flex w-full items-end overflow-hidden rounded-2xl bg-gradient-to-br p-5 text-white shadow-[0_24px_60px_-30px_rgba(30,30,36,0.7)] ${chosen.gradient} ${frame}`}>
+              <span className="pointer-events-none absolute -top-10 -right-8 h-32 w-32 rounded-full bg-white/25 blur-2xl vega-pulse" aria-hidden />
+              {reference ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img src={reference} alt="" className="absolute inset-0 h-full w-full object-cover opacity-40" />
+              ) : null}
+              <p className="relative text-sm text-white drop-shadow">
+                {chosen.name} · {format}
+              </p>
+            </div>
+          )}
+          {imageUrl ? (
+            <div className="mt-4 flex gap-2">
+              <button type="button" onClick={download} className="rounded-lg border border-[#E7E2DA] bg-white px-3 py-1.5 text-xs">Descargar</button>
+              <button
+                type="button"
+                onClick={() => {
+                  if (pieceId) {
+                    void discardCreation(pieceId);
+                    onRemoved(pieceId);
+                  }
+                  setPieceId(null);
+                  setImageUrl(null);
+                }}
+                className="rounded-lg border border-[#E7E2DA] bg-white px-3 py-1.5 text-xs text-[#9A3B2F]"
+              >
+                Eliminar
+              </button>
+            </div>
+          ) : null}
+        </div>
+      </section>
+    </div>
   );
 }
 
@@ -588,11 +747,13 @@ function SearchPanel() {
   }
 
   return (
-    <section className="rounded-2xl border border-border bg-surface/80 backdrop-blur-md transition-colors hover:border-border-bright p-5">
-      <h2 className="text-lg tracking-wide text-[#1E1E24]">Búsqueda inteligente</h2>
-      <p className="mt-2 text-sm text-[#5C5854]">Exa devuelve páginas y el pasaje más útil de cada una.</p>
+    <StudioSection
+      eyebrow="Inspiración"
+      title="Busca referencias antes de crear"
+      hint="Exa devuelve páginas y el pasaje más útil de cada una."
+    >
       <form
-        className="mt-5 flex flex-col gap-3 sm:flex-row"
+        className="flex flex-col gap-3 sm:flex-row"
         onSubmit={(event) => {
           event.preventDefault();
           void search();
@@ -605,7 +766,7 @@ function SearchPanel() {
           id="exa-query"
           value={query}
           onChange={(event) => setQuery(event.target.value)}
-          className="w-full rounded-full border border-border bg-white px-4 py-2 text-sm text-[#1E1E24] outline-none focus:border-purple-500 focus:ring-1 focus:ring-purple-500"
+          className="w-full rounded-full border border-[#E7E2DA] bg-white px-4 py-2 text-sm text-[#1E1E24] outline-none focus:border-[#7C3AED]"
         />
         <Button type="submit" variant="constellation" disabled={pending || query.trim().length < 3}>
           {pending ? "Buscando" : "Buscar"}
@@ -614,17 +775,15 @@ function SearchPanel() {
       <p className="mt-4 text-xs text-[#8A8680]">{note}</p>
       <ul className="mt-4 space-y-3">
         {results.map((result) => (
-          <li key={result.url} className="rounded-xl border border-lyra-border bg-white p-4">
-            <a href={result.url} target="_blank" rel="noreferrer" className="text-sm text-[#1E1E24] hover:text-[#7C3AED]">
+          <li key={result.url} className="rounded-xl border border-[#E7E2DA] bg-white p-4">
+            <a href={result.url} target="_blank" rel="noreferrer" className="text-sm font-medium text-[#1E1E24] hover:text-[#7C3AED]">
               {result.title}
             </a>
             <p className="mt-1 truncate text-xs text-[#8A8680]">{result.url}</p>
-            {result.highlight ? (
-              <p className="mt-2 text-sm leading-6 text-[#5C5854]">{result.highlight}</p>
-            ) : null}
+            {result.highlight ? <p className="mt-2 text-sm leading-6 text-[#5C5854]">{result.highlight}</p> : null}
           </li>
         ))}
       </ul>
-    </section>
+    </StudioSection>
   );
 }
