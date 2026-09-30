@@ -30,7 +30,8 @@ export type TransactionKind =
   | "CREDIT_SPEND"
   | "ADJUSTMENT"
   | "REBUY"
-  | "PAYOUT";
+  | "PAYOUT"
+  | "USDT_ORDER";
 
 export type DemoUser = {
   id: string;

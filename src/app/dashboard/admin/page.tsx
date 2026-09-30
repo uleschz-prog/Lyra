@@ -2,11 +2,14 @@ import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 
 import { AdminUsers, type AdminUserRow } from "@/components/admin/admin-users";
+import { CompanyUsdtWallet } from "@/components/admin/company-usdt-wallet";
 import { SettleCommissions } from "@/components/admin/settle-commissions";
+import { UsdtOrders } from "@/components/admin/usdt-orders";
 import { PageHeader } from "@/components/dashboard/page-header";
 import { CloseMonth } from "@/components/plan/close-month";
 import { getCurrentUser } from "@/lib/auth/profile";
 import { isSuspended } from "@/lib/auth/suspension";
+import { getCompanyUsdtWallet } from "@/lib/payments/usdt";
 import { getPrisma } from "@/lib/prisma";
 
 export const metadata: Metadata = {
@@ -38,6 +41,29 @@ export default async function AdminPage() {
     },
   });
 
+  const companyUsdt = await getCompanyUsdtWallet();
+
+  const pendingOrders = await getPrisma().usdtOrder.findMany({
+    where: { status: "pending" },
+    orderBy: { createdAt: "asc" },
+    select: {
+      id: true,
+      purpose: true,
+      amountUsd: true,
+      trxHash: true,
+      createdAt: true,
+      user: { select: { name: true } },
+    },
+  });
+  const usdtOrderRows = pendingOrders.map((order) => ({
+    id: order.id,
+    purpose: order.purpose,
+    amountUsd: Number(order.amountUsd) || 0,
+    trxHash: order.trxHash,
+    createdAt: order.createdAt.toISOString(),
+    userName: order.user.name,
+  }));
+
   const rows: AdminUserRow[] = users.map((user) => ({
     id: user.id,
     name: user.name,
@@ -64,6 +90,12 @@ export default async function AdminPage() {
         description="Cierra el mes, valida inscripciones, ajusta créditos, cambia paquetes, administra wallets USDT, corta comisiones, edita datos de acceso, suspende o borra cuentas y descarga el respaldo de socios."
       />
       <CloseMonth />
+      <div className="mt-5">
+        <CompanyUsdtWallet address={companyUsdt} />
+      </div>
+      <div className="mt-5">
+        <UsdtOrders initialOrders={usdtOrderRows} />
+      </div>
       <div className="mt-5">
         <SettleCommissions />
       </div>

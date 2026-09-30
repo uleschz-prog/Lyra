@@ -41,6 +41,34 @@ enum TransactionKind {
   ADJUSTMENT
   REBUY
   PAYOUT
+  USDT_ORDER
+}
+
+/// Parámetros de configuración global de la app (p. ej. wallet USDT de la empresa).
+model AppSetting {
+  key       String   @id
+  value     String   @db.Text
+  updatedAt DateTime @updatedAt
+}
+
+/// Orden de pago por USDT (TRC20) que un socio declara haber transferido y queda pendiente de validación.
+model UsdtOrder {
+  id           String   @id @default(cuid())
+  userId       String
+  purpose      String // signup | rebuy | credits
+  amountUsd    Decimal  @db.Decimal(12, 2)
+  trxHash      String?  @unique
+  companyWallet String
+  status       String   @default("pending") // pending | approved | rejected
+  note         String?  @db.Text
+  createdAt    DateTime @default(now())
+  reviewedAt   DateTime?
+  reviewedBy   String?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, createdAt])
+  @@index([status])
 }
 
 /// Cierre de la red: cada fila une a un afiliado con un ancestro y la distancia entre ambos.
@@ -104,6 +132,7 @@ model User {
   vegaProfile        UserProfile?
   vegaAutonomy       VegaAutonomy?
   whatsappConnection WhatsappConnection?
+  usdtOrders         UsdtOrder[]
 
   @@index([sponsorId])
   @@index([rank])

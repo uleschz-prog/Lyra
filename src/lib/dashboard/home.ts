@@ -50,6 +50,7 @@ const kindMap = {
   REBUY: "rebuy",
   ADJUSTMENT: "adjustment",
   PAYOUT: "spend",
+  USDT_ORDER: "credits",
 } as const;
 
 async function safe<T>(promise: Promise<T>, fallback: T) {

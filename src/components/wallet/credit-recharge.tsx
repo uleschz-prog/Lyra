@@ -7,6 +7,7 @@ import { startCheckout } from "@/app/dashboard/wallet/actions";
 import { creditRechargeUsd, isFounderPackage } from "@/config/compensation-plan";
 import { formatUsd } from "@/lib/format";
 import type { MpQuote } from "@/lib/payments/mercadopago";
+import { UsdtPayment } from "@/components/wallet/usdt-payment";
 
 const money = (value: number, currency: string) =>
   new Intl.NumberFormat("es-MX", { style: "currency", currency, minimumFractionDigits: 2 }).format(value);
@@ -116,6 +117,17 @@ export function CreditRecharge({
               {pending ? "Abriendo Mercado Pago…" : "Pagar con Mercado Pago"}
             </button>
             <p className="mt-2 text-center text-xs text-[#8A8680]">Tarjeta, OXXO o saldo de Mercado Pago. Se activa al acreditarse.</p>
+            <div className="my-4 flex items-center gap-3">
+              <span className="h-px flex-1 bg-[#E7E2DA]" aria-hidden />
+              <span className="text-xs text-[#8A8680]">o</span>
+              <span className="h-px flex-1 bg-[#E7E2DA]" aria-hidden />
+            </div>
+            <UsdtPayment
+              purpose={purpose}
+              amountUsd={quote.usd}
+              label={purpose === "rebuy" ? title : `${extra} créditos`}
+              note={`${purpose === "rebuy" ? title : `${extra} créditos`} · ${formatUsd(quote.usd)}. LYRA no cobra comisión por este método.`}
+            />
           </div>
         ) : (
           <p className="mt-5 rounded-xl bg-[#F7F5F1] px-4 py-3 text-sm text-[#5C5854]">

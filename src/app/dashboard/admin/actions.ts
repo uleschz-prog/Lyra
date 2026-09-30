@@ -6,10 +6,17 @@ import { Prisma } from "@prisma/client";
 import bcrypt from "bcryptjs";
 import { revalidatePath } from "next/cache";
 
-import { compensationPlan, getPackage, isSignupPlanId } from "@/config/compensation-plan";
+import {
+  compensationPlan,
+  creditRechargeUsd,
+  getPackage,
+  isSignupPlanId,
+  type SignupPlanId,
+} from "@/config/compensation-plan";
 import { getCurrentUser } from "@/lib/auth/profile";
 import { INDEFINITE_YEAR } from "@/lib/auth/suspension";
 import { activateMembership } from "@/lib/payments/activate";
+import { setCompanyUsdtWallet as persistCompanyWallet } from "@/lib/payments/usdt";
 import { getPrisma } from "@/lib/prisma";
 
 type Result<T = object> = ({ ok: true } & T) | { ok: false; error: string };
@@ -165,6 +172,117 @@ const USDT_RE = /^T[1-9A-HJ-NP-Za-km-z]{33}$/;
 /// Dirección TRC20 (Tron) que empieza con T y tiene 34 caracteres.
 async function isValidUsdtTrc20(value: string) {
   return USDT_RE.test(value.trim());
+}
+
+/// Wallet USDT de la empresa que recibe los pagos de planes y recargas.
+export async function saveCompanyUsdtWallet(address: string): Promise<Result<{ companyUsdtTrc20: string | null }>> {
+  if (!(await requireAdmin())) return denied;
+  const value = address.trim();
+  if (value && !(await isValidUsdtTrc20(value))) {
+    return { ok: false, error: "La dirección USDT TRC20 debe empezar con T y tener 34 caracteres." };
+  }
+  const saved = await persistCompanyWallet(value);
+  if (saved === null) return { ok: false, error: "No se pudo guardar la wallet." };
+  done();
+  return { ok: true, companyUsdtTrc20: saved };
+}
+
+/// Aprueba una orden USDT: valida el propósito y activa la membresía, la recompra o la recarga.
+export async function approveUsdtOrder(orderId: string): Promise<Result> {
+  const admin = await requireAdmin();
+  if (!admin) return denied;
+  const prisma = getPrisma();
+
+  const order = await prisma.usdtOrder.findUnique({
+    where: { id: orderId },
+    select: { id: true, status: true, purpose: true, amountUsd: true, trxHash: true, userId: true },
+  });
+  if (!order || order.status !== "pending") return { ok: false, error: "Esa orden ya fue procesada." };
+  if (!order.trxHash) return { ok: false, error: "Aún no se reportó el TXID de la transferencia." };
+
+  const user = await prisma.user.findUnique({ where: { id: order.userId } });
+  if (!user) return { ok: false, error: "El usuario de la orden ya no existe." };
+
+  if (order.purpose === "signup") {
+    if (!user.pendingPackage || !(await target(order.userId))?.pendingPackage) {
+      return { ok: false, error: "Esa cuenta ya no tiene membresía pendiente." };
+    }
+    const packageId = user.pendingPackage as SignupPlanId;
+    if (!isSignupPlanId(packageId)) return { ok: false, error: "El paquete pendiente no es válido." };
+    const activated = await prisma.$transaction((tx) =>
+      activateMembership(tx, user, packageId, {
+        description: `Inscripción ${getPackage(packageId).label} · USDT TRC20 · ${order.trxHash}`,
+      }),
+    );
+    if (!activated) return { ok: false, error: "No se pudo activar la inscripción." };
+  } else if (order.purpose === "rebuy") {
+    const monthStart = new Date(new Date().getFullYear(), new Date().getMonth(), 1);
+    const existing = await prisma.transaction.findFirst({
+      where: { userId: user.id, kind: "REBUY", createdAt: { gte: monthStart } },
+    });
+    if (existing) return { ok: false, error: "La recompra de este mes ya está pagada." };
+    const wallet = await prisma.creditWallet.upsert({
+      where: { userId: user.id },
+      create: { userId: user.id, balance: user.credits },
+      update: {},
+    });
+    await prisma.transaction.create({
+      data: {
+        userId: user.id,
+        walletId: wallet.id,
+        amount: Number(order.amountUsd) || 0,
+        creditDelta: 0,
+        kind: "REBUY",
+        description: `Recompra del mes · USDT TRC20 · ${order.trxHash}`,
+      },
+    });
+  } else if (order.purpose === "credits") {
+    const extra = creditRechargeUsd(user.package as Parameters<typeof creditRechargeUsd>[0]);
+    if (!extra) return { ok: false, error: "Esta membresía no tiene una recarga definida." };
+    await prisma.$transaction(async (tx) => {
+      await tx.user.update({ where: { id: user.id }, data: { credits: { increment: extra } } });
+      const wallet = await tx.creditWallet.upsert({
+        where: { userId: user.id },
+        create: { userId: user.id, balance: extra },
+        update: { balance: { increment: extra } },
+      });
+      await tx.transaction.create({
+        data: {
+          userId: user.id,
+          walletId: wallet.id,
+          amount: extra,
+          creditDelta: extra,
+          kind: "CREDIT_PURCHASE",
+          description: `Recarga ${extra} créditos · USDT TRC20 · ${order.trxHash}`,
+        },
+      });
+    });
+  } else {
+    return { ok: false, error: "El propósito de la orden no es válido." };
+  }
+
+  await prisma.usdtOrder.update({
+    where: { id: order.id },
+    data: { status: "approved", reviewedAt: new Date(), reviewedBy: admin.id },
+  });
+  done();
+  return { ok: true };
+}
+
+export async function rejectUsdtOrder(orderId: string): Promise<Result> {
+  if (!(await requireAdmin())) return denied;
+  const prisma = getPrisma();
+  const order = await prisma.usdtOrder.findUnique({
+    where: { id: orderId },
+    select: { id: true, status: true },
+  });
+  if (!order || order.status !== "pending") return { ok: false, error: "Esa orden ya fue procesada." };
+  await prisma.usdtOrder.update({
+    where: { id: order.id },
+    data: { status: "rejected", reviewedAt: new Date() },
+  });
+  done();
+  return { ok: true };
 }
 
 export async function setUsdtWallet(id: string, address: string): Promise<Result<{ usdtTrc20: string | null }>> {

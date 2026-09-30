@@ -20,6 +20,7 @@ const kindLabel: Record<TransactionKind, string> = {
   ADJUSTMENT: "Ajuste",
   REBUY: "Recompra",
   PAYOUT: "Corte de comisiones",
+  USDT_ORDER: "Pago USDT",
 };
 
 export function WalletPanel() {
