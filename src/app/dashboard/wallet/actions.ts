@@ -9,6 +9,7 @@ import {
   creditRechargeUsd,
   getPackage,
   isFounderPackage,
+  isSignupPlanId,
   rebuyStatus,
   type SignupPlanId,
 } from "@/config/compensation-plan";
@@ -20,6 +21,7 @@ import {
   usdtTrxHashUsed,
   type UsdtPurpose,
 } from "@/lib/payments/usdt";
+import { upgradeDifferenceUsd } from "@/lib/payments/upgrade";
 import { getPrisma } from "@/lib/prisma";
 
 const USDT_TRC20_RE = /^T[1-9A-HJ-NP-Za-km-z]{33}$/;
@@ -206,6 +208,80 @@ export async function getPendingUsdtOrders(): Promise<
       userName: order.user.name,
     })),
   };
+}
+
+type UpgradeUsdtResult =
+  | { ok: true; orderId: string; companyWallet: string; amountUsd: number; trxHash: string; status: "pending" }
+  | { ok: false; error: string };
+
+/** Pago del upgrade por USDT: se cobra solo la diferencia entre paquetes. */
+export async function startUpgradeUsdt(targetPackageId: string): Promise<UpgradeUsdtResult> {
+  const user = await getCurrentUser();
+  if (!user) return { ok: false, error: "Inicia sesión para pagar." };
+  if (!isSignupPlanId(targetPackageId)) return { ok: false, error: "Ese paquete no es válido." };
+  if (user.package === targetPackageId) return { ok: false, error: "Ya tienes ese paquete." };
+
+  const companyWallet = await getCompanyUsdtWallet();
+  if (!companyWallet) {
+    return { ok: false, error: "Todavía no hay una wallet USDT de LYRA para recibir el pago. Usa Mercado Pago o avísale al equipo." };
+  }
+
+  const usd = upgradeDifferenceUsd(user.package, targetPackageId);
+  if (usd === null || usd <= 0) return { ok: false, error: "Este paquete no requiere pago de diferencia." };
+
+  const prisma = getPrisma();
+  const order = await prisma.usdtOrder.create({
+    data: {
+      userId: user.id,
+      purpose: "upgrade",
+      amountUsd: usd,
+      companyWallet,
+      status: "pending",
+      note: `Upgrade a ${targetPackageId}`,
+    },
+    select: { id: true },
+  });
+
+  return {
+    ok: true,
+    orderId: order.id,
+    companyWallet,
+    amountUsd: usd,
+    trxHash: "",
+    status: "pending",
+  };
+}
+
+export type UpgradeCheckoutResult = { ok: true; url: string } | { ok: false; error: string };
+
+/** Pago del upgrade por Mercado Pago: se cobra solo la diferencia entre paquetes. */
+export async function startUpgradeCheckout(targetPackageId: string): Promise<UpgradeCheckoutResult> {
+  const user = await getCurrentUser();
+  if (!user) return { ok: false, error: "Inicia sesión para pagar." };
+  if (!mercadoPagoReady()) return { ok: false as const, error: "Los pagos con Mercado Pago aún no están configurados." };
+  if (!isSignupPlanId(targetPackageId)) return { ok: false, error: "Ese paquete no es válido." };
+  if (user.package === targetPackageId) return { ok: false, error: "Ya tienes ese paquete." };
+
+  const usd = upgradeDifferenceUsd(user.package, targetPackageId);
+  if (usd === null || usd <= 0) return { ok: false, error: "Este paquete no requiere pago de diferencia." };
+
+  const headerStore = await headers();
+  const host = headerStore.get("x-forwarded-host") ?? headerStore.get("host");
+  const proto = headerStore.get("x-forwarded-proto") ?? "http";
+  const origin = `${proto}://${host}`;
+  const targetLabel = getPackage(targetPackageId).label;
+
+  const checkout = await createMercadoPagoCheckout({
+    purpose: "upgrade",
+    userId: user.id,
+    email: user.email,
+    title: `LYRA · Upgrade a ${targetLabel}`,
+    usd,
+    origin,
+    packageId: targetPackageId,
+  });
+  if (!checkout) return { ok: false as const, error: "Mercado Pago no respondió. Intenta de nuevo en un momento." };
+  return { ok: true as const, url: checkout.url };
 }
 
 const activationPackages: SignupPlanId[] = ["STARTED", "PRO", "FOUNDER"];

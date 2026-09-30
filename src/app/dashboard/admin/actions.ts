@@ -196,7 +196,7 @@ export async function approveUsdtOrder(orderId: string): Promise<Result> {
 
   const order = await prisma.usdtOrder.findUnique({
     where: { id: orderId },
-    select: { id: true, status: true, purpose: true, amountUsd: true, trxHash: true, companyWallet: true, userId: true },
+    select: { id: true, status: true, purpose: true, amountUsd: true, trxHash: true, companyWallet: true, note: true, userId: true },
   });
   if (!order || order.status !== "pending") return { ok: false, error: "Esa orden ya fue procesada." };
   if (!order.trxHash) return { ok: false, error: "Aún no se reportó el TXID de la transferencia." };
@@ -269,6 +269,16 @@ export async function approveUsdtOrder(orderId: string): Promise<Result> {
           description: `Recarga ${extra} créditos · USDT TRC20 · ${order.trxHash}`,
         },
       });
+    });
+  } else if (order.purpose === "upgrade") {
+    // El destino del upgrade está en la nota, p. ej. "Upgrade a PRO".
+    const match = order.note?.match(/Upgrade a ([A-Z_]+)/i);
+    const target = match?.[1]?.toUpperCase();
+    if (!target || !isSignupPlanId(target)) return { ok: false, error: "No se pudo identificar el paquete de destino del upgrade." };
+    if (user.package === target) return { ok: false, error: "El usuario ya tiene ese paquete." };
+    await prisma.user.update({
+      where: { id: user.id },
+      data: { package: target, pendingPackage: null },
     });
   } else {
     return { ok: false, error: "El propósito de la orden no es válido." };

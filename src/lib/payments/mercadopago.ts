@@ -1,6 +1,6 @@
 const API = "https://api.mercadopago.com";
 
-export type MpPurpose = "rebuy" | "credits" | "signup";
+export type MpPurpose = "rebuy" | "credits" | "signup" | "upgrade";
 
 export type MpQuote = {
   usd: number;

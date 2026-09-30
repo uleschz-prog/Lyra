@@ -1,6 +1,6 @@
 import { getPrisma } from "@/lib/prisma";
 
-export type UsdtPurpose = "signup" | "rebuy" | "credits";
+export type UsdtPurpose = "signup" | "rebuy" | "credits" | "upgrade";
 
 export const USDT_TRC20_RE = /^T[1-9A-HJ-NP-Za-km-z]{33}$/;
 
