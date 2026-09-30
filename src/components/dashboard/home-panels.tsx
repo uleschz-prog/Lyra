@@ -174,7 +174,7 @@ export function RecentActivity({ items }: { items: HomeActivity[] }) {
           {items.map((item) => {
             const { icon: Icon, tone } = activityIcons[item.kind];
             return (
-              <li key={item.id} className="flex items-center gap-3 py-3">
+              <li key={item.id} className="flex min-w-0 items-center gap-3 py-3">
                 <span className={cn("grid h-8 w-8 shrink-0 place-items-center rounded-lg", tone)}>
                   <Icon className="h-4 w-4" aria-hidden />
                 </span>

@@ -73,13 +73,13 @@ export function ReferralCard({
         </div>
       </div>
 
-      <div className="relative space-y-3 overflow-hidden rounded-xl border border-[#E7E2DA] bg-white py-2 pr-2 pl-3 sm:flex sm:items-center sm:gap-2 sm:py-1.5 sm:pr-1.5 sm:pl-4">
-        <p className="w-full min-w-0 truncate text-sm text-[#7C3AED] sm:w-auto sm:flex-1">{link || "Preparando enlace…"}</p>
+      <div className="relative min-w-0 space-y-3 overflow-hidden rounded-xl border border-[#E7E2DA] bg-white py-2 pr-2 pl-3 sm:flex sm:items-center sm:gap-2 sm:py-1.5 sm:pr-1.5 sm:pl-4">
+        <p className="w-full min-w-0 max-w-full truncate text-sm text-[#7C3AED] sm:w-auto sm:flex-1">{link || "Preparando enlace…"}</p>
         <button
           type="button"
           onClick={() => void copyLink()}
           disabled={!link}
-          className="inline-flex w-full shrink-0 items-center justify-center gap-1.5 rounded-lg bg-[#7C3AED] px-3 py-2 text-sm font-medium text-white transition-colors hover:bg-[#6D28D9] disabled:opacity-50 sm:w-auto sm:py-1.5"
+          className="inline-flex w-full max-w-full shrink-0 items-center justify-center gap-1.5 rounded-lg bg-[#7C3AED] px-3 py-2 text-sm font-medium text-white transition-colors hover:bg-[#6D28D9] disabled:opacity-50 sm:w-auto sm:py-1.5"
         >
           {copied ? <Check className="h-4 w-4" aria-hidden /> : <Copy className="h-4 w-4" aria-hidden />}
           {copied ? "Copiado" : "Copiar"}
