@@ -17,6 +17,7 @@ import { getCurrentUser } from "@/lib/auth/profile";
 import { INDEFINITE_YEAR } from "@/lib/auth/suspension";
 import { activateMembership } from "@/lib/payments/activate";
 import { setCompanyUsdtWallet as persistCompanyWallet } from "@/lib/payments/usdt";
+import { trongridReady, verifyUsdtTransfer } from "@/lib/payments/usdt-verify";
 import { getPrisma } from "@/lib/prisma";
 
 type Result<T = object> = ({ ok: true } & T) | { ok: false; error: string };
@@ -195,10 +196,22 @@ export async function approveUsdtOrder(orderId: string): Promise<Result> {
 
   const order = await prisma.usdtOrder.findUnique({
     where: { id: orderId },
-    select: { id: true, status: true, purpose: true, amountUsd: true, trxHash: true, userId: true },
+    select: { id: true, status: true, purpose: true, amountUsd: true, trxHash: true, companyWallet: true, userId: true },
   });
   if (!order || order.status !== "pending") return { ok: false, error: "Esa orden ya fue procesada." };
   if (!order.trxHash) return { ok: false, error: "Aún no se reportó el TXID de la transferencia." };
+
+  // Si TronGrid está configurado, verificamos el TXID en blockchain antes de liberar.
+  if (trongridReady()) {
+    const verification = await verifyUsdtTransfer({
+      txid: order.trxHash,
+      companyWallet: order.companyWallet,
+      expectedUsd: Number(order.amountUsd) || 0,
+    });
+    if (verification && !verification.ok) {
+      return { ok: false, error: `Verificación en TronGrid: ${verification.error}` };
+    }
+  }
 
   const user = await prisma.user.findUnique({ where: { id: order.userId } });
   if (!user) return { ok: false, error: "El usuario de la orden ya no existe." };

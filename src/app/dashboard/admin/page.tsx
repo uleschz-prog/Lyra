@@ -10,6 +10,7 @@ import { CloseMonth } from "@/components/plan/close-month";
 import { getCurrentUser } from "@/lib/auth/profile";
 import { isSuspended } from "@/lib/auth/suspension";
 import { getCompanyUsdtWallet } from "@/lib/payments/usdt";
+import { trongridReady } from "@/lib/payments/usdt-verify";
 import { getPrisma } from "@/lib/prisma";
 
 export const metadata: Metadata = {
@@ -94,7 +95,7 @@ export default async function AdminPage() {
         <CompanyUsdtWallet address={companyUsdt} />
       </div>
       <div className="mt-5">
-        <UsdtOrders initialOrders={usdtOrderRows} />
+        <UsdtOrders initialOrders={usdtOrderRows} verifyEnabled={trongridReady()} />
       </div>
       <div className="mt-5">
         <SettleCommissions />

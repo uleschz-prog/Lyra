@@ -48,3 +48,10 @@ export async function usdtTrxHashUsed(trxHash: string) {
 export function normalizeUsdtAddress(value: string) {
   return value.trim();
 }
+
+/// Contrato oficial de USDT en la red Tron (TRC20).
+export const USDT_TRC20_CONTRACT = "TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6t";
+
+export function trongridReady() {
+  return (process.env.TRONGRID_API_KEY?.trim() ?? "").length > 0;
+}

@@ -24,7 +24,9 @@ const purposeLabel: Record<string, string> = {
   credits: "Recarga de créditos",
 };
 
-export function UsdtOrders({ initialOrders }: { initialOrders: OrderRow[] }) {
+const tronscanLink = (txid: string) => `https://tronscan.org/#/transaction/${txid}`;
+
+export function UsdtOrders({ initialOrders, verifyEnabled }: { initialOrders: OrderRow[]; verifyEnabled: boolean }) {
   const router = useRouter();
   const [orders, setOrders] = useState<OrderRow[]>(initialOrders);
   const [busy, startTransition] = useTransition();
@@ -91,6 +93,14 @@ export function UsdtOrders({ initialOrders }: { initialOrders: OrderRow[] }) {
             <p className="mt-2 max-w-2xl text-sm leading-6 text-[#5C5854]">
               Verifica en TronScan que el monto llegó a la wallet de LYRA antes de aprobar. La aprobación activa la
               compra del socio.
+              {verifyEnabled ? (
+                <>
+                  {" "}
+                  <span className="inline-flex items-center gap-1 rounded-full bg-[#E8F7EE] px-2 py-0.5 text-xs font-medium text-[#067647]">
+                    ✓ Verificación blockchain activa
+                  </span>
+                </>
+              ) : null}
             </p>
           </div>
         </div>
@@ -118,6 +128,11 @@ export function UsdtOrders({ initialOrders }: { initialOrders: OrderRow[] }) {
                 <p className="mt-1 text-xs text-[#8A8680]">
                   Reportada {new Date(order.createdAt).toLocaleString("es-MX")} · TXID:{" "}
                   <span className="font-mono">{order.trxHash ?? "—"}</span>
+                  {order.trxHash ? (
+                    <a href={tronscanLink(order.trxHash)} target="_blank" rel="noreferrer" className="ml-2 text-[#7C3AED] underline-offset-2 hover:underline">
+                      Ver en TronScan ↗
+                    </a>
+                  ) : null}
                 </p>
               </div>
               <div className="flex shrink-0 gap-2">
