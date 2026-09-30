@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 
-import { VegaBot } from "@/components/plan/vega-bot";
+import { VegaMascot } from "@/components/vega/vega-mark";
 import { brand } from "@/config/brand";
 
 const STORAGE_KEY = "lyra-splash-shown";
@@ -41,7 +41,7 @@ export function Splash() {
       style={{ opacity: phase === "fading" ? 0 : 1 }}
     >
       <div className="splash-entrance">
-        <VegaBot className="h-28 w-28" />
+        <VegaMascot className="h-32 w-32" />
       </div>
       <p className="splash-entrance splash-entrance-delayed text-3xl font-semibold tracking-tight text-white">
         {brand.name}

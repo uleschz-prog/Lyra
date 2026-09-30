@@ -112,3 +112,43 @@ export function VegaGreeting({ className }: { className?: string }) {
 
   return <VegaMark className={className} mood={greetingMoods[step]} />;
 }
+
+/**
+ * Vega completo: la mascota real (misma cara y emociones que el super agente)
+ * con cuerpo, antena, brazos y núcleo animados. Para tarjetas destacadas.
+ */
+export function VegaMascot({
+  className = "h-32 w-32",
+  mood = "happy",
+}: {
+  className?: string;
+  mood?: VegaMood;
+}) {
+  const [step, setStep] = useState(0);
+
+  useEffect(() => {
+    const timer = window.setInterval(() => setStep((current) => (current + 1) % greetingMoods.length), 4200);
+    return () => window.clearInterval(timer);
+  }, []);
+
+  return (
+    <span className={cn("vega-mascot relative block shrink-0", className)} aria-hidden>
+      <svg viewBox="0 0 64 72" className="vega-mascot-float size-full">
+        {/* antena */}
+        <line x1="32" y1="8" x2="32" y2="17" stroke="#E9D5FF" strokeWidth="2.4" strokeLinecap="round" />
+        <circle cx="32" cy="6" r="3.2" fill="#E9D5FF" className="vega-mascot-core" />
+        {/* brazos */}
+        <rect x="6" y="44" width="11" height="5" rx="2.5" fill="#7C3AED" className="vega-mascot-arm-left" />
+        <rect x="47" y="44" width="11" height="5" rx="2.5" fill="#7C3AED" className="vega-mascot-arm-right" />
+        {/* cuerpo */}
+        <rect x="19" y="42" width="26" height="20" rx="8" fill="#5B21B6" />
+        <circle cx="32" cy="52" r="4" fill="#E9D5FF" className="vega-mascot-core" />
+      </svg>
+      {/* cara real de Vega (VMarca) superpuesta como cabeza */}
+      <span className="absolute top-0 left-1/2 h-[54%] w-[84%] -translate-x-1/2">
+        <VegaMark className="size-full" mood={mood} />
+        <span key={step} className="absolute inset-0 hidden" />
+      </span>
+    </span>
+  );
+}

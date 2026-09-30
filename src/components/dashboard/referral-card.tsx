@@ -5,6 +5,7 @@ import { useState } from "react";
 import { toast } from "sonner";
 
 import { creditRechargeUsd, isFounderPackage } from "@/config/compensation-plan";
+import { VegaMascot } from "@/components/vega/vega-mark";
 
 const shareText = "Te invito a LYRA: agentes de IA que crean, venden y dan seguimiento por ti, más un plan para ganar refiriendo.";
 
@@ -44,7 +45,7 @@ export function ReferralCard({
   }
 
   const button =
-    "inline-flex items-center gap-2 rounded-xl border border-[#E7E2DA] bg-white px-3.5 py-2 text-sm text-[#1E1E24] transition-colors hover:border-[#C4B5FD]";
+    "inline-flex flex-1 items-center justify-center gap-2 rounded-xl border border-[#E7E2DA] bg-white px-3.5 py-2 text-sm text-[#1E1E24] transition-colors hover:border-[#C4B5FD] sm:flex-none";
 
   return (
     <section
@@ -60,7 +61,7 @@ export function ReferralCard({
           </p>
           <h2 className="mt-2 text-lg font-semibold tracking-tight text-[#1E1E24]">Invita a tu red</h2>
         </div>
-        <div className="flex gap-6 text-right">
+        <div className="flex shrink-0 items-center gap-5 text-right">
           <div>
             <p className="text-2xl font-semibold text-[#1E1E24] tabular-nums">{directs}</p>
             <p className="text-xs text-[#5C5854]">directos</p>
@@ -72,20 +73,20 @@ export function ReferralCard({
         </div>
       </div>
 
-      <div className="relative mt-4 flex items-center gap-2 rounded-xl border border-[#E7E2DA] bg-white py-1.5 pr-1.5 pl-4">
-        <p className="min-w-0 flex-1 truncate text-sm text-[#7C3AED]">{link || "Preparando enlace…"}</p>
+      <div className="relative space-y-3 overflow-hidden rounded-xl border border-[#E7E2DA] bg-white py-2 pr-2 pl-3 sm:flex sm:items-center sm:gap-2 sm:py-1.5 sm:pr-1.5 sm:pl-4">
+        <p className="w-full min-w-0 truncate text-sm text-[#7C3AED] sm:w-auto sm:flex-1">{link || "Preparando enlace…"}</p>
         <button
           type="button"
           onClick={() => void copyLink()}
           disabled={!link}
-          className="inline-flex shrink-0 items-center gap-1.5 rounded-lg bg-[#7C3AED] px-3 py-1.5 text-sm font-medium text-white transition-colors hover:bg-[#6D28D9] disabled:opacity-50"
+          className="inline-flex w-full shrink-0 items-center justify-center gap-1.5 rounded-lg bg-[#7C3AED] px-3 py-2 text-sm font-medium text-white transition-colors hover:bg-[#6D28D9] disabled:opacity-50 sm:w-auto sm:py-1.5"
         >
           {copied ? <Check className="h-4 w-4" aria-hidden /> : <Copy className="h-4 w-4" aria-hidden />}
           {copied ? "Copiado" : "Copiar"}
         </button>
       </div>
 
-      <div className="relative mt-3 flex flex-wrap gap-2">
+      <div className="relative mt-3 grid grid-cols-2 gap-2 sm:flex sm:flex-wrap">
         <a href={`https://wa.me/?text=${encodeURIComponent(message)}`} target="_blank" rel="noopener noreferrer" className={button}>
           <MessageCircle className="h-4 w-4 text-[#16A34A]" aria-hidden />
           WhatsApp
@@ -99,19 +100,22 @@ export function ReferralCard({
           <Send className="h-4 w-4 text-[#0284C7]" aria-hidden />
           Telegram
         </a>
-        <button type="button" onClick={() => void nativeShare()} className={`${button} sm:hidden`}>
+        <button type="button" onClick={() => void nativeShare()} className={`${button} col-span-2 sm:hidden`}>
           <Share2 className="h-4 w-4 text-[#7C3AED]" aria-hidden />
-          Más
+          Más opciones
         </button>
       </div>
 
-      <p className="relative mt-4 text-sm leading-6 text-[#5C5854]">
+      <div className="relative mt-4 flex flex-col gap-3 rounded-xl border border-[#DDD6FE] bg-white/70 p-4 sm:flex-row sm:items-center">
+        <VegaMascot className="h-24 w-24 shrink-0 self-center sm:h-20 sm:w-20" />
+        <p className="text-sm leading-6 text-[#5C5854]">
         {isFounderPackage(packageId)
           ? "Tu cuenta Founder cobra el máximo de la red desde el día 0 y recibe 40 créditos con cada mensualidad."
           : recharge
             ? `Tu recarga mínima es de $${recharge} al mes siguiente. Un crédito equivale a $1.`
             : "Started entra con $99, Pro con $499, Founder con $1,000 y Corporate con $5,000. Un crédito equivale a $1."}
-      </p>
+        </p>
+      </div>
     </section>
   );
 }

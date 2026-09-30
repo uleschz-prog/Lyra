@@ -5,7 +5,7 @@ import { BuilderConsole } from "@/components/landing/builder-console";
 import { SiteFooter } from "@/components/landing/site-footer";
 import { SiteHeader } from "@/components/landing/site-header";
 import { PromoBadge, RebuyPromo } from "@/components/plan/rebuy-promo";
-import { VegaBot } from "@/components/plan/vega-bot";
+import { VegaMascot } from "@/components/vega/vega-mark";
 import { brand } from "@/config/brand";
 import { signupPlans } from "@/config/compensation-plan";
 
@@ -164,7 +164,7 @@ export default function HomePage() {
                         </Link>
                         {vegaPartner ? (
                           <div className="mt-5 flex items-center gap-3">
-                            <VegaBot className="h-20 w-20 shrink-0" />
+                            <VegaMascot className="h-24 w-24 shrink-0" />
                             <p className="text-sm leading-6 text-white/85">
                               Tu superagente <strong className="text-white">Vega</strong> te acompaña 24/7: agenda, escribe y hace crecer tu red por ti.
                             </p>

@@ -183,12 +183,12 @@ export function RecentActivity({ items }: { items: HomeActivity[] }) {
                   <span className="block text-xs text-[#8A8680]">{ago(item.at)}</span>
                 </span>
                 {item.amount ? (
-                  <span className={cn("text-sm font-medium tabular-nums", item.kind === "commission" ? "text-[#059669]" : "text-[#1E1E24]")}>
+                  <span className={cn("shrink-0 text-sm font-medium whitespace-nowrap tabular-nums", item.kind === "commission" ? "text-[#059669]" : "text-[#1E1E24]")}>
                     {item.kind === "commission" ? "+" : ""}
                     {formatUsd(item.amount)}
                   </span>
                 ) : item.credits ? (
-                  <span className={cn("text-sm tabular-nums", item.credits > 0 ? "text-[#0891B2]" : "text-[#5C5854]")}>
+                  <span className={cn("shrink-0 text-sm whitespace-nowrap tabular-nums", item.credits > 0 ? "text-[#0891B2]" : "text-[#5C5854]")}>
                     {item.credits > 0 ? "+" : ""}
                     {formatCredits(item.credits)} cr
                   </span>

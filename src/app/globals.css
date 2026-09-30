@@ -508,3 +508,38 @@ body {
 @media (max-width: 768px) {
   input, select, textarea { font-size: 16px; }
 }
+
+/* ===== Vega mascota (cuerpo animado con la cara real del super agente) ===== */
+@keyframes vega-mascot-float {
+  0%, 100% { transform: translateY(0) rotate(0deg); }
+  50% { transform: translateY(-7px) rotate(1.5deg); }
+}
+@keyframes vega-mascot-arm-left {
+  0%, 100% { transform: rotate(0deg); }
+  50% { transform: rotate(-16deg); }
+}
+@keyframes vega-mascot-arm-right {
+  0%, 100% { transform: rotate(0deg); }
+  50% { transform: rotate(16deg); }
+}
+@keyframes vega-mascot-core {
+  0%, 100% { opacity: 1; r: 4; }
+  50% { opacity: 0.45; r: 5; }
+}
+.vega-mascot-float {
+  animation: vega-mascot-float 3.2s ease-in-out infinite;
+  transform-origin: 50% 60%;
+}
+.vega-mascot-arm-left {
+  animation: vega-mascot-arm-left 2.6s ease-in-out infinite;
+  transform-origin: 17px 46px;
+  transform-box: view-box;
+}
+.vega-mascot-arm-right {
+  animation: vega-mascot-arm-right 2.6s ease-in-out infinite;
+  transform-origin: 47px 46px;
+  transform-box: view-box;
+}
+.vega-mascot-core {
+  animation: vega-mascot-core 1.7s ease-in-out infinite;
+}

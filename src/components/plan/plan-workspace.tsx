@@ -5,7 +5,7 @@ import { useMemo, useState } from "react";
 
 import { Badge } from "@/components/ui/badge";
 import { PromoBadge, RebuyPromo } from "@/components/plan/rebuy-promo";
-import { VegaBot } from "@/components/plan/vega-bot";
+import { VegaMascot } from "@/components/vega/vega-mark";
 import { Progress } from "@/components/ui/progress";
 import {
   bonusProfile,
@@ -147,7 +147,7 @@ export function PlanWorkspace({ plan }: { plan: MemberPlanView }) {
                 </div>
 
                 <h3 className="relative mt-4 text-2xl font-semibold tracking-tight">{planPackage.label}</h3>
-                {vegaPartner ? <VegaBot className="vega-bot mt-3 h-20 w-20" /> : null}
+                {vegaPartner ? <VegaMascot className="mt-3 h-24 w-24" /> : null}
                 <p className={`relative mt-1.5 text-sm leading-6 ${featured ? "text-white/75" : "text-[#5C5854]"}`}>
                   {planVoice[planPackage.id]}
                 </p>
