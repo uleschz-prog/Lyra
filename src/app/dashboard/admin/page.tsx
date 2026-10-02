@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 
 import { AdminUsers, type AdminUserRow } from "@/components/admin/admin-users";
 import { CompanyUsdtWallet } from "@/components/admin/company-usdt-wallet";
+import { PromoCodes } from "@/components/admin/promo-codes";
 import { SettleCommissions } from "@/components/admin/settle-commissions";
 import { UsdtOrders } from "@/components/admin/usdt-orders";
 import { PageHeader } from "@/components/dashboard/page-header";
@@ -43,6 +44,21 @@ export default async function AdminPage() {
   });
 
   const companyUsdt = await getCompanyUsdtWallet();
+
+  const promoRows = await getPrisma().promoCode.findMany({
+    orderBy: { createdAt: "desc" },
+    include: { _count: { select: { uses: true } } },
+  });
+  const promoCodeRows = promoRows.map((c) => ({
+    id: c.id,
+    code: c.code,
+    budgetUsd: c.budgetUsd,
+    usedUsd: c.usedUsd,
+    remainingUsd: c.budgetUsd - c.usedUsd,
+    active: c.active,
+    uses: c._count.uses,
+    createdAt: c.createdAt.toISOString(),
+  }));
 
   const pendingOrders = await getPrisma().usdtOrder.findMany({
     where: { status: "pending" },
@@ -96,6 +112,9 @@ export default async function AdminPage() {
       </div>
       <div className="mt-5">
         <UsdtOrders initialOrders={usdtOrderRows} verifyEnabled={trongridReady()} />
+      </div>
+      <div className="mt-5">
+        <PromoCodes initialCodes={promoCodeRows} />
       </div>
       <div className="mt-5">
         <SettleCommissions />

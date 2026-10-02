@@ -53,17 +53,17 @@ model AppSetting {
 
 /// Orden de pago por USDT (TRC20) que un socio declara haber transferido y queda pendiente de validación.
 model UsdtOrder {
-  id           String   @id @default(cuid())
-  userId       String
-  purpose      String // signup | rebuy | credits
-  amountUsd    Decimal  @db.Decimal(12, 2)
-  trxHash      String?  @unique
+  id            String    @id @default(cuid())
+  userId        String
+  purpose       String // signup | rebuy | credits
+  amountUsd     Decimal   @db.Decimal(12, 2)
+  trxHash       String?   @unique
   companyWallet String
-  status       String   @default("pending") // pending | approved | rejected
-  note         String?  @db.Text
-  createdAt    DateTime @default(now())
-  reviewedAt   DateTime?
-  reviewedBy   String?
+  status        String    @default("pending") // pending | approved | rejected
+  note          String?   @db.Text
+  createdAt     DateTime  @default(now())
+  reviewedAt    DateTime?
+  reviewedBy    String?
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
@@ -133,6 +133,8 @@ model User {
   vegaAutonomy       VegaAutonomy?
   whatsappConnection WhatsappConnection?
   usdtOrders         UsdtOrder[]
+  promoCreated       PromoCode[]         @relation("PromoOwner")
+  promoUses          PromoCodeUse[]      @relation("PromoUser")
 
   @@index([sponsorId])
   @@index([rank])
@@ -140,17 +142,17 @@ model User {
 
 /// Perfil estructurado del socio; Vega lo carga siempre como contexto.
 model UserProfile {
-  id             String   @id @default(cuid())
-  userId         String   @unique
-  business       String?  @db.Text // Qué vende o hace el socio.
-  goals          String?  @db.Text // Metas de ventas, red o negocio.
-  tone           String?  @db.Text // Tono preferido en los mensajes.
-  markets        String?  @db.Text // Mercados o nichos.
-  services       String?  @db.Text // Productos o servicios.
-  hours          String?  @db.Text // Horarios y disponibilidad.
-  team           String?  @db.Text // Personas clave.
-  notes          String?  @db.Text // Contexto adicional.
-  updatedAt      DateTime @updatedAt
+  id        String   @id @default(cuid())
+  userId    String   @unique
+  business  String?  @db.Text // Qué vende o hace el socio.
+  goals     String?  @db.Text // Metas de ventas, red o negocio.
+  tone      String?  @db.Text // Tono preferido en los mensajes.
+  markets   String?  @db.Text // Mercados o nichos.
+  services  String?  @db.Text // Productos o servicios.
+  hours     String?  @db.Text // Horarios y disponibilidad.
+  team      String?  @db.Text // Personas clave.
+  notes     String?  @db.Text // Contexto adicional.
+  updatedAt DateTime @updatedAt
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
@@ -249,6 +251,42 @@ model ActivationCode {
   usedBy User? @relation("ActivationUsedBy", fields: [usedById], references: [id], onDelete: SetNull)
 
   @@index([ownerId, createdAt])
+}
+
+/// Código promocional universal del administrador.
+/// Cubre cualquier propósito de pago (entrada, recompra, recarga, upgrade)
+/// hasta agotar su saldo. Lo genera y usa exclusivamente la cuenta con role ADMIN.
+model PromoCode {
+  id        String    @id @default(cuid())
+  code      String    @unique
+  ownerId   String // Siempre la cuenta ADMIN que lo creó.
+  budgetUsd Int // Crédito total de este código en USD.
+  usedUsd   Int       @default(0) // Cuánto ya se aplicó.
+  expiresAt DateTime?
+  active    Boolean   @default(true)
+  createdAt DateTime  @default(now())
+
+  owner User           @relation("PromoOwner", fields: [ownerId], references: [id], onDelete: Cascade)
+  uses  PromoCodeUse[]
+
+  @@index([ownerId])
+}
+
+/// Traza de cada uso de un código promocional.
+model PromoCodeUse {
+  id        String   @id @default(cuid())
+  promoId   String
+  code      String
+  userId    String // Cuenta cuyo pago se salda.
+  purpose   String // signup | rebuy | credits | upgrade
+  amountUsd Int // Cuánto cubrió este uso.
+  createdAt DateTime @default(now())
+
+  promo PromoCode @relation(fields: [promoId], references: [id], onDelete: Cascade)
+  user  User      @relation("PromoUser", fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([promoId])
+  @@index([userId])
 }
 
 model VegaConversation {
