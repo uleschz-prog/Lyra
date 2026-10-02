@@ -496,6 +496,9 @@ body::before {
 html {
   -webkit-tap-highlight-color: transparent;
   overscroll-behavior-y: none;
+  /* La barra inferior fija no debe tapar ninguna ancla (p. ej. #invitar) */
+  scroll-padding-bottom: calc(6rem + env(safe-area-inset-bottom));
+  scroll-padding-top: calc(4rem + env(safe-area-inset-top));
 }
 body {
   text-size-adjust: 100%;
