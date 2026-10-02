@@ -52,7 +52,7 @@ export function ReferralCard({
       id="invitar"
       className="relative scroll-mt-24 overflow-hidden rounded-2xl border border-[#DDD6FE] bg-gradient-to-br from-[#F5F3FF] via-white to-[#ECFEFF] p-6"
     >
-      <div className="pointer-events-none absolute -top-16 -right-16 h-48 w-48 rounded-full bg-[#7C3AED]/10 blur-3xl" aria-hidden />
+      <div className="pointer-events-none absolute -top-16 right-0 hidden h-48 w-48 rounded-full bg-[#7C3AED]/10 blur-3xl sm:block" aria-hidden />
       <div className="relative flex flex-wrap items-start justify-between gap-4">
         <div>
           <p className="flex items-center gap-2 text-[10px] tracking-[0.16em] text-[#5C5854] uppercase">

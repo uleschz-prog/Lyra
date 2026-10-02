@@ -1,5 +1,13 @@
 @import "tailwindcss";
 
+/* Red de seguridad: evita cualquier scroll horizontal en móvil
+   (halos decorativos, sombras o elementos que sobresalgan del viewport). */
+html,
+body {
+  max-width: 100%;
+  overflow-x: hidden;
+}
+
 @custom-variant dark (&:where(.dark, .dark *));
 
 @theme inline {

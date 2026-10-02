@@ -47,7 +47,7 @@ export function DashboardShell({
   }, [open]);
 
   return (
-    <div className="lyra-office min-h-screen bg-[#F6F4F1] dark:bg-[#14121C]" style={{ backgroundImage: "none" }}>
+    <div className="lyra-office min-h-screen overflow-x-hidden bg-[#F6F4F1] dark:bg-[#14121C]" style={{ backgroundImage: "none" }}>
       <aside
         className={cn(
           "fixed inset-y-0 left-0 z-40 w-[min(85vw,260px)] border-r border-[#E7E2DA] bg-white transition-transform dark:border-white/12 dark:bg-[#181625] md:w-[248px] md:translate-x-0",
@@ -82,7 +82,7 @@ export function DashboardShell({
           </Link>
           <ThemeToggle />
         </header>
-        <main className="safe-bottom mx-auto w-full max-w-6xl px-4 pb-24 py-6 sm:px-6 sm:py-8 md:pb-8 lg:px-10 lg:py-10">{children}</main>
+        <main className="mx-auto w-full max-w-6xl px-4 pt-6 pb-[calc(6rem+env(safe-area-inset-bottom))] sm:px-6 sm:pt-8 sm:pb-[calc(6.5rem+env(safe-area-inset-bottom))] md:pb-8 lg:px-10 lg:pt-10">{children}</main>
       </div>
 
       {/* Barra de pestañas inferior (solo móvil) */}
