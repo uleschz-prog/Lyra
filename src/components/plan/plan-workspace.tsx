@@ -79,7 +79,7 @@ export function PlanWorkspace({ plan }: { plan: MemberPlanView }) {
           </div>
           <Badge variant={plan.exempt ? "cyan" : "violet"}>
             {plan.exempt
-              ? compensationPlan.exemptRebuyLabel
+              ? "Créditos bonus activos"
               : `${plan.activeDirects} de ${plan.requiredDirects} directos activos`}
           </Badge>
         </div>

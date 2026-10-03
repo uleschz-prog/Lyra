@@ -57,8 +57,8 @@ export function HomeStats({ summary }: { summary: HomeSummary }) {
         <Bar value={directsProgress} tone={summary.exempt ? "emerald" : "violet"} />
         <p className="mt-2 text-xs text-[#5C5854]">
           {summary.exempt
-            ? "Exento de recompra este mes"
-            : `${summary.exemptTarget - Math.min(summary.activeDirects, summary.exemptTarget)} más para quedar exento`}
+            ? "Créditos bonus activos este mes"
+            : `${summary.exemptTarget - Math.min(summary.activeDirects, summary.exemptTarget)} más para créditos bonus`}
         </p>
       </StatLink>
 

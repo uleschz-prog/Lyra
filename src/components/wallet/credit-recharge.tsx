@@ -61,7 +61,7 @@ export function CreditRecharge({
     <section className="rounded-2xl border border-border bg-white p-6">
       <p className="text-[11px] font-medium tracking-[0.22em] text-[#5C5854] uppercase">{title}</p>
       <h2 className="mt-2 text-xl text-[#1E1E24]">
-        {exempt ? "Exento de recompra" : paid ? "Estás activo este mes" : formatUsd(amount)}
+        {exempt ? "Créditos bonus activos" : paid ? "Estás activo este mes" : formatUsd(amount)}
       </h2>
       <p className="mt-3 max-w-2xl text-sm leading-relaxed text-[#5C5854]">{state}</p>
       {founder ? <p className="mt-2 text-sm text-[#7C3AED]">Cada mensualidad suma 40 créditos a tu saldo.</p> : null}

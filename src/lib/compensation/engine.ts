@@ -239,9 +239,9 @@ export function rebuyMessage(packageId: PackageId | null, directs = 0) {
     return "Corporate se cotiza según el alcance de tu operación.";
   }
   if (status.exempt) {
-    return `Tienes ${compensationPlan.minActiveDirectsForFreeSubscription} directos activos: quedas exento de recarga mientras se mantengan activos.`;
+    return `Tienes ${compensationPlan.minActiveDirectsForBonus} directos activos: ganas créditos bonus cada mes mientras se mantengan activos.`;
   }
-  const pending = `Te faltan ${status.remaining} ${status.remaining === 1 ? "directo activo" : "directos activos"} para quedar exento.`;
+  const pending = `Te faltan ${status.remaining} ${status.remaining === 1 ? "directo activo" : "directos activos"} para tus créditos bonus.`;
   if (packageId === "FOUNDER") {
     return `Pro recarga desde $99 al mes siguiente. ${pending}`;
   }

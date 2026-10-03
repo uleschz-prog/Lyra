@@ -101,7 +101,7 @@ export async function homeSummary(user: AuthProfile, projectCount: number): Prom
   const achieved = evaluation?.ranks.find((rank) => rank.id === evaluation.achievedRankId) ?? null;
   const next = evaluation?.ranks.find((rank) => !rank.reached && !rank.locked) ?? null;
   const rebuy = rebuyStatus(user.package, user.activeDirects);
-  const exemptTarget = compensationPlan.minActiveDirectsForFreeSubscription;
+  const exemptTarget = compensationPlan.minActiveDirectsForBonus;
 
   const steps: HomeStep[] = [
     {
@@ -135,9 +135,9 @@ export async function homeSummary(user: AuthProfile, projectCount: number): Prom
     {
       id: "exempt",
       title: `Llega a ${exemptTarget} directos activos`,
-      hint: "Quedas exento de recompra cada mes.",
+      hint: "Ganas créditos bonus cada mes y sigues con tu recarga activa.",
       href: "/dashboard/network",
-      done: user.isSubscriptionExempt || rebuy.exempt,
+      done: user.isSubscriptionExempt || rebuy.bonusCredits > 0,
     },
   ];
 
@@ -169,7 +169,7 @@ export async function homeSummary(user: AuthProfile, projectCount: number): Prom
     joinedThisMonth: joined,
     activeDirects: user.activeDirects,
     exemptTarget,
-    exempt: user.isSubscriptionExempt || rebuy.exempt,
+    exempt: user.isSubscriptionExempt || rebuy.bonusCredits > 0,
     rebuyLabel: rebuy.label,
     rank: {
       achieved: achieved?.label ?? null,

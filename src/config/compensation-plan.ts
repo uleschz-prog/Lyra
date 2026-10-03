@@ -90,12 +90,36 @@ export const signupPlans: readonly PlanSpec[] = [
 
 export type SignupPlanId = (typeof signupPlans)[number]["id"];
 
+/**
+ * Créditos de regalo por cada directo activo. Sustituyen a la exención total
+ * de recompra: la mensualidad se conserva (recurrencia) y el socio recibe
+ * créditos, que cuestan centavos. Ajusta el número al medir uso real.
+ */
+export const activeDirectBonusCredits = 250;
+
+/**
+ * Créditos de regalo máximos por mes (tope del bonus por directos activos).
+ * Evita que cuentas grandes acumulen créditos sin límite.
+ */
+export const activeDirectBonusCap = 1500;
+
 export const compensationPlan = {
   name: "Plan Constelación LYRA",
   pointsPerUsd: 0.8,
   unilevel: [0.05, 0.05, 0.04, 0.03, 0.02, 0.01],
   galaxyPoolRate: 0.02,
-  payoutCap: 0.55,
+  /**
+   * Tope de pago sobre los puntos generados por producto (no sobre créditos
+   * regalados). Bajado de 0.55 a 0.45 para alinear el costo de red con un
+   * producto de software; la IA cuesta centavos, la red es el costo real.
+   */
+  payoutCap: 0.45,
+  /**
+   * Los directos activos ya NO exentan la recompra: dan créditos bonus.
+   * La recurrencia queda siempre activa. Se conserva el valor por compatibilidad
+   * de UI/label, pero no se usa para exentar pagos.
+   */
+  minActiveDirectsForBonus: 3,
   minActiveDirectsForFreeSubscription: 3,
   packages: [] as const,
   ranks: [
@@ -107,7 +131,7 @@ export const compensationPlan = {
   ],
   minLegsRequired: 3,
   maxLegVolumePercentage: 0.4,
-  exemptRebuyLabel: "Exento de recompra",
+  exemptRebuyLabel: "Créditos bonus",
 } as const;
 
 export type PackageId =
@@ -197,22 +221,32 @@ export function isQuotePlan(id: string | null | undefined) {
   return id === "CORPORATE";
 }
 
-export const rebuyExemptionRule = `Con ${compensationPlan.minActiveDirectsForFreeSubscription} directos activos quedas exento de recompra.`;
+export const rebuyExemptionRule = `Con ${compensationPlan.minActiveDirectsForBonus} directos activos ganas créditos bonus cada mes (la recarga sigue activa).`;
+
+export function activeDirectBonusCreditsFor(activeDirects: number) {
+  if (activeDirects < compensationPlan.minActiveDirectsForBonus) return 0;
+  const raw = activeDirects * activeDirectBonusCredits;
+  return Math.min(raw, activeDirectBonusCap);
+}
 
 export function rebuyStatus(packageId: string | null | undefined, activeDirects: number) {
   const amount = packageId && isPackageId(packageId) ? getPackage(packageId).rebuy : 0;
-  const required = compensationPlan.minActiveDirectsForFreeSubscription;
+  const required = compensationPlan.minActiveDirectsForBonus;
+  const bonus = activeDirectBonusCreditsFor(activeDirects);
   if (packageId === "CORPORATE") {
-    return { amount: 0, exempt: true, remaining: 0, label: "Corporate · por cotización" };
-  }
-  if (activeDirects >= required) {
-    return { amount: 0, exempt: true, remaining: 0, label: `${required} directos activos · exento de recompra` };
+    return { amount: 0, exempt: true, remaining: 0, bonusCredits: bonus, label: "Corporate · por cotización" };
   }
   return {
     amount,
     exempt: amount === 0,
-    remaining: required - activeDirects,
-    label: amount > 0 ? `Recarga de $${amount} al mes` : "Sin recarga",
+    remaining: Math.max(required - activeDirects, 0),
+    bonusCredits: bonus,
+    label:
+      amount > 0
+        ? bonus > 0
+          ? `Recarga de $${amount} al mes · +${bonus} créditos por directos activos`
+          : `Recarga de $${amount} al mes`
+        : "Sin recarga",
   };
 }
 
@@ -228,8 +262,7 @@ export type BonusProfile = {
 const bonusProfiles: Record<"STARTED" | "PRO" | "FOUNDER" | "CORPORATE", BonusProfile> = {
   STARTED: { chispa: 0.1, orbitaLevels: 2, rankMultiplier: 0.25, maxRank: "NOVA", espejo: 0, galaxyPool: false },
   PRO: { chispa: 0.2, orbitaLevels: 4, rankMultiplier: 0.5, maxRank: "QUASAR", espejo: 0, galaxyPool: false },
-  FOUNDER: { chispa: 0.3, orbitaLevels: 6, rankMultiplier: 1, maxRank: "SUPERNOVA", espejo: 0.1, galaxyPool: true },
-  CORPORATE: { chispa: 0.4, orbitaLevels: 6, rankMultiplier: 1.5, maxRank: "GALAXIA", espejo: 0.2, galaxyPool: true },
+  FOUNDER: { chispa: 0.3, orbitaLevels: 6, rankMultiplier: 1, maxRank: "SUPERNOVA", espejo: 0.1, galaxyPool: true },  CORPORATE: { chispa: 0.4, orbitaLevels: 6, rankMultiplier: 1.5, maxRank: "GALAXIA", espejo: 0.2, galaxyPool: true },
 };
 
 export function bonusProfile(packageId: string | null | undefined): BonusProfile | null {
@@ -242,6 +275,20 @@ export function bonusProfile(packageId: string | null | undefined): BonusProfile
 
 export function toPoints(usd: number) {
   return Math.round(usd * compensationPlan.pointsPerUsd * 100) / 100;
+}
+
+/**
+ * Puntos generados SOLO por el precio del producto (membresía/recarga).
+ * Los créditos que se regalan (entrada o bonus) no generan puntos de red:
+ * no se puede pagar comisión sobre algo que cuesta centavos.
+ */
+export function productPoints(usd: number) {
+  return toPoints(usd);
+}
+
+/** Pago máximo de red para un monto de producto, aplicando payoutCap. */
+export function maxNetworkPayout(usd: number) {
+  return Math.round(productPoints(usd) * compensationPlan.payoutCap * 100) / 100;
 }
 
 export function isFounderPackage(packageId: string | null | undefined) {

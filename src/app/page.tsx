@@ -97,7 +97,7 @@ export default function HomePage() {
                 tu plan
               </h2>
               <p className="mt-8 max-w-sm text-xl leading-snug text-[#1E1E24] sm:text-2xl dark:text-[#C7C3D4]">
-                Inicio entra con $29, Negocio con $99 y Pro con $299. Corporate se cotiza según alcance. Un crédito equivale a $1. Con 3 directos activos quedas exento de recompra.
+                Inicio entra con $29, Negocio con $99 y Pro con $299. Corporate se cotiza según alcance. Un crédito equivale a $1. Con 3 directos activos ganas créditos bonus cada mes.
               </p>
             </div>
             <div className="space-y-4">
