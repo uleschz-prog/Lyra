@@ -43,7 +43,7 @@ export default async function WalletPage({
         select: { code: true, packageId: true, price: true, createdAt: true, usedBy: { select: { name: true } } },
       })
     : [];
-  // Founder genera códigos desde sus créditos normales con tope vitalicio de $1,000.
+  // Pro (antes Founder) genera códigos desde sus créditos normales con tope vitalicio de $1,000.
   const activationBalance = isFounderPackage(user.package)
     ? Math.max(0, 1000 - codes.reduce((total, row) => total + row.price, 0))
     : user.activationCredits;
@@ -74,7 +74,7 @@ export default async function WalletPage({
         title="Saldos"
         description={
           isFounderPackage(user.package)
-            ? "Tus comisiones quedan en dólares. La mensualidad de Founder es de $29 e incluye 40 créditos; con 3 directos activos quedas exento."
+            ? "Tus comisiones quedan en dólares. La mensualidad de Pro es de $99; con 3 directos activos quedas exento."
             : "Las comisiones quedan en dólares. Paga tu recompra para seguir activo: con 3 directos activos quedas exento."
         }
       />

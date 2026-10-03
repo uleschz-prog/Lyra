@@ -32,8 +32,8 @@ export function CompanyUsdtWallet({ address }: { address: string | null }) {
           <p className="text-[11px] font-medium tracking-[0.22em] text-[#7C3AED] uppercase">Pagos con USDT</p>
           <h2 className="mt-1 text-lg font-bold tracking-tight text-[#1E1E24]">Wallet USDT (TRC20) de LYRA</h2>
           <p className="mt-2 max-w-2xl text-sm leading-6 text-[#5C5854]">
-            Dirección Tron que recibe los pagos de <strong>todos los paquetes</strong> (Started, Pro, Founder,
-            Corporate y Vega Partner) y de las <strong>recompras y recargas de créditos</strong> de los socios en USDT
+            Dirección Tron que recibe los pagos de <strong>todos los paquetes</strong> (Inicio, Negocio, Pro y
+            Corporate) y de las <strong>recargas de créditos</strong> de los socios en USDT
             TRC20. Cuando un socio declara haber hecho una transferencia, esta es la cuenta a la que debe llegar.
           </p>
         </div>

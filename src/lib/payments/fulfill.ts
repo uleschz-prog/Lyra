@@ -65,7 +65,7 @@ export async function fulfillMercadoPago(paymentId: string): Promise<FulfillResu
     const credits = purpose === "rebuy" ? rebuyCredits(user.package, usd) : usd;
     const description =
       purpose === "rebuy"
-        ? `${founder ? `Mensualidad Founder · $${usd} · ${credits} créditos` : `Recompra de ${credits} créditos`} · Mercado Pago`
+        ? `${founder ? `Mensualidad Pro · $${usd} · ${credits} créditos` : `Recarga de ${credits} créditos`} · Mercado Pago`
         : `Recarga de ${usd} créditos · Mercado Pago`;
 
     await prisma.$transaction(async (tx) => {

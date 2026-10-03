@@ -62,7 +62,7 @@ async function handleOwner(connection: Connection, client: TelegramClient, inbou
   const user = connection.user;
   const chatId = inbound.chatId!;
   if (!canUseVega(user)) {
-    await client.sendText(chatId, "Aquí te aviso cuando un prospecto pida hablar contigo. Para platicar con Vega Bot desde Telegram activa Founder o Corporate.");
+    await client.sendText(chatId, "Aquí te aviso cuando un prospecto pida hablar contigo. Para platicar con Vega Bot desde Telegram activa Pro o Corporate.");
     return "owner-no-vega";
   }
   const text = inbound.text || (inbound.hasMedia ? "(Te envié un archivo; por ahora solo leo texto.)" : "");
@@ -213,7 +213,7 @@ async function handleProspect(connection: Connection, client: TelegramClient, in
   }
   if (chat.automation !== "active" || connection.status !== "active" || !connection.automation) return "paused";
   if (!canUseTelegram(connection.user) || (connection.user.suspendedUntil && connection.user.suspendedUntil > now)) {
-    await prisma.telegramConnection.update({ where: { id: connection.id }, data: { lastError: "Tu plan no incluye el agente de Telegram. Activa Pro, Founder o Corporate." } });
+    await prisma.telegramConnection.update({ where: { id: connection.id }, data: { lastError: "Tu plan no incluye el agente de Telegram. Activa Negocio, Pro o Corporate." } });
     return "no-plan";
   }
 

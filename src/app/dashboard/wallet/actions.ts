@@ -317,7 +317,7 @@ export async function createActivationCode(packageId: string) {
       });
     }
 
-    // 2) Founder: paga desde sus créditos normales, con tope vitalicio de $1,000.
+    // 2) Pro: paga desde sus créditos normales, con tope vitalicio de $1,000.
     if (user.package !== "FOUNDER") return null;
     const used = await tx.activationCode.aggregate({
       where: { ownerId: user.id },

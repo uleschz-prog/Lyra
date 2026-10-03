@@ -232,23 +232,23 @@ export function galaxyPoolShare(members: CompensationMember[], userId: string) {
 }
 
 export function rebuyMessage(packageId: PackageId | null, directs = 0) {
-  if (!packageId) return "Elige Started, Pro, Founder o Corporate.";
+  if (!packageId) return "Elige Inicio, Negocio, Pro o Corporate.";
   const planPackage = getPackage(packageId);
   const status = rebuyStatus(packageId, directs);
   if (packageId === "CORPORATE") {
-    return "Corporate entra con 10,000 créditos: 5,000 para crear y 5,000 para activar cuentas de tu equipo. Libre de recompra de por vida.";
+    return "Corporate se cotiza según el alcance de tu operación.";
   }
   if (status.exempt) {
-    return `Tienes ${compensationPlan.minActiveDirectsForFreeSubscription} directos activos: quedas exento de recompra mientras se mantengan activos.`;
+    return `Tienes ${compensationPlan.minActiveDirectsForFreeSubscription} directos activos: quedas exento de recarga mientras se mantengan activos.`;
   }
   const pending = `Te faltan ${status.remaining} ${status.remaining === 1 ? "directo activo" : "directos activos"} para quedar exento.`;
   if (packageId === "FOUNDER") {
-    return `Founder paga una mensualidad de $29 desde el mes siguiente y recibe 40 créditos cada mes. ${pending}`;
+    return `Pro recarga desde $99 al mes siguiente. ${pending}`;
   }
   if (packageId === "PRO") {
-    return `Pro recarga 50 créditos al mes de por vida gracias a la promoción de lanzamiento. ${pending}`;
+    return `Negocio recarga desde $49 al mes siguiente. ${pending}`;
   }
-  return `${planPackage.label} recarga ${planPackage.rebuy} créditos al mes siguiente de la inscripción. ${pending}`;
+  return `${planPackage.label} recarga desde $${planPackage.rebuy} al mes siguiente de la inscripción. ${pending}`;
 }
 
 function upline(index: Index, userId: string, limit: number = compensationPlan.unilevel.length) {

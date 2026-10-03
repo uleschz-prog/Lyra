@@ -354,7 +354,7 @@ export function TelegramWorkspace({ initial }: { initial: TelegramOverview }) {
       <section className={cn(card, "text-center")}>
         <Bot className="mx-auto size-7 text-[#7C3AED]" />
         <h2 className="mt-3 text-lg font-semibold text-[#1E1E24]">Tu bot de ventas en Telegram</h2>
-        <p className="mx-auto mt-2 max-w-md text-sm text-[#5C5854]">Está incluido en Pro, Founder y Corporate. Atiende prospectos, captura campañas y te pasa la conversación cuando alguien quiere comprar.</p>
+        <p className="mx-auto mt-2 max-w-md text-sm text-[#5C5854]">Está incluido en Negocio, Pro y Corporate. Atiende prospectos, captura campañas y te pasa la conversación cuando alguien quiere comprar.</p>
       </section>
     );
   }
@@ -435,7 +435,7 @@ export function TelegramWorkspace({ initial }: { initial: TelegramOverview }) {
             onChange={(event) => setInstructions(event.target.value)}
             rows={8}
             maxLength={4000}
-            placeholder="Ejemplo: Vendo la membresía Pro de LYRA a $499 USD. Explica que incluye 1,500 créditos y agentes. Si quieren inscribirse, pásame la conversación. Horario: lunes a sábado de 9 a 8."
+            placeholder="Ejemplo: Vendo la membresía Negocio de LYRA a $99 USD. Explica que incluye 1,500 créditos y agentes. Si quieren inscribirse, pásame la conversación. Horario: lunes a sábado de 9 a 8."
             className="mt-3 w-full rounded-xl border border-[#E7E2DA] bg-[#FCFBF9] p-3 text-sm text-[#1E1E24] outline-none focus:border-[#7C3AED]"
           />
           <div className="mt-3 flex flex-wrap items-center justify-between gap-3">
@@ -465,8 +465,8 @@ export function TelegramWorkspace({ initial }: { initial: TelegramOverview }) {
             </h2>
             <p className="mt-1 text-sm text-[#5C5854]">
               {connection.ownerLinked
-                ? "Vinculado. Te aviso de prospectos nuevos y de quienes pidan hablar contigo; con Founder o Corporate, escríbele a tu bot y te responde Vega Bot."
-                : "Vincúlate para recibir avisos y, con Founder o Corporate, platicar con Vega Bot desde tu bot."}
+                ? "Vinculado. Te aviso de prospectos nuevos y de quienes pidan hablar contigo; con Pro o Corporate, escríbele a tu bot y te responde Vega Bot."
+                : "Vincúlate para recibir avisos y, con Pro o Corporate, platicar con Vega Bot desde tu bot."}
             </p>
             <button type="button" onClick={() => void link()} className="mt-3 inline-flex items-center gap-1.5 rounded-xl border border-[#E7E2DA] px-3 py-2 text-sm font-medium text-[#1E1E24]">
               <Link2 className="size-4" />

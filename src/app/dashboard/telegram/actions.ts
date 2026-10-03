@@ -130,7 +130,7 @@ export async function telegramOverview(): Promise<TelegramOverview> {
 
 export async function connectTelegram(token: string) {
   const user = await member();
-  if (!user) return { ok: false as const, error: "El bot de Telegram está incluido en Pro, Founder y Corporate." };
+  if (!user) return { ok: false as const, error: "El bot de Telegram está incluido en Negocio, Pro y Corporate." };
   if (tooManyAttempts(user.id)) return { ok: false as const, error: "Demasiados intentos. Espera unos minutos." };
   const origin = `https://${(await headers()).get("host")}`;
   const result = await connectBot(user.id, String(token ?? ""), origin).catch(() => ({

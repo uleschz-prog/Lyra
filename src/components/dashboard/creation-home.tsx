@@ -54,7 +54,7 @@ export function CreationHome({
           href={brand.links.plan}
           className="inline-flex max-w-full items-center gap-3 rounded-full bg-[#EDE9FE] py-1.5 pr-1.5 pl-4 text-sm text-[#5B21B6]"
         >
-          <span className="truncate">Started $99, Pro $499 y Founder $1,000</span>
+          <span className="truncate">Inicio $29, Negocio $99 y Pro $299</span>
           <span className="shrink-0 rounded-full bg-[#7C3AED] px-3 py-1 text-xs font-medium text-white">Ver el plan</span>
         </Link>
       </div>

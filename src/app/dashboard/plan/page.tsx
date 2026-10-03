@@ -24,7 +24,7 @@ export default async function PlanPage() {
       <PageHeader
         eyebrow="Compensación"
         title="Partner"
-        description="Activa tu membresía Started, Pro, Founder o Corporate para ver comisiones, rango y créditos."
+        description="Activa tu membresía Inicio, Negocio, Pro o Corporate para ver comisiones, rango y créditos."
         section="compensation"
       />
     );
@@ -35,7 +35,7 @@ export default async function PlanPage() {
       <PageHeader
         eyebrow="Compensación"
         title="Partner"
-        description="Started, Pro, Founder y Corporate. La recompra corre al mes siguiente; Corporate es libre de recompra y con 3 directos activos quedas exento."
+        description="Inicio, Negocio, Pro y Corporate. La recarga corre al mes siguiente; Corporate se cotiza y con 3 directos activos quedas exento."
         section="compensation"
       />
       <PlanWorkspace plan={plan} />

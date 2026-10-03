@@ -36,7 +36,7 @@ export const sectionDesks: Record<
   compensation: {
     star: "Sulafat",
     squad: "Planes",
-    line: "Started $99, Pro $499 y Founder $1,000. Un crédito equivale a $1.",
+    line: "Inicio $29, Negocio $99 y Pro $299. Un crédito equivale a $1.",
   },
   academy: {
     star: "Epsilon",

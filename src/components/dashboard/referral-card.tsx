@@ -110,10 +110,10 @@ export function ReferralCard({
         <VegaMascot className="h-24 w-24 shrink-0 self-center sm:h-20 sm:w-20" />
         <p className="text-sm leading-6 text-[#5C5854]">
         {isFounderPackage(packageId)
-          ? "Tu cuenta Founder cobra el máximo de la red desde el día 0 y recibe 40 créditos con cada mensualidad."
+          ? "Tu cuenta Pro cobra el máximo de la red desde el día 0."
           : recharge
             ? `Tu recarga mínima es de $${recharge} al mes siguiente. Un crédito equivale a $1.`
-            : "Started entra con $99, Pro con $499, Founder con $1,000 y Corporate con $5,000. Un crédito equivale a $1."}
+            : "Inicio entra con $29, Negocio con $99 y Pro con $299. Corporate se cotiza. Un crédito equivale a $1."}
         </p>
       </div>
     </section>

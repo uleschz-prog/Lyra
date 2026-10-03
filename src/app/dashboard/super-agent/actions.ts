@@ -96,7 +96,7 @@ export async function myCredits() {
 
 export async function decideVegaAction(id: string, confirm: boolean): Promise<{ ok: boolean; action?: VegaActionView; message: string }> {
   const user = await vegaUser();
-  if (!user) return { ok: false, message: "Vega está incluida en Founder y Corporate." };
+  if (!user) return { ok: false, message: "Vega está incluida en Pro y Corporate." };
   return decideAction(user.id, id, confirm);
 }
 
@@ -120,7 +120,7 @@ export async function vegaProfile(): Promise<VegaProfile> {
 
 export async function updateVegaProfile(input: Partial<VegaProfile>): Promise<{ ok: boolean; error?: string }> {
   const user = await vegaUser();
-  if (!user) return { ok: false, error: "Vega está incluida en Founder, Corporate y Vega Partner." };
+  if (!user) return { ok: false, error: "Vega está incluida en Pro y Corporate." };
   const saved = await saveVegaProfile(user.id, input);
   return saved.ok ? { ok: true } : { ok: false, error: saved.error };
 }
@@ -143,7 +143,7 @@ export async function vegaAutonomy(): Promise<AutonomySettings> {
 
 export async function updateVegaAutonomy(input: AutonomySettings): Promise<{ ok: boolean; error?: string }> {
   const user = await vegaUser();
-  if (!user) return { ok: false, error: "Vega está incluida en Founder, Corporate y Vega Partner." };
+  if (!user) return { ok: false, error: "Vega está incluida en Pro y Corporate." };
   const limit = Math.max(1, Math.min(20, Math.floor(input.dailyLimit) || 5));
   await getPrisma().vegaAutonomy.upsert({
     where: { userId: user.id },
@@ -170,7 +170,7 @@ export async function updateVegaAutonomy(input: AutonomySettings): Promise<{ ok:
 
 export async function addVegaMemory(content: string) {
   const user = await vegaUser();
-  if (!user) return { ok: false as const, error: "Vega está incluida en Founder y Corporate." };
+  if (!user) return { ok: false as const, error: "Vega está incluida en Pro y Corporate." };
   return saveMemory(user.id, content);
 }
 
@@ -211,7 +211,7 @@ export async function vegaWhatsapp() {
 
 export async function saveVegaWhatsapp(phone: string | null) {
   const user = await vegaUser();
-  if (!user) return { ok: false as const, error: "Vega está incluida en Founder y Corporate." };
+  if (!user) return { ok: false as const, error: "Vega está incluida en Pro y Corporate." };
   const digits = phone?.replace(/\D/g, "") ?? "";
   if (phone !== null && (digits.length < 10 || digits.length > 15)) {
     return { ok: false as const, error: "Escribe el número con código de país, p. ej. 52 55 1234 5678." };
