@@ -5,7 +5,6 @@ import { useMemo, useState } from "react";
 
 import { Badge } from "@/components/ui/badge";
 import { PromoBadge, RebuyPromo } from "@/components/plan/rebuy-promo";
-import { VegaMascot } from "@/components/vega/vega-mark";
 import { Progress } from "@/components/ui/progress";
 import {
   bonusProfile,
@@ -18,13 +17,13 @@ import {
 } from "@/config/compensation-plan";
 import { estimateInvitationEarnings, type MemberPlanView } from "@/lib/compensation/engine";
 import { formatCredits, formatUsd } from "@/lib/format";
+import type { PlanSpec } from "@/config/compensation-plan";
 
 const planVoice = {
-  STARTED: "Notebook, academia y creación de video e imágenes.",
-  PRO: "Todo lo de Started, con agentes autónomos.",
-  FOUNDER: "Dueño de la red, con Lyra superagente.",
-  CORPORATE: "El doble de créditos y 5,000 para activar a tu equipo.",
-  VEGA_PARTNER: "Superagente Vega, Telegram y tu red por $50 al mes.",
+  STARTED: "Para empezar: un agente, canales básicos y creación de contenido.",
+  PRO: "El plan para vender y dar seguimiento en automático.",
+  FOUNDER: "Más agentes, más volumen y soporte prioritario.",
+  CORPORATE: "Implementación a la medida, por cotización.",
 } as const;
 
 const percent = (value: number) => `${Math.round(value * 100)}%`;
@@ -90,14 +89,13 @@ export function PlanWorkspace({ plan }: { plan: MemberPlanView }) {
       <section>
         <h2 className="text-lg font-bold tracking-tight text-[#1E1E24]">Poder de cómputo</h2>
         <p className="mt-2 max-w-2xl text-sm leading-6 text-[#5C5854]">
-          Started entra con $99, Pro con $499, Founder con $1,000 y Corporate con $5,000. Un crédito equivale a $1. La recompra corre al mes siguiente. {rebuyExemptionRule}
+          Inicio entra con $29, Negocio con $99 y Pro con $299. Corporate se cotiza según alcance. Un crédito equivale a $1. La recarga corre al mes siguiente. {rebuyExemptionRule}
         </p>
         <div className="mt-6 grid items-stretch gap-4 md:grid-cols-2 xl:grid-cols-4">
-          {signupPlans.map((planPackage) => {
-            const vegaPartner = planPackage.id === "VEGA_PARTNER";
+          {signupPlans.map((planPackage: PlanSpec) => {
             const corporate = planPackage.id === "CORPORATE";
             const founder = planPackage.id === "FOUNDER";
-            const featured = vegaPartner || founder || corporate;
+            const featured = founder;
             const promo = "rebuyBefore" in planPackage;
             const benefits = planPackage.points.filter(
               (point) => !/^[\d,]+ créditos de entrada|^Recarga mínima|^Mensualidad|^Libre de recompra/i.test(point),
@@ -106,9 +104,7 @@ export function PlanWorkspace({ plan }: { plan: MemberPlanView }) {
               <article
                 key={planPackage.id}
                 className={`relative row-span-8 grid grid-rows-subgrid gap-0 overflow-hidden rounded-[28px] p-5 transition-transform duration-300 hover:-translate-y-1 ${
-                  vegaPartner
-                    ? "bg-gradient-to-b from-[#7C3AED] via-[#6D28D9] to-[#2E1065] text-white shadow-[0_24px_60px_-20px_rgba(124,58,237,0.85)] ring-2 ring-[#C4B5FD]/60"
-                    : corporate
+                  corporate
                     ? "bg-gradient-to-b from-[#2A2A33] to-[#111114] text-white shadow-[0_24px_60px_-28px_rgba(17,17,20,0.9)] ring-1 ring-white/10"
                     : founder
                       ? "bg-gradient-to-b from-[#8B5CF6] to-[#5B21B6] text-white shadow-[0_24px_60px_-24px_rgba(124,58,237,0.75)]"
@@ -125,11 +121,7 @@ export function PlanWorkspace({ plan }: { plan: MemberPlanView }) {
                 ) : null}
 
                 <div className="relative flex h-7 items-center">
-                  {vegaPartner ? (
-                    <span className="flex items-center gap-2 rounded-full bg-gradient-to-r from-[#E9D5FF] to-[#C4B5FD] px-3 py-1 text-[11px] font-bold tracking-wide text-[#2E1065] uppercase">
-                      ⭐ El favorito
-                    </span>
-                  ) : founder ? (
+                  {founder ? (
                     <span className="rounded-full bg-white/15 px-2.5 py-1 text-[11px] font-medium tracking-wide text-white ring-1 ring-white/20">
                       Mayor capacidad
                     </span>
@@ -147,9 +139,8 @@ export function PlanWorkspace({ plan }: { plan: MemberPlanView }) {
                 </div>
 
                 <h3 className="relative mt-4 text-2xl font-semibold tracking-tight">{planPackage.label}</h3>
-                {vegaPartner ? <VegaMascot className="mt-3 h-24 w-24" /> : null}
                 <p className={`relative mt-1.5 text-sm leading-6 ${featured ? "text-white/75" : "text-[#5C5854]"}`}>
-                  {planVoice[planPackage.id]}
+                  {planVoice[planPackage.id as keyof typeof planVoice]}
                 </p>
 
                 <p className="relative mt-5 self-end text-[2.25rem] leading-none font-semibold tracking-tight whitespace-nowrap tabular-nums">
@@ -167,13 +158,13 @@ export function PlanWorkspace({ plan }: { plan: MemberPlanView }) {
                   <p className={`text-sm font-semibold ${featured ? "text-white" : "text-[#7C3AED]"}`}>
                     {formatCredits(planPackage.credits)} créditos
                   </p>
-                  {promo ? (
+                  {typeof planPackage.rebuyBefore === "number" ? (
                     <RebuyPromo before={planPackage.rebuyBefore} now={planPackage.rebuy} className="mt-1.5 text-sm" />
                   ) : (
                     <p className={`mt-1.5 text-sm leading-6 ${featured ? "text-white/75" : "text-[#5C5854]"}`}>
                       {corporate
-                        ? "Libre de recompra de por vida"
-                        : "rebuyCredits" in planPackage
+                        ? "Implementación a la medida, por cotización"
+                        : typeof planPackage.rebuyCredits === "number"
                           ? `Mensualidad de ${formatUsd(planPackage.rebuy)} con ${planPackage.rebuyCredits} créditos desde el mes siguiente`
                           : `Recarga mínima de ${formatUsd(planPackage.rebuy)} desde el mes siguiente`}
                     </p>

@@ -11,6 +11,7 @@ import {
   creditRechargeUsd,
   getPackage,
   isSignupPlanId,
+  toPackageType,
   type SignupPlanId,
 } from "@/config/compensation-plan";
 import { getCurrentUser } from "@/lib/auth/profile";
@@ -162,7 +163,7 @@ export async function changePackage(id: string, packageId: string): Promise<Resu
 
   await getPrisma().user.update({
     where: { id },
-    data: { package: packageId, pendingPackage: null },
+    data: { package: toPackageType(packageId), pendingPackage: null },
   });
   done();
   return { ok: true, package: packageId };
@@ -278,7 +279,7 @@ export async function approveUsdtOrder(orderId: string): Promise<Result> {
     if (user.package === target) return { ok: false, error: "El usuario ya tiene ese paquete." };
     await prisma.user.update({
       where: { id: user.id },
-      data: { package: target, pendingPackage: null },
+      data: { package: toPackageType(target), pendingPackage: null },
     });
   } else {
     return { ok: false, error: "El propósito de la orden no es válido." };

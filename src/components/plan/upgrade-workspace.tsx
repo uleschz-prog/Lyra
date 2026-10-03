@@ -18,12 +18,6 @@ const usd = new Intl.NumberFormat("es-MX", {
 
 /** Meta visual por paquete: color, halo y gancho comercial. */
 const meta: Record<SignupPlanId, { accent: string; ring: string; glow: string; tag: string }> = {
-  VEGA_PARTNER: {
-    accent: "text-cyan-600 dark:text-cyan-300",
-    ring: "border-cyan-200 dark:border-cyan-400/30",
-    glow: "from-cyan-400/20",
-    tag: "Entrada",
-  },
   STARTED: {
     accent: "text-sky-600 dark:text-sky-300",
     ring: "border-sky-200 dark:border-sky-400/30",

@@ -18,10 +18,9 @@ const notices: Record<string, string> = {
 
 function planFromIdea(idea: string): SignupPlanId | null {
   const text = idea.toLowerCase();
-  if (/founder|1000/.test(text)) return "FOUNDER";
-  if (/\bpro\b|499/.test(text)) return "PRO";
-  if (/vega\s*partner|partner|\b50\b/.test(text)) return "VEGA_PARTNER";
-  if (/started|\b99\b/.test(text)) return "STARTED";
+  if (/\bpro\b|299/.test(text)) return "FOUNDER";
+  if (/negocio|business|99/.test(text)) return "PRO";
+  if (/inicio|start|empezar|29|\b50\b|\b499\b|founder|1000/.test(text)) return "STARTED";
   return null;
 }
 
@@ -227,7 +226,7 @@ export function RegisterForm({
         <div className="mt-6 space-y-3">
           {signupPlans.map((planPackage) => {
             const selected = packageId === planPackage.id;
-            const featured = planPackage.id === "FOUNDER";
+            const featured = planPackage.id === "PRO";
             return (
               <button
                 key={planPackage.id}

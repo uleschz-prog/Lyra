@@ -1,7 +1,7 @@
 import { Prisma } from "@prisma/client";
 import bcrypt from "bcryptjs";
 
-import { compensationPlan, getPackage, isSignupPlanId, type SignupPlanId } from "@/config/compensation-plan";
+import { compensationPlan, getPackage, isSignupPlanId, toPackageType, type SignupPlanId } from "@/config/compensation-plan";
 import { payCommissions } from "@/lib/compensation/payout";
 import { mercadoPagoReady } from "@/lib/payments/mercadopago";
 import { PROMO_PREFIX, checkPromoCode, redeemPromoCode } from "@/lib/payments/promo";
@@ -158,10 +158,10 @@ export async function registerMember(input: RegisterInput) {
           username: data.username,
           password,
           role: "MEMBER",
-          package: pending ? "NONE" : packageId,
-          pendingPackage: pending ? packageId : null,
+          package: pending ? "NONE" : toPackageType(packageId),
+          pendingPackage: pending ? toPackageType(packageId) : null,
           activatedWithCode: Boolean(activation) || isPromo,
-          activationCredits: !pending && "activationCredits" in planPackage ? planPackage.activationCredits : 0,
+          activationCredits: !pending && typeof planPackage.activationCredits === "number" ? planPackage.activationCredits : 0,
           rank: "ASTRA",
           sponsorId: sponsor.id,
           referralCode: data.username.toUpperCase(),

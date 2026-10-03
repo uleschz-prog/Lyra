@@ -20,15 +20,15 @@ export const rankLabel: Record<Rank, string> = {
 
 export const packageLabel: Record<PackageType, string> = {
   NONE: "Sin plan",
-  FREE: "Free",
-  STARTED: "Started",
-  PRO: "Pro",
-  FOUNDER: "Founder",
+  FREE: "Inicio",
+  STARTED: "Inicio",
+  PRO: "Negocio",
+  FOUNDER: "Pro",
   CORPORATE: "Corporate",
-  VEGA: "Free",
-  POLARIS: "Started",
+  VEGA: "Inicio",
+  POLARIS: "Negocio",
   LYRA_MASTER: "Pro",
-  VEGA_PARTNER: "Vega Partner",
+  VEGA_PARTNER: "Inicio",
 };
 
 export function canAccess(userRank: Rank, required: Rank) {

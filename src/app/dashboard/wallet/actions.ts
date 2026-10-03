@@ -11,6 +11,7 @@ import {
   isFounderPackage,
   isSignupPlanId,
   rebuyStatus,
+  toPackageType,
   type SignupPlanId,
 } from "@/config/compensation-plan";
 import { getCurrentUser } from "@/lib/auth/profile";
@@ -286,7 +287,7 @@ export async function startUpgradeCheckout(targetPackageId: string): Promise<Upg
 
 const activationPackages: SignupPlanId[] = ["STARTED", "PRO", "FOUNDER"];
 
-/** Tope vitalicio que un Founder puede gastar de sus créditos normales generando códigos. */
+/** Tope vitalicio que un Pro (antes Founder) puede gastar de sus créditos normales generando códigos. */
 const founderActivationCapUsd = 1000;
 
 function newCode() {
@@ -296,11 +297,11 @@ function newCode() {
 export async function createActivationCode(packageId: string) {
   const user = await getCurrentUser();
   if (!user) return { ok: false as const, error: "Inicia sesión para activar cuentas." };
-  if (!activationPackages.includes(packageId as SignupPlanId)) {
-    return { ok: false as const, error: "Puedes activar Started, Pro o Founder." };
+  if (!isSignupPlanId(packageId) || !activationPackages.includes(packageId)) {
+    return { ok: false as const, error: "Puedes activar Inicio, Negocio o Pro." };
   }
 
-  const price = getPackage(packageId as SignupPlanId).price;
+  const price = getPackage(packageId).price;
   const prisma = getPrisma();
 
   const code = await prisma.$transaction(async (tx) => {
@@ -311,7 +312,7 @@ export async function createActivationCode(packageId: string) {
     });
     if (spent.count > 0) {
       return tx.activationCode.create({
-        data: { code: newCode(), packageId: packageId as SignupPlanId, price, ownerId: user.id },
+        data: { code: newCode(), packageId: toPackageType(packageId), price, ownerId: user.id },
         select: { code: true },
       });
     }
@@ -344,7 +345,7 @@ export async function createActivationCode(packageId: string) {
       },
     });
     return tx.activationCode.create({
-      data: { code: newCode(), packageId: packageId as SignupPlanId, price, ownerId: user.id },
+      data: { code: newCode(), packageId: toPackageType(packageId), price, ownerId: user.id },
       select: { code: true },
     });
   });

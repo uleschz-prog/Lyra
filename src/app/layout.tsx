@@ -63,7 +63,7 @@ export const metadata: Metadata = {
   appleWebApp: { capable: true, title: brand.name, statusBarStyle: "black-translucent" },
 };
 
-export default function RootLayout({ children }: LayoutProps<"/">) {
+export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html
       lang="es"

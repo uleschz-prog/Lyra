@@ -1,6 +1,6 @@
 import type { Prisma } from "@prisma/client";
 
-import { getPackage, type SignupPlanId } from "@/config/compensation-plan";
+import { getPackage, toPackageType, type SignupPlanId } from "@/config/compensation-plan";
 import { payCommissions } from "@/lib/compensation/payout";
 
 export async function activateMembership(
@@ -11,12 +11,12 @@ export async function activateMembership(
 ) {
   const plan = getPackage(packageId);
   const claimed = await tx.user.updateMany({
-    where: { id: user.id, pendingPackage: packageId },
+    where: { id: user.id, pendingPackage: toPackageType(packageId) },
     data: {
-      package: packageId,
+      package: toPackageType(packageId),
       pendingPackage: null,
       credits: { increment: plan.credits },
-      activationCredits: "activationCredits" in plan ? plan.activationCredits : 0,
+      activationCredits: typeof plan.activationCredits === "number" ? plan.activationCredits : 0,
       createdAt: new Date(),
     },
   });

@@ -57,7 +57,7 @@ const filters: { id: Filter; label: string }[] = [
 
 const planLabel = (id: string | null) => (id ? id.charAt(0) + id.slice(1).toLowerCase() : "Sin plan");
 
-const packageOptions = ["STARTED", "PRO", "FOUNDER", "CORPORATE", "VEGA_PARTNER"] as const;
+const packageOptions = ["STARTED", "PRO", "FOUNDER", "CORPORATE"] as const;
 
 const shortDate = (iso: string) =>
   new Date(iso).toLocaleDateString("es-MX", { day: "numeric", month: "short", year: "numeric" });

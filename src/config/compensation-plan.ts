@@ -1,87 +1,90 @@
-export const platformEntryUsd = 99;
+import type { PackageType } from "@/lib/types";
+
+export const platformEntryUsd = 29;
 export const creditUsd = 1;
 
-export const signupPlans = [
-  {
-    id: "VEGA_PARTNER",
-    label: "Vega Partner",
-    subtitle: "Superagente Vega y tu red por $50 al mes",
-    points: [
-      "150 créditos de entrada",
-      "Chispa de 10% y Órbita de 2 niveles",
-      "Superagente Vega, Telegram y academia",
-      "Recarga mínima de $50 al mes siguiente",
-    ],
-    price: 50,
-    rebuy: 50,
-    credits: 150,
-    levels: 2,
-  },
+/**
+ * Planes de entrada de LYRA. Estructura simple y competitiva:
+ * Inicio $29 · Negocio $99 · Pro $299 · Corporate por cotización.
+ * Los créditos y beneficios son parámetros de producto; ajústalos al medir uso real.
+ */
+export type PlanSpec = {
+  id: string;
+  label: string;
+  subtitle: string;
+  points: readonly string[];
+  price: number;
+  rebuy: number;
+  credits: number;
+  levels: number;
+  rebuyBefore?: number;
+  rebuyCredits?: number;
+  activationCredits?: number;
+  quote?: boolean;
+};
+
+export const signupPlans: readonly PlanSpec[] = [
   {
     id: "STARTED",
-    label: "Started",
-    subtitle: "Recarga mínima desde el mes siguiente",
+    label: "Inicio",
+    subtitle: "Para empezar con un agente y ver resultados",
     points: [
-      "150 créditos de entrada",
-      "Chispa de 10% y Órbita de 2 niveles",
-      "Notebook, academia y creación de video e imágenes",
-      "Recarga mínima de $25 al mes siguiente",
+      "300 créditos de entrada",
+      "1 agente activo y canales básicos",
+      "Notebook, academia y creación de imágenes",
+      "Recarga desde $19 al mes siguiente",
     ],
-    price: 99,
-    rebuy: 25,
-    credits: 150,
+    price: 29,
+    rebuy: 19,
+    credits: 300,
     levels: 2,
   },
   {
     id: "PRO",
-    label: "Pro",
-    subtitle: "Promoción por tiempo limitado: recarga de $50 de por vida",
+    label: "Negocio",
+    subtitle: "El plan para vender y dar seguimiento en automático",
     points: [
       "1,500 créditos de entrada",
-      "Chispa de 20% y Órbita de 4 niveles",
-      "Todo lo de Started y agentes autónomos",
-      "Recarga mínima de $50 de por vida",
+      "Agentes autónomos y varios canales",
+      "Seguimiento de prospectos y analítica",
+      "Recarga desde $49 al mes siguiente",
     ],
-    price: 499,
-    rebuy: 50,
-    rebuyBefore: 100,
+    price: 99,
+    rebuy: 49,
     credits: 1500,
     levels: 4,
   },
   {
     id: "FOUNDER",
-    label: "Founder",
-    subtitle: "2,000 créditos y mensualidad de $29 con 40 créditos",
+    label: "Pro",
+    subtitle: "Más agentes, más volumen y soporte prioritario",
     points: [
-      "2,000 créditos de entrada",
-      "Chispa de 30%, Órbita de 6 niveles y Espejo de 10%",
-      "Lyra superagente y Fondo Galaxia",
-      "Mensualidad de $29 con 40 créditos desde el mes siguiente",
+      "5,000 créditos de entrada",
+      "Todos los agentes y canales disponibles",
+      "Soporte prioritario y mayor límite de uso",
+      "Recarga desde $99 al mes siguiente",
     ],
-    price: 1000,
-    rebuy: 29,
-    rebuyCredits: 40,
-    credits: 2000,
+    price: 299,
+    rebuy: 99,
+    credits: 5000,
     levels: 6,
   },
   {
     id: "CORPORATE",
     label: "Corporate",
-    subtitle: "10,000 créditos para crear y activar a tu equipo",
+    subtitle: "Para empresas: implementación a la medida, por cotización",
     points: [
-      "10,000 créditos, el doble de tu inversión",
-      "5,000 créditos para activar cuentas de tu equipo",
-      "Recuperas tu capital desde las primeras activaciones",
-      "Chispa de 40%, Órbita de 6 niveles y Espejo de 20%",
-      "Bono de rango ×1.5 hasta Galaxia y Fondo Galaxia",
-      "Libre de recompra de por vida",
-      "Todo lo de Pro y agentes autónomos",
+      "Implementación e integraciones a la medida",
+      "Créditos y agentes según tu operación",
+      "Soporte y acuerdos de nivel de servicio (SLA)",
+      "Cotización según alcance y volumen",
     ],
-    price: 5000,
+    price: 0,
     rebuy: 0,
-    credits: 10000,
-    activationCredits: 5000,
+    credits: 0,
+    activationCredits: 0,
     levels: 6,
+    quote: true,
   },
 ] as const;
 
@@ -94,39 +97,7 @@ export const compensationPlan = {
   galaxyPoolRate: 0.02,
   payoutCap: 0.55,
   minActiveDirectsForFreeSubscription: 3,
-  packages: [
-    {
-      id: "VEGA",
-      label: "VEGA",
-      subtitle: "Para creadores y profesionistas.",
-      points: ["500 Créditos de IA Multimodal", "Acceso a Agentes Especializados", "Soporte Estándar"],
-      price: 49,
-      rebuy: 10,
-      credits: 500,
-      levels: 2,
-    },
-    {
-      id: "POLARIS",
-      label: "POLARIS",
-      subtitle: "El estándar de oro para creadores y negocios.",
-      points: ["1,500 Créditos de IA (3x Poder)", "Estudio Multimodal + Lyra Notebook RAG", "Fast-Track de Beneficios"],
-      price: 99,
-      rebuy: 25,
-      credits: 1500,
-      levels: 4,
-      popular: true,
-    },
-    {
-      id: "LYRA_MASTER",
-      label: "LYRA MASTER",
-      subtitle: "Para agencias, empresas y líderes de expansión.",
-      points: ["10,000 Créditos de IA de Alto Rendimiento", "Licencia Studio Full Unlocked", "Asistencia Prioritaria VIP"],
-      price: 499,
-      rebuy: 100,
-      credits: 10000,
-      levels: 6,
-    },
-  ],
+  packages: [] as const,
   ranks: [
     { id: "NOVA", label: "Nova", volume: 2000, payout: 100 },
     { id: "PULSAR", label: "Pulsar", volume: 6000, payout: 300 },
@@ -139,39 +110,91 @@ export const compensationPlan = {
   exemptRebuyLabel: "Exento de recompra",
 } as const;
 
-export type PackageId = SignupPlanId | (typeof legacyPlans)[number]["id"] | (typeof compensationPlan.packages)[number]["id"];
+export type PackageId =
+  | SignupPlanId
+  | (typeof legacyPlans)[number]["id"]
+  | (typeof aliasPlans)[number]["id"]
+  | "NONE";
 export type CompensationRankId = (typeof compensationPlan.ranks)[number]["id"];
 export type MemberStatus = "ACTIVE" | "INACTIVE";
 
+/**
+ * Planes históricos que ya no se venden pero deben seguir resolviéndose
+ * para cuentas existentes (compatibilidad). Mapean a la escalera nueva.
+ */
 const legacyPlans = [
-  {
-    id: "FREE" as const,
-    label: "Free",
-    subtitle: "Plan anterior",
-    points: [] as string[],
-    price: 99,
-    rebuy: 25,
-    credits: 100,
-    levels: 1,
-  },
+  { id: "FREE" as const, label: "Inicio", subtitle: "Plan anterior", points: [] as string[], price: 29, rebuy: 19, credits: 100, levels: 1 },
 ];
 
-const catalog = [...signupPlans, ...legacyPlans, ...compensationPlan.packages];
+/** Alias de IDs antiguos (VEGA, POLARIS, LYRA_MASTER, VEGA_PARTNER) a los planes actuales. */
+const aliasPlans = [
+  { id: "VEGA" as const, label: "Inicio", subtitle: "Plan anterior", points: [] as string[], price: 29, rebuy: 19, credits: 300, levels: 2 },
+  { id: "POLARIS" as const, label: "Negocio", subtitle: "Plan anterior", points: [] as string[], price: 99, rebuy: 49, credits: 1500, levels: 4 },
+  { id: "LYRA_MASTER" as const, label: "Pro", subtitle: "Plan anterior", points: [] as string[], price: 299, rebuy: 99, credits: 5000, levels: 6 },
+  { id: "VEGA_PARTNER" as const, label: "Inicio", subtitle: "Plan anterior", points: [] as string[], price: 29, rebuy: 19, credits: 300, levels: 2 },
+];
+
+const catalog = [...signupPlans, ...legacyPlans, ...aliasPlans];
 
 export function getPackage(id: PackageId) {
   const planPackage = catalog.find((item) => item.id === id);
   if (!planPackage) {
     throw new Error(`Plan desconocido: ${id}`);
   }
-  return planPackage;
+  return planPackage as {
+    id: string;
+    label: string;
+    subtitle: string;
+    points: readonly string[];
+    price: number;
+    rebuy: number;
+    credits: number;
+    levels: number;
+    rebuyBefore?: number;
+    rebuyCredits?: number;
+    activationCredits?: number;
+    quote?: boolean;
+  };
 }
 
 export function isPackageId(value: string): value is PackageId {
   return catalog.some((item) => item.id === value);
 }
 
+/** IDs válidos del enum PackageType de Prisma (para validación de runtime). */
+const packageTypeIds: readonly PackageType[] = [
+  "NONE",
+  "FREE",
+  "STARTED",
+  "PRO",
+  "FOUNDER",
+  "CORPORATE",
+  "VEGA",
+  "POLARIS",
+  "LYRA_MASTER",
+  "VEGA_PARTNER",
+];
+
+function isPackageType(value: string): value is PackageType {
+  return packageTypeIds.some((id) => id === value);
+}
+
+/**
+ * Estrecha un string arbitrario al enum PackageType de Prisma.
+ * Devuelve el valor si es un plan conocido; "NONE" como fallback seguro.
+ * Úsalo en lugar de casts (as PackageType) para no silenciar tipos.
+ */
+export function toPackageType(value: string | null | undefined): PackageType {
+  if (typeof value === "string" && isPackageType(value)) return value;
+  return "NONE";
+}
+
 export function isSignupPlanId(value: string): value is SignupPlanId {
   return signupPlans.some((item) => item.id === value);
+}
+
+export function isQuotePlan(id: string | null | undefined) {
+  return id === "CORPORATE";
 }
 
 export const rebuyExemptionRule = `Con ${compensationPlan.minActiveDirectsForFreeSubscription} directos activos quedas exento de recompra.`;
@@ -180,7 +203,7 @@ export function rebuyStatus(packageId: string | null | undefined, activeDirects:
   const amount = packageId && isPackageId(packageId) ? getPackage(packageId).rebuy : 0;
   const required = compensationPlan.minActiveDirectsForFreeSubscription;
   if (packageId === "CORPORATE") {
-    return { amount: 0, exempt: true, remaining: 0, label: "Corporate · libre de recompra de por vida" };
+    return { amount: 0, exempt: true, remaining: 0, label: "Corporate · por cotización" };
   }
   if (activeDirects >= required) {
     return { amount: 0, exempt: true, remaining: 0, label: `${required} directos activos · exento de recompra` };
@@ -189,7 +212,7 @@ export function rebuyStatus(packageId: string | null | undefined, activeDirects:
     amount,
     exempt: amount === 0,
     remaining: required - activeDirects,
-    label: amount > 0 ? `Recompra de $${amount} al mes` : "Sin recompra",
+    label: amount > 0 ? `Recarga de $${amount} al mes` : "Sin recarga",
   };
 }
 
@@ -228,16 +251,15 @@ export function isFounderPackage(packageId: string | null | undefined) {
 export function rebuyCredits(packageId: string | null | undefined, amountUsd: number) {
   if (packageId && isSignupPlanId(packageId)) {
     const plan = getPackage(packageId);
-    if ("rebuyCredits" in plan) return plan.rebuyCredits;
+    if (typeof plan.rebuyCredits === "number") return plan.rebuyCredits;
   }
   return amountUsd;
 }
 
 export function creditRechargeUsd(packageId: string | null | undefined) {
-  if (packageId === "CORPORATE") return 100;
-  if (packageId === "PRO" || packageId === "FOUNDER") return 50;
-  if (packageId === "LYRA_MASTER") return 100;
-  if (packageId === "VEGA_PARTNER") return 50;
-  if (packageId === "STARTED" || packageId === "POLARIS" || packageId === "VEGA" || packageId === "FREE") return 25;
+  if (packageId === "CORPORATE") return 99;
+  if (packageId === "FOUNDER" || packageId === "LYRA_MASTER") return 99;
+  if (packageId === "PRO" || packageId === "POLARIS") return 49;
+  if (packageId === "STARTED" || packageId === "VEGA" || packageId === "FREE" || packageId === "VEGA_PARTNER") return 19;
   return null;
 }
