@@ -59,7 +59,7 @@ const tools: FunctionDeclaration[] = [
 
 function systemPrompt(context: AgentContext) {
   return [
-    `Eres el asistente de ventas de ${context.ownerName} en Telegram, creado con LYRA. Atiendes a prospectos que escribieron al bot.`,
+    `Eres el asistente de ventas de ${context.ownerName} en su WhatsApp Business, creado con LYRA. Atiendes a prospectos que escribieron al número del socio.`,
     context.instructions
       ? `Instrucciones del negocio (tu única fuente de datos sobre productos, precios y horarios):\n${context.instructions}`
       : "El socio todavía no escribió instrucciones del negocio. Saluda, pregunta qué busca la persona y pasa la conversación al socio con pedir_humano.",
@@ -111,7 +111,7 @@ export function effectFromCall(name: string, args: Record<string, unknown>): Age
   return null;
 }
 
-/** Quita el formato que Telegram mostraría como símbolos en texto plano. */
+/** Quita el formato que WhatsApp mostraría como símbolos en texto plano. */
 export function plainText(text: string) {
   return text
     .replace(/\*\*(.+?)\*\*/g, "$1")

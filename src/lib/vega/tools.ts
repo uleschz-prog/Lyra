@@ -1,6 +1,16 @@
 import { runUserTool } from "@/lib/ai/composio-user";
 import { searchWeb, type WebResult } from "@/lib/ai/search";
 import { appToolNames, appTools, executeAppAction, runAppTool, type AppDraft } from "@/lib/vega/app-tools";
+import {
+  commandAllowlist,
+  findCommand,
+  generateImage,
+  isSafeArgument,
+  listWorkspace,
+  readWorkspaceFile,
+  searchWorkspace,
+  writeWorkspaceFile,
+} from "@/lib/vega/assistant-tools";
 import type { VegaConnections } from "@/lib/vega/apps";
 import type { FunctionDeclaration } from "@/lib/vega/gemini-stream";
 import { forgetMemory, MEMORY_MAX_LENGTH, saveMemory } from "@/lib/vega/memory";
@@ -18,11 +28,13 @@ import {
 export type { VegaConnections } from "@/lib/vega/apps";
 export type { AppDraft } from "@/lib/vega/app-tools";
 
-export type ActionKind = "send_email" | "create_event" | "whatsapp_message" | "app_action";
-export type ActionPayload = EmailDraft | EventDraft | WhatsappDraft | AppDraft;
+export type ActionKind = "send_email" | "create_event" | "whatsapp_message" | "app_action" | "run_command" | "create_image";
+export type ActionPayload = EmailDraft | EventDraft | WhatsappDraft | AppDraft | CommandDraft | ImageDraft;
 
 export type EmailDraft = { to: string; cc?: string[]; subject: string; body: string };
 export type WhatsappDraft = { phone?: string; name?: string; text: string };
+export type CommandDraft = { commandId: string; label: string };
+export type ImageDraft = { prompt: string; size?: string };
 export type EventDraft = {
   title: string;
   start: string;
@@ -39,7 +51,7 @@ const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const localDateTime = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(:\d{2})?$/;
 
 /** Herramientas que no cobran el extra de créditos. */
-export const freeTools = new Set(["recordar", "olvidar", "programar_tarea", "ver_tareas", "cancelar_tarea", "preparar_whatsapp", "no_molestar_whatsapp", "actualizar_perfil"]);
+export const freeTools = new Set(["recordar", "olvidar", "programar_tarea", "ver_tareas", "cancelar_tarea", "preparar_whatsapp", "no_molestar_whatsapp", "actualizar_perfil", "listar_archivos", "buscar_archivos", "leer_archivo", "escribir_archivo", "ver_comandos"]);
 const taskTools: FunctionDeclaration[] = [
   {
     name: "programar_tarea",
@@ -127,6 +139,77 @@ export function vegaTools(connections: VegaConnections, webSearch: boolean): Fun
         },
         required: ["mensaje"],
       },
+    },
+    {
+      name: "listar_archivos",
+      description:
+        "Lista los archivos y carpetas del espacio de trabajo del socio (una carpeta por vez). Úsalo para saber qué tiene antes de leer o escribir. Sin carpeta, lista la raíz.",
+      parameters: {
+        type: "object",
+        properties: { carpeta: { type: "string", description: "Ruta relativa de la carpeta (opcional)." } },
+      },
+    },
+    {
+      name: "buscar_archivos",
+      description: "Busca archivos y carpetas por nombre dentro del espacio de trabajo del socio.",
+      parameters: {
+        type: "object",
+        properties: { busqueda: { type: "string", description: "Parte del nombre a buscar." } },
+        required: ["busqueda"],
+      },
+    },
+    {
+      name: "leer_archivo",
+      description: "Lee un archivo de texto del espacio de trabajo del socio. Devuelve su contenido (hasta 200 KB).",
+      parameters: {
+        type: "object",
+        properties: { ruta: { type: "string", description: "Ruta relativa del archivo, p. ej. «notas/ideas.md»." } },
+        required: ["ruta"],
+      },
+    },
+    {
+      name: "escribir_archivo",
+      description:
+        "Escribe o agrega texto en un archivo del espacio de trabajo del socio. Crea las carpetas necesarias. Para sobrescribir todo el archivo usa «sobrescribir: true»; por omisión agrega al final.",
+      parameters: {
+        type: "object",
+        properties: {
+          ruta: { type: "string", description: "Ruta relativa del archivo." },
+          contenido: { type: "string", description: "Texto a escribir (hasta 500 KB)." },
+          sobrescribir: { type: "boolean", description: "true para reemplazar todo el archivo; false para agregar al final." },
+        },
+        required: ["ruta", "contenido"],
+      },
+    },
+    {
+      name: "crear_imagen",
+      description:
+        "Prepara la generación de una imagen a partir de una descripción. NO la crea: el socio revisa y confirma con un botón. Escribe la descripción en español, concreta y visual.",
+      parameters: {
+        type: "object",
+        properties: {
+          descripcion: { type: "string", description: "Descripción visual de la imagen que se quiere generar." },
+          tamano: { type: "string", enum: ["cuadrada", "horizontal", "vertical"], description: "Formato de la imagen (opcional)." },
+        },
+        required: ["descripcion"],
+      },
+    },
+    {
+      name: "preparar_comando",
+      description:
+        "Prepara un comando del servidor de la lista permitida para que el socio lo confirme con un botón. NO lo ejecuta. Usa ver_comandos si no sabes cuáles hay. Solo hay comandos de solo lectura; no existe shell libre.",
+      parameters: {
+        type: "object",
+        properties: {
+          comando: { type: "string", enum: commandAllowlist.map((command) => command.id), description: "Id del comando permitido." },
+        },
+        required: ["comando"],
+      },
+    },
+    {
+      name: "ver_comandos",
+      description: "Lista los comandos que Vega puede preparar, con lo que hace cada uno.",
+      parameters: { type: "object", properties: {} },
     },
   ];
   if (webSearch) {
@@ -444,11 +527,118 @@ export async function runVegaTool(userId: string, name: string, args: Record<str
     };
   }
 
+  if (name === "listar_archivos") {
+    const listed = await listWorkspace(userId, text(args.carpeta, 300) || ".");
+    if (!listed.ok) return { kind: "invalid", response: { error: listed.error } };
+    return {
+      kind: "result",
+      status: `Revisé tu espacio: ${listed.entries.length} elemento${listed.entries.length === 1 ? "" : "s"}`,
+      response: { archivos: listed.entries.length ? listed.entries : "(vacío)" },
+    };
+  }
+
+  if (name === "buscar_archivos") {
+    const query = text(args.busqueda, 120);
+    if (!query) return { kind: "invalid", response: { error: "Falta qué buscar." } };
+    const found = await searchWorkspace(userId, query);
+    if (!found.ok) return { kind: "invalid", response: { error: found.error } };
+    return { kind: "result", status: `Encontré ${found.coincidencias.length} coincidencia${found.coincidencias.length === 1 ? "" : "s"}`, response: { archivos: found.coincidencias.length ? found.coincidencias : "(sin coincidencias)" } };
+  }
+
+  if (name === "leer_archivo") {
+    const read = await readWorkspaceFile(userId, text(args.ruta, 300));
+    if (!read.ok) return { kind: "invalid", response: { error: read.error } };
+    return {
+      kind: "result",
+      status: `Leí ${read.path}`,
+      response: { archivo: read.path, bytes: read.bytes, truncado: read.truncado, contenido: read.contenido },
+    };
+  }
+
+  if (name === "escribir_archivo") {
+    const route = text(args.ruta, 300);
+    const content = typeof args.contenido === "string" ? args.contenido : "";
+    if (!route || !content) return { kind: "invalid", response: { error: "Falta la ruta o el contenido." } };
+    const written = await writeWorkspaceFile(userId, route, content.slice(0, 500_000), args.sobrescribir === true);
+    if (!written.ok) return { kind: "invalid", response: { error: written.error } };
+    return { kind: "result", status: `Guardé ${written.path}`, response: { archivo: written.path, bytes: written.bytes } };
+  }
+
+  if (name === "ver_comandos") {
+    return {
+      kind: "result",
+      status: "Revisé los comandos disponibles",
+      response: { comandos: commandAllowlist.map((command) => ({ id: command.id, nombre: command.label, descripcion: command.description })) },
+    };
+  }
+
+  if (name === "preparar_comando") {
+    const command = findCommand(text(args.comando, 40));
+    if (!command) return { kind: "invalid", response: { error: "Ese comando no está en la lista permitida. Usa ver_comandos." } };
+    return {
+      kind: "action",
+      action: "run_command",
+      payload: { commandId: command.id, label: command.label },
+      summary: `Comando: ${command.label}`,
+    };
+  }
+
+  if (name === "crear_imagen") {
+    const prompt = text(args.descripcion, 1000);
+    if (prompt.length < 4) return { kind: "invalid", response: { error: "Describe la imagen con un poco más de detalle." } };
+    const size = text(args.tamano, 20);
+    return {
+      kind: "action",
+      action: "create_image",
+      payload: { prompt, ...(size ? { size } : {}) },
+      summary: `Imagen: ${prompt.slice(0, 60)}`,
+    };
+  }
+
   return { kind: "invalid", response: { error: "Herramienta desconocida." } };
 }
 
 export async function executeVegaAction(userId: string, kind: ActionKind, payload: ActionPayload) {
   if (kind === "app_action") return executeAppAction(userId, payload as AppDraft);
+
+  if (kind === "run_command") {
+    const draft = payload as CommandDraft;
+    const command = findCommand(draft.commandId);
+    if (!command) return { ok: false as const, message: "Ese comando ya no está permitido." };
+    const built = command.build({});
+    if (!built.ok) return { ok: false as const, message: built.error };
+    if (!built.args.every((arg) => isSafeArgument(arg))) {
+      return { ok: false as const, message: "El comando tenía un argumento no permitido." };
+    }
+    try {
+      const { execFile } = await import("node:child_process");
+      const output = await new Promise<{ ok: true; text: string } | { ok: false; text: string }>((resolve) => {
+        execFile(built.cmd, built.args, { timeout: 8000, maxBuffer: 64 * 1024, windowsHide: true }, (error, stdout, stderr) => {
+          if (error) {
+            resolve({ ok: false, text: (stderr || error.message).slice(0, 2000) });
+            return;
+          }
+          resolve({ ok: true, text: stdout.trim().slice(0, 2000) || "(sin salida)" });
+        });
+      });
+      return output.ok
+        ? { ok: true as const, message: `${command.label}:\n${output.text}` }
+        : { ok: false as const, message: `${command.label} falló:\n${output.text}` };
+    } catch (error) {
+      return { ok: false as const, message: `No se pudo ejecutar: ${error instanceof Error ? error.message : "error desconocido"}` };
+    }
+  }
+
+  if (kind === "create_image") {
+    const draft = payload as ImageDraft;
+    const orientation = draft.size === "horizontal" ? "Una imagen panorámica, " : draft.size === "vertical" ? "Una imagen vertical, " : "";
+    const generated = await generateImage(`${orientation}${draft.prompt}`).catch(() => ({
+      ok: false as const,
+      error: "El proveedor de imagen no respondió.",
+    }));
+    if (!generated.ok) return { ok: false as const, message: `No se generó la imagen: ${generated.error}` };
+    return { ok: true as const, message: `Listo, generé tu imagen.\n\n![imagen](${generated.dataUrl})` };
+  }
 
   if (kind === "whatsapp_message") {
     const draft = payload as WhatsappDraft;

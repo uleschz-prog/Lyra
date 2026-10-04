@@ -3,7 +3,6 @@ import { monthStart } from "@/lib/compensation/activity";
 import { evaluateRank, roundMoney } from "@/lib/compensation/engine";
 import { loadNetwork } from "@/lib/compensation/members";
 import { getPrisma } from "@/lib/prisma";
-import { canUseTelegram } from "@/lib/telegram/rules";
 import type { AuthProfile } from "@/lib/types";
 import { canUseVega } from "@/lib/vega/access";
 
@@ -61,13 +60,12 @@ async function safe<T>(promise: Promise<T>, fallback: T) {
   }
 }
 
-export async function homeSummary(user: AuthProfile, projectCount: number): Promise<HomeSummary> {
+export async function homeSummary(user: AuthProfile): Promise<HomeSummary> {
   const prisma = getPrisma();
   const month = monthStart();
   const vega = canUseVega(user);
-  const telegram = canUseTelegram(user);
 
-  const [monthAgg, totalAgg, directs, joined, transactions, recentReferrals, network, vegaChats, bot] = await Promise.all([
+  const [monthAgg, totalAgg, directs, joined, transactions, recentReferrals, network, vegaChats] = await Promise.all([
     safe(prisma.transaction.aggregate({ where: { userId: user.id, kind: "COMMISSION", createdAt: { gte: month } }, _sum: { amount: true } }), null),
     safe(prisma.transaction.aggregate({ where: { userId: user.id, kind: "COMMISSION" }, _sum: { amount: true } }), null),
     safe(prisma.user.count({ where: { sponsorId: user.id } }), 0),
@@ -92,9 +90,6 @@ export async function homeSummary(user: AuthProfile, projectCount: number): Prom
     ),
     safe(loadNetwork(user.id), null),
     vega ? safe(prisma.vegaConversation.count({ where: { userId: user.id } }), 0) : Promise.resolve(0),
-    telegram
-      ? safe(prisma.telegramConnection.findUnique({ where: { userId: user.id }, select: { status: true } }), null)
-      : Promise.resolve(null),
   ]);
 
   const evaluation = network ? evaluateRank(network.members, user.id) : null;
@@ -105,13 +100,6 @@ export async function homeSummary(user: AuthProfile, projectCount: number): Prom
 
   const steps: HomeStep[] = [
     {
-      id: "project",
-      title: "Crea tu primer proyecto",
-      hint: "Describe una app, un sitio o un agente arriba.",
-      href: "#office-idea",
-      done: projectCount > 0,
-    },
-    {
       id: "invite",
       title: "Invita a tu primer socio",
       hint: "Comparte tu enlace por WhatsApp o Telegram.",
@@ -120,17 +108,6 @@ export async function homeSummary(user: AuthProfile, projectCount: number): Prom
     },
     ...(vega
       ? [{ id: "vega", title: "Habla con Vega", hint: "Tu super agente redacta, agenda y da seguimiento.", href: "/dashboard/super-agent", done: vegaChats > 0 }]
-      : []),
-    ...(telegram
-      ? [
-          {
-            id: "telegram",
-            title: "Conecta tu bot de Telegram",
-            hint: "Atiende prospectos a cualquier hora.",
-            href: "/dashboard/telegram",
-            done: Boolean(bot && bot.status !== "disconnected"),
-          },
-        ]
       : []),
     {
       id: "exempt",

@@ -2,13 +2,11 @@ import type { Metadata } from "next";
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 
-import { CreationHome } from "@/components/dashboard/creation-home";
 import { HomeStats, NextSteps, RecentActivity, Shortcuts } from "@/components/dashboard/home-panels";
 import { ReferralCard } from "@/components/dashboard/referral-card";
 import { brand } from "@/config/brand";
 import { getCurrentUser } from "@/lib/auth/profile";
 import { homeSummary } from "@/lib/dashboard/home";
-import { listProjects } from "@/lib/projects";
 
 export const metadata: Metadata = {
   title: "Dashboard",
@@ -24,22 +22,11 @@ export default async function DashboardPage() {
   const origin = process.env.NEXT_PUBLIC_APP_URL || (host ? `${proto}://${host}` : "");
   const referralLink = `${origin}/r/${user.username}`;
 
-  const projects = await listProjects(user.id).catch(() => []);
-  const summary = await homeSummary(user, projects.length);
+  const summary = await homeSummary(user);
 
   return (
     <>
-      <CreationHome
-        name={user.name.split(" ")[0] ?? user.name}
-        projects={projects.map((project) => ({
-          id: project.id,
-          title: project.title,
-          idea: project.idea,
-          kind: project.kind,
-        }))}
-      />
-
-      <div className="mt-16">
+      <div className="mt-4">
         <HomeStats summary={summary} />
       </div>
 

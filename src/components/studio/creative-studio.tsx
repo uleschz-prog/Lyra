@@ -4,8 +4,8 @@ import { Download, Pencil, Play, Sparkles, Trash2, Upload } from "lucide-react";
 import { useEffect, useState, type ReactNode } from "react";
 import { toast } from "sonner";
 
-import { discardCreation, storeCreation } from "@/app/dashboard/creations/actions";
-import { CreationHistory } from "@/components/creations/creation-history";
+import { discardCreation, storeCreation } from "@/app/dashboard/studio/actions";
+import { CreationHistory } from "@/components/media/creation-history";
 import { useCredits } from "@/components/dashboard/credit-provider";
 import { Button } from "@/components/ui/button";
 import {
@@ -19,7 +19,7 @@ import {
   videoStyles,
   videoTemplates,
 } from "@/components/studio/studio-pieces";
-import type { CreationRecord } from "@/lib/creations";
+import type { CreationRecord } from "@/lib/media-pieces";
 import { cn } from "@/lib/utils";
 
 type StudioTab = "video" | "image" | "search";

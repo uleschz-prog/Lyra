@@ -1,15 +1,16 @@
 "use client";
 
 import {
-  CalendarPlus,
   Check,
   Copy,
   CreditCard,
   FileText,
+  Image as ImageIcon,
   Mail,
   Megaphone,
   MessageCircle,
   Sheet,
+  Terminal,
   Video,
   X,
   type LucideIcon,
@@ -20,7 +21,7 @@ import { toast } from "sonner";
 import { decideVegaAction } from "@/app/dashboard/super-agent/actions";
 import type { AppOp } from "@/lib/vega/app-tools";
 import type { VegaActionView } from "@/lib/vega/events";
-import type { AppDraft, EmailDraft, EventDraft, WhatsappDraft } from "@/lib/vega/tools";
+import type { AppDraft, CommandDraft, EmailDraft, EventDraft, ImageDraft, WhatsappDraft } from "@/lib/vega/tools";
 
 const appIcons: Record<AppOp, LucideIcon> = {
   sheet_append: Sheet,
@@ -135,7 +136,28 @@ function ConfirmCard({
   const email = action.kind === "send_email" ? (action.payload as EmailDraft) : null;
   const event = action.kind === "create_event" ? (action.payload as EventDraft) : null;
   const app = action.kind === "app_action" ? (action.payload as AppDraft) : null;
+  const command = action.kind === "run_command" ? (action.payload as CommandDraft) : null;
+  const image = action.kind === "create_image" ? (action.payload as ImageDraft) : null;
   const AppIcon = app ? appIcons[app.op] : Mail;
+  const HeaderIcon = command ? Terminal : image ? ImageIcon : AppIcon;
+  const headerLabel = app
+    ? app.title
+    : email
+      ? "Correo listo para enviar desde tu Gmail"
+      : command
+        ? `Comando del servidor: ${command.label}`
+        : image
+          ? "Imagen lista para generar"
+          : "Evento listo para tu Google Calendar";
+  const confirmLabel = app
+    ? app.confirm
+    : email
+      ? "Enviar correo"
+      : command
+        ? "Ejecutar comando"
+        : image
+          ? "Generar imagen"
+          : "Crear evento";
 
   async function decide(confirm: boolean) {
     setBusy(true);
@@ -166,9 +188,9 @@ function ConfirmCard({
         ) : email ? (
           <Mail className="size-4 text-[#7C3AED]" />
         ) : (
-          <CalendarPlus className="size-4 text-[#7C3AED]" />
+          <HeaderIcon className="size-4 text-[#7C3AED]" />
         )}
-        {app ? app.title : email ? "Correo listo para enviar desde tu Gmail" : "Evento listo para tu Google Calendar"}
+        {headerLabel}
       </div>
       <div className="space-y-1.5 px-4 py-3 text-sm text-[#1E1E24]">
         {app ? (
@@ -204,6 +226,16 @@ function ConfirmCard({
             {event.meet ? <p className="text-[#5C5854]">Con enlace de Google Meet</p> : null}
             {event.description ? <p className="whitespace-pre-wrap text-[#5C5854]">{event.description}</p> : null}
           </>
+        ) : command ? (
+          <>
+            <p className="font-medium">{command.label}</p>
+            <p className="text-[#5C5854]">Vega ejecutará este comando de solo lectura y te mostrará el resultado.</p>
+          </>
+        ) : image ? (
+          <>
+            <p className="font-medium">Descripción</p>
+            <p className="whitespace-pre-wrap text-[#5C5854]">{image.prompt}</p>
+          </>
         ) : null}
       </div>
       <div className="flex items-center justify-between gap-2 border-t border-[#F0ECE6] px-4 py-2.5">
@@ -236,7 +268,7 @@ function ConfirmCard({
               className="inline-flex items-center gap-1 rounded-lg bg-[#7C3AED] px-3 py-1.5 text-xs font-medium text-white disabled:opacity-50"
             >
               <Check className="size-3.5" />
-              {busy ? "Enviando…" : app ? app.confirm : email ? "Enviar correo" : "Crear evento"}
+              {busy ? "Enviando…" : confirmLabel}
             </button>
           </div>
         ) : null}

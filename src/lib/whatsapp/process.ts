@@ -2,8 +2,8 @@ import type { Prisma } from "@prisma/client";
 
 import { chargeCredits, creditPrices, refundCharge } from "@/lib/credits";
 import { getPrisma } from "@/lib/prisma";
-import { runProspectAgent, type AgentEffect } from "@/lib/telegram/agent";
-import { canUseTelegram } from "@/lib/telegram/rules";
+import { runProspectAgent, type AgentEffect } from "@/lib/whatsapp/agent/prospect-agent";
+import { canUseProspectAgent } from "@/lib/whatsapp/agent/prospect-rules";
 import { canUseVega } from "@/lib/vega/access";
 import { decideAction } from "@/lib/vega/decide";
 import { prepareVegaTurn, runVegaTurn } from "@/lib/vega/turn";
@@ -194,7 +194,7 @@ async function handleProspect(connection: WhatsappConnection, inbound: WhatsappI
     return "human";
   }
   if (chat.automation !== "active" || connection.status !== "active" || !connection.automation) return "paused";
-  if (!canUseTelegram(connection.user) || (connection.user.suspendedUntil && connection.user.suspendedUntil > now)) {
+  if (!canUseProspectAgent(connection.user) || (connection.user.suspendedUntil && connection.user.suspendedUntil > now)) {
     return "no-plan";
   }
 
@@ -205,7 +205,7 @@ async function handleProspect(connection: WhatsappConnection, inbound: WhatsappI
   ]);
   if (chatBurst > CHAT_BURST || botBurst > BOT_BURST) return "rate-limited";
 
-  const charge = await chargeCredits(connection.userId, creditPrices.telegramReply, "WhatsApp · respuesta automática", `wa:${connection.id}:${inbound.waMessageId}`);
+  const charge = await chargeCredits(connection.userId, creditPrices.botReply, "WhatsApp · respuesta automática", `wa:${connection.id}:${inbound.waMessageId}`);
   if (!charge.ok) {
     const warning = "Tu agente de WhatsApp dejó de responder porque no tienes créditos. Recarga en Billetera.";
     if (connection.lastError !== warning) {

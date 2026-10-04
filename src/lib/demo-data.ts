@@ -1,4 +1,3 @@
-import { constellationAgents } from "@/config/constellation";
 import type { Course, DemoUser, NetworkNode, WalletTransaction } from "@/lib/types";
 
 export const demoUser: DemoUser = {
@@ -146,8 +145,6 @@ export const networkTree: NetworkNode = {
     },
   ],
 };
-
-export const agents = constellationAgents;
 
 export const courses: Course[] = [
   {

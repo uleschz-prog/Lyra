@@ -6,7 +6,6 @@ import { payCommissions } from "@/lib/compensation/payout";
 import { mercadoPagoReady } from "@/lib/payments/mercadopago";
 import { PROMO_PREFIX, checkPromoCode, redeemPromoCode } from "@/lib/payments/promo";
 import { getPrisma } from "@/lib/prisma";
-import { ensureProject } from "@/lib/projects";
 
 const usernamePattern = /^[a-z0-9](?:[a-z0-9-]{1,22}[a-z0-9])$/;
 
@@ -27,8 +26,6 @@ export type RegisterInput = {
   confirmPassword: string;
   packageId: string;
   ref: string;
-  idea?: string;
-  kind?: string;
   code?: string;
 };
 
@@ -38,7 +35,6 @@ function clean(input: RegisterInput) {
   const username = input.username.trim().toLowerCase();
   const packageId = input.packageId.trim();
   const ref = input.ref.trim() || "LYRA-ROOT";
-  const idea = input.idea?.trim().slice(0, 240) ?? "";
   const code = input.code?.trim().toUpperCase().slice(0, 24) ?? "";
 
   if (name.length < 2 || name.length > 80) {
@@ -60,7 +56,7 @@ function clean(input: RegisterInput) {
     throw new AuthError(400, "Elige Started, Pro, Founder, Corporate o Vega Partner.");
   }
 
-  return { name, email, username, packageId, ref, idea, code, kind: input.kind, password: input.password };
+  return { name, email, username, packageId, ref, code, password: input.password };
 }
 
 function paymentsRequired() {
@@ -212,8 +208,6 @@ export async function registerMember(input: RegisterInput) {
           "purchase",
         );
       }
-
-      await ensureProject(tx, created.id, data.idea, data.kind);
 
       return { ...created, pending };
     });

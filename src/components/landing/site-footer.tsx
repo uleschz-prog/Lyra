@@ -7,26 +7,26 @@ const columns = [
   {
     title: "Producto",
     links: [
-      { href: "#apps", label: "Apps" },
-      { href: "#sitios", label: "Sitios web" },
-      { href: "#agentes", label: "Agentes de IA" },
+      { href: brand.links.dashboard, label: "Super agente" },
+      { href: brand.links.studio, label: "Estudio creativo" },
+      { href: brand.links.notebook, label: "Notebook" },
       { href: "#planes", label: "Planes" },
     ],
   },
   {
     title: "Soluciones",
     links: [
-      { href: brand.links.aiStudio, label: "Agentes de recepción" },
+      { href: brand.links.dashboard, label: "Super agente" },
       { href: brand.links.studio, label: "Estudio creativo" },
       { href: brand.links.academy, label: "Academia" },
-      { href: "#agentes", label: "Agentes de IA" },
+      { href: brand.links.notebook, label: "Notebook" },
     ],
   },
   {
     title: "Documentación",
     links: [
-      { href: "#crear", label: "Builder" },
-      { href: "#apps", label: "Apps" },
+      { href: brand.links.academy, label: "Academia" },
+      { href: brand.links.network, label: "Red" },
       { href: brand.links.wallet, label: "Créditos" },
     ],
   },
@@ -35,7 +35,7 @@ const columns = [
     links: [
       { href: brand.links.login, label: "Inicia Sesión" },
       { href: brand.links.register, label: "Empieza a Construir" },
-      { href: "#crear", label: "Qué vas a crear" },
+      { href: brand.links.plan, label: "Planes" },
     ],
   },
   {

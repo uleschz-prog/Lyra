@@ -2,14 +2,12 @@ import Link from "next/link";
 import {
   ArrowRight,
   BookOpen,
-  Bot,
   Check,
   Coins,
   Crown,
   Gift,
   Minus,
   Plus,
-  Send,
   Sparkles,
   TrendingUp,
   UserPlus,
@@ -204,8 +202,6 @@ export function RecentActivity({ items }: { items: HomeActivity[] }) {
 
 const shortcuts = [
   { href: "/dashboard/super-agent", label: "Vega", hint: "Tu super agente", icon: Crown },
-  { href: "/dashboard/telegram", label: "Telegram", hint: "Bot de prospectos", icon: Send },
-  { href: "/dashboard/ai-studio", label: "Agentes", hint: "Constelación y canales", icon: Bot },
   { href: "/dashboard/studio", label: "Estudio creativo", hint: "Video, imagen y voz", icon: Sparkles },
   { href: "/dashboard/notebook", label: "Notebook", hint: "Investiga tus fuentes", icon: BookOpen },
 ] as const;

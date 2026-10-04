@@ -1,6 +1,6 @@
 "use client";
 
-import type { CreationRecord } from "@/lib/creations";
+import type { CreationRecord } from "@/lib/media-pieces";
 
 const kindLabel = { audio: "Audio", video: "Video", pdf: "PDF", image: "Imagen" } as const;
 

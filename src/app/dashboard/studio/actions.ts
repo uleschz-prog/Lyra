@@ -1,6 +1,6 @@
 "use server";
 
-import { removeCreation, saveCreation, type CreationArea, type CreationKind } from "@/lib/creations";
+import { removeCreation, saveCreation, type CreationArea, type CreationKind } from "@/lib/media-pieces";
 
 export async function storeCreation(input: {
   area: CreationArea;

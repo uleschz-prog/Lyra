@@ -26,7 +26,7 @@ export async function listCreations(area: CreationArea): Promise<CreationRecord[
   const user = await getCurrentUser();
   if (!user || !process.env.DATABASE_URL) return [];
 
-  const rows = await getPrisma().creationPiece.findMany({
+  const rows = await getPrisma().mediaPiece.findMany({
     where: { userId: user.id, area },
     orderBy: { createdAt: "desc" },
     take: 40,
@@ -58,7 +58,7 @@ export async function saveCreation(input: {
   const user = await getCurrentUser();
   if (!user || !process.env.DATABASE_URL) return null;
 
-  const row = await getPrisma().creationPiece.create({
+  const row = await getPrisma().mediaPiece.create({
     data: {
       userId: user.id,
       area: input.area,
@@ -76,6 +76,6 @@ export async function saveCreation(input: {
 export async function removeCreation(id: string) {
   const user = await getCurrentUser();
   if (!user || !process.env.DATABASE_URL) return false;
-  const result = await getPrisma().creationPiece.deleteMany({ where: { id, userId: user.id } });
+  const result = await getPrisma().mediaPiece.deleteMany({ where: { id, userId: user.id } });
   return result.count > 0;
 }

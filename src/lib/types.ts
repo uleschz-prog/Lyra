@@ -81,26 +81,3 @@ export type Course = {
   lessons: Lesson[];
 };
 
-export type ChannelId =
-  | "whatsapp"
-  | "email"
-  | "telegram"
-  | "instagram"
-  | "facebook"
-  | "linkedin"
-  | "messenger"
-  | "sms"
-  | "web"
-  | "calendar";
-
-export type DemoAgent = {
-  id: string;
-  name: string;
-  star: string;
-  description: string;
-  category: string;
-  promptTemplate: string;
-  creditCost: number;
-  uses: number;
-  channels: ChannelId[];
-};

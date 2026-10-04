@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 
 import { NotebookWorkspace } from "@/components/notebook/notebook-workspace";
 import { PageHeader } from "@/components/dashboard/page-header";
-import { listCreations } from "@/lib/creations";
+import { listCreations } from "@/lib/media-pieces";
 
 export const metadata: Metadata = {
   title: "Lyra Notebook",

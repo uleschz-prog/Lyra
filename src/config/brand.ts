@@ -1,12 +1,10 @@
 import {
   BookOpen,
-  Bot,
   Crown,
   GraduationCap,
   Home,
   Network,
   Orbit,
-  Send,
   Sparkles,
   Wallet,
 } from "lucide-react";
@@ -32,7 +30,6 @@ export const brand = {
     plan: "/dashboard/plan",
     upgrade: "/dashboard/upgrade",
     academy: "/dashboard/academy",
-    aiStudio: "/dashboard/ai-studio",
     notebook: "/dashboard/notebook",
     studio: "/dashboard/studio",
     wallet: "/dashboard/wallet",
@@ -50,6 +47,12 @@ export const officeModes = [
         label: "Inicio",
         description: "La pregunta para crear",
         icon: Home,
+      },
+      {
+        href: "/dashboard/super-agent",
+        label: "Vega",
+        description: "Tu super agente",
+        icon: Crown,
       },
       {
         href: "/dashboard/notebook",
@@ -86,31 +89,6 @@ export const officeModes = [
         label: "Billetera",
         description: "Comisiones y créditos",
         icon: Wallet,
-      },
-    ],
-  },
-  {
-    id: "agentes",
-    label: "Agentes",
-    home: "/dashboard/ai-studio",
-    items: [
-      {
-        href: "/dashboard/ai-studio",
-        label: "Agentes",
-        description: "Constelación y canales",
-        icon: Bot,
-      },
-      {
-        href: "/dashboard/super-agent",
-        label: "Super agente",
-        description: "Lyra vende y cobra por ti",
-        icon: Crown,
-      },
-      {
-        href: "/dashboard/telegram",
-        label: "Telegram",
-        description: "Tu bot atiende prospectos",
-        icon: Send,
       },
     ],
   },

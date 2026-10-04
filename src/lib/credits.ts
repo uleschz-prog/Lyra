@@ -6,10 +6,9 @@ export const creditPrices = {
   notebook: 5,
   speech: 3,
   search: 2,
-  projectAgent: 2,
   vegaMessage: 1,
   vegaTool: 3,
-  telegramReply: 1,
+  botReply: 1,
 } as const;
 
 export type Charge =

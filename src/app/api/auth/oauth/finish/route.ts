@@ -5,7 +5,6 @@ import { clearOauthProfile, readOauthProfile } from "@/lib/auth/oauth";
 import { createSession } from "@/lib/auth/session";
 import { requestOrigin, signupCheckout } from "@/lib/payments/signup";
 import { getPrisma } from "@/lib/prisma";
-import { ensureProject } from "@/lib/projects";
 
 function usernameFromEmail(email: string) {
   const local = email.split("@")[0] ?? "lyra";
@@ -23,10 +22,8 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "La sesión con el proveedor expiró. Vuelve a entrar." }, { status: 401 });
   }
 
-  const body = (await request.json().catch(() => null)) as { packageId?: unknown; idea?: unknown; kind?: unknown } | null;
+  const body = (await request.json().catch(() => null)) as { packageId?: unknown } | null;
   const packageId = typeof body?.packageId === "string" ? body.packageId : "";
-  const idea = (typeof body?.idea === "string" ? body.idea : "") || profile.idea;
-  const kind = (typeof body?.kind === "string" ? body.kind : "") || profile.kind;
 
   if (process.env.DATABASE_URL) {
     const existing = await getPrisma().user.findUnique({
@@ -34,7 +31,6 @@ export async function POST(request: Request) {
       select: { id: true },
     });
     if (existing) {
-      await ensureProject(getPrisma(), existing.id, idea, kind);
       await createSession(existing.id);
       await clearOauthProfile();
       return NextResponse.json({ ok: true });
@@ -53,8 +49,6 @@ export async function POST(request: Request) {
       confirmPassword: password,
       packageId,
       ref: profile.ref,
-      idea,
-      kind,
     });
     await createSession(user.id);
     await clearOauthProfile();
@@ -72,8 +66,6 @@ export async function POST(request: Request) {
           confirmPassword: password,
           packageId,
           ref: profile.ref,
-          idea,
-          kind,
         });
         await createSession(user.id);
         await clearOauthProfile();

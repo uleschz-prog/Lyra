@@ -4,11 +4,11 @@ import { ChevronLeft, ChevronRight, Download, FileText, Link2, Pencil, Plus, Sti
 import { useEffect, useId, useState } from "react";
 import { toast } from "sonner";
 
-import { discardCreation, storeCreation } from "@/app/dashboard/creations/actions";
-import { CreationHistory } from "@/components/creations/creation-history";
+import { discardCreation, storeCreation } from "@/app/dashboard/studio/actions";
+import { CreationHistory } from "@/components/media/creation-history";
 import { useCredits } from "@/components/dashboard/credit-provider";
 import { Button } from "@/components/ui/button";
-import type { CreationRecord } from "@/lib/creations";
+import type { CreationRecord } from "@/lib/media-pieces";
 import { studioVoices } from "@/lib/ai/voices";
 import { cn } from "@/lib/utils";
 

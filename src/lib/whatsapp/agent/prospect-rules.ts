@@ -1,10 +1,11 @@
 import type { AuthProfile } from "@/lib/types";
 
-export const telegramPlans = ["PRO", "FOUNDER", "CORPORATE"] as const;
+/** Membresías con acceso al agente que responde prospectos por WhatsApp. */
+export const prospectPlans = ["PRO", "FOUNDER", "CORPORATE"] as const;
 
-export function canUseTelegram(user: Pick<AuthProfile, "role" | "package"> | null) {
+export function canUseProspectAgent(user: Pick<AuthProfile, "role" | "package"> | null) {
   if (!user) return false;
-  return user.role === "ADMIN" || (telegramPlans as readonly string[]).includes(user.package);
+  return user.role === "ADMIN" || (prospectPlans as readonly string[]).includes(user.package);
 }
 
 export const TIMEZONE_OFFSET_HOURS = -6;
@@ -12,13 +13,15 @@ export const QUIET_START = 21;
 export const QUIET_END = 9;
 
 export function maxAutoFollowups() {
-  const value = Number(process.env.TELEGRAM_MAX_AUTO_FOLLOWUPS);
+  const value = Number(process.env.WHATSAPP_MAX_AUTO_FOLLOWUPS ?? process.env.TELEGRAM_MAX_AUTO_FOLLOWUPS);
   return Number.isFinite(value) && value >= 0 ? Math.min(10, Math.floor(value)) : 3;
 }
 
 /** Plan de seguimientos en minutos. El de 5 minutos requiere un cron externo frecuente. */
 export function followupPlan() {
-  return process.env.TELEGRAM_FOLLOWUP_FAST === "1" ? [5, 24 * 60, 3 * 24 * 60] : [24 * 60, 3 * 24 * 60];
+  return process.env.WHATSAPP_FOLLOWUP_FAST === "1" || process.env.TELEGRAM_FOLLOWUP_FAST === "1"
+    ? [5, 24 * 60, 3 * 24 * 60]
+    : [24 * 60, 3 * 24 * 60];
 }
 
 export const delayMinutes = { "1h": 60, "24h": 24 * 60, "3d": 3 * 24 * 60 } as const;
@@ -51,11 +54,11 @@ export type ProactiveCheck = {
 
 /** Reglas para escribir sin que el contacto haya escrito primero en este momento. */
 export function proactiveBlock(check: ProactiveCheck) {
-  if (!check.hasChatId) return "El contacto nunca inició el bot.";
+  if (!check.hasChatId) return "El contacto nunca inició la conversación.";
   if (!check.optedIn) return "El contacto pidió no recibir mensajes.";
-  if (check.isBlocked) return "El contacto bloqueó al bot.";
+  if (check.isBlocked) return "El contacto bloqueó al número.";
   if (check.automation !== "active") return "La automatización de este chat está pausada.";
-  if (check.connectionStatus !== "active") return "El bot no está activo.";
+  if (check.connectionStatus !== "active") return "El WhatsApp del socio no está activo.";
   if (!check.connectionAutomation || !check.connectionFollowups) return "El socio desactivó los seguimientos.";
   if (check.autoSent >= maxAutoFollowups()) return "Se alcanzó el límite de seguimientos sin respuesta.";
   return null;

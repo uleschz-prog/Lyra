@@ -16,14 +16,6 @@ const notices: Record<string, string> = {
   sesion: "Ese acceso expiró. Vuelve a elegir el proveedor.",
 };
 
-function planFromIdea(idea: string): SignupPlanId | null {
-  const text = idea.toLowerCase();
-  if (/\bpro\b|299/.test(text)) return "FOUNDER";
-  if (/negocio|business|99/.test(text)) return "PRO";
-  if (/inicio|start|empezar|29|\b50\b|\b499\b|founder|1000/.test(text)) return "STARTED";
-  return null;
-}
-
 function usernameFromEmail(email: string) {
   const local = email.split("@")[0] ?? "lyra";
   let slug = local
@@ -41,16 +33,12 @@ function nameFromEmail(email: string) {
 
 export function RegisterForm({
   refCode,
-  idea = "",
-  kind = "",
   aviso = "",
   social = null,
   activation = null,
   activationError = "",
 }: {
   refCode: string;
-  idea?: string;
-  kind?: string;
   aviso?: string;
   social?: { email: string; name: string } | null;
   activation?: { code: string; packageId: SignupPlanId } | null;
@@ -58,7 +46,7 @@ export function RegisterForm({
 }) {
   const router = useRouter();
   const [step, setStep] = useState<1 | 2>(social ? 2 : 1);
-  const [packageId, setPackageId] = useState<SignupPlanId | null>(activation?.packageId ?? planFromIdea(idea));
+  const [packageId, setPackageId] = useState<SignupPlanId | null>(activation?.packageId ?? null);
   const [error, setError] = useState(activationError || notices[aviso] || "");
   const prepaid = activation ? signupPlans.find((plan) => plan.id === activation.packageId) : null;
   const [pending, setPending] = useState(false);
@@ -92,7 +80,7 @@ export function RegisterForm({
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(
         social
-          ? { packageId, idea, kind }
+          ? { packageId }
           : {
               name: nameFromEmail(email),
               email,
@@ -101,8 +89,6 @@ export function RegisterForm({
               confirmPassword: password,
               packageId: packageId ?? "",
               ref: refCode,
-              idea,
-              kind,
               code,
             },
       ),
@@ -124,8 +110,6 @@ export function RegisterForm({
 
   const socialHref = (provider: string) => {
     const params = new URLSearchParams({ ref: refCode });
-    if (idea) params.set("idea", idea);
-    if (kind) params.set("tipo", kind);
     return `/api/auth/oauth/${provider}?${params.toString()}`;
   };
 
@@ -137,7 +121,6 @@ export function RegisterForm({
       <h1 className="mt-6 text-center text-[2rem] font-semibold tracking-tight text-[#1E1E24]">
         {step === 1 ? "Crea tu cuenta" : "Elige tu plan"}
       </h1>
-      {idea ? <p className="mt-3 text-center text-sm text-[#252525]">Vas a construir: {idea}</p> : null}
       {social && step === 2 ? (
         <p className="mt-3 text-center text-sm text-[#252525]">{social.email}</p>
       ) : null}

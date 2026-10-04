@@ -35,8 +35,6 @@ export async function POST(request: Request) {
       confirmPassword: text(body?.confirmPassword),
       packageId: text(body?.packageId),
       ref: text(body?.ref),
-      idea: text(body?.idea),
-      kind: text(body?.kind),
       code: text(body?.code),
     });
     await createSession(user.id);

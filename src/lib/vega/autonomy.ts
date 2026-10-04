@@ -25,6 +25,8 @@ export function autonomyLabel(kind: string) {
   if (kind === "send_email") return "enviar correos";
   if (kind === "whatsapp_message") return "enviar WhatsApp";
   if (kind === "create_event") return "agendar eventos";
+  if (kind === "run_command") return "ejecutar comandos del servidor";
+  if (kind === "create_image") return "generar imágenes";
   return "acciones en tus apps";
 }
 

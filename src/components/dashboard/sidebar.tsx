@@ -2,7 +2,7 @@
 
 import { Gift, ShieldCheck, X } from "lucide-react";
 import Link from "next/link";
-import { usePathname, useRouter } from "next/navigation";
+import { usePathname } from "next/navigation";
 
 import { Logo } from "@/components/brand/logo";
 import { useCredits } from "@/components/dashboard/credit-provider";
@@ -12,20 +12,17 @@ import { formatCredits } from "@/lib/format";
 import type { AuthProfile } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
-const agentRoots = officeModes[1].items.map((item) => item.href);
-
 function isActive(href: string, pathname: string) {
   if (href === brand.links.dashboard) {
-    return pathname === href || pathname.startsWith("/dashboard/projects");
+    return pathname === href;
   }
   return pathname === href || pathname.startsWith(`${href}/`);
 }
 
 export function Sidebar({ user, onClose }: { user: AuthProfile; onClose?: () => void }) {
   const pathname = usePathname();
-  const router = useRouter();
   const { balance } = useCredits();
-  const mode = agentRoots.some((href) => isActive(href, pathname)) ? officeModes[1] : officeModes[0];
+  const mode = officeModes[0];
 
   return (
     <div className="flex h-full flex-col bg-white dark:bg-[#181625]">
@@ -50,31 +47,7 @@ export function Sidebar({ user, onClose }: { user: AuthProfile; onClose?: () => 
       </div>
 
       <div className="px-3 pt-5">
-        <div className="grid grid-cols-2 rounded-full bg-[#EDE9FE] p-1" role="tablist" aria-label="Modo del backoffice">
-          {officeModes.map((item) => {
-            const selected = item.id === mode.id;
-            return (
-              <button
-                key={item.id}
-                type="button"
-                role="tab"
-                aria-selected={selected}
-                onClick={() => {
-                  onClose?.();
-                  router.push(item.home);
-                }}
-                className={cn(
-                  "rounded-full px-2 py-1.5 text-sm transition-colors",
-                  selected
-                    ? "bg-white font-medium text-[#1E1E24] shadow-sm dark:bg-[#221F30] dark:text-[#F2F0F7]"
-                    : "text-[#6D28D9] dark:text-[#C4B5FD]",
-                )}
-              >
-                {item.label}
-              </button>
-            );
-          })}
-        </div>
+        <p className="px-2 text-[11px] font-medium tracking-[0.22em] text-[#8A8680] uppercase">{mode.label}</p>
       </div>
 
       <nav aria-label="Backoffice" className="mt-4 flex-1 space-y-1 overflow-y-auto px-3">

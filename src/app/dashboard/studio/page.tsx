@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 
 import { PageHeader } from "@/components/dashboard/page-header";
 import { CreativeStudio } from "@/components/studio/creative-studio";
-import { listCreations } from "@/lib/creations";
+import { listCreations } from "@/lib/media-pieces";
 
 export const metadata: Metadata = {
   title: "Estudio Creativo",

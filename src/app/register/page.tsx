@@ -7,7 +7,6 @@ import { isSignupPlanId } from "@/config/compensation-plan";
 import { getCurrentUser } from "@/lib/auth/profile";
 import { readOauthProfile } from "@/lib/auth/oauth";
 import { getPrisma } from "@/lib/prisma";
-import { ensureProject } from "@/lib/projects";
 
 export const metadata: Metadata = {
   title: "Crea tu cuenta",
@@ -40,9 +39,6 @@ export default async function RegisterPage({
   }
   const user = await getCurrentUser();
   if (user) {
-    if (idea && process.env.DATABASE_URL) {
-      await ensureProject(getPrisma(), user.id, idea, params.tipo).catch(() => null);
-    }
     redirect(brand.links.dashboard);
   }
 
@@ -61,8 +57,6 @@ export default async function RegisterPage({
       <section className="w-full max-w-[440px] bg-white px-8 py-12 shadow-[0_12px_40px_rgba(40,60,110,0.08)]">
         <RegisterForm
           refCode={profile?.ref || refCode}
-          idea={profile?.idea || idea}
-          kind={profile?.kind || params.tipo || ""}
           aviso={params.aviso ?? ""}
           activation={
             activation && !activation.usedById && isSignupPlanId(activation.packageId)

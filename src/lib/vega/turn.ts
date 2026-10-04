@@ -61,6 +61,13 @@ export function statusLabel(name: string) {
   if (name === "ver_agenda") return "Revisando tu agenda…";
   if (name === "preparar_correo") return "Preparando el correo…";
   if (name === "preparar_evento") return "Preparando el evento…";
+  if (name === "listar_archivos") return "Revisando tus archivos…";
+  if (name === "buscar_archivos") return "Buscando en tus archivos…";
+  if (name === "leer_archivo") return "Leyendo el archivo…";
+  if (name === "escribir_archivo") return "Guardando el archivo…";
+  if (name === "ver_comandos") return "Revisando los comandos…";
+  if (name === "preparar_comando") return "Preparando el comando…";
+  if (name === "crear_imagen") return "Preparando la imagen…";
   return "Trabajando…";
 }
 
