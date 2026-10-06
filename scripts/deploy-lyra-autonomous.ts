@@ -4,8 +4,7 @@ import { AMOY_EXPLORER_URL, AMOY_USDC_ADDRESS, resolveAmoyUsdcAddress } from "..
 import { AMOY_ETH_USD_FEED } from "../config/price-feeds.js";
 
 const LOCAL_NETWORKS = new Set(["hardhat", "localhost", "default", "node", "amoyNode"]);
-const LOCAL_LIQUIDITY = 1_000_000_000_000n; // 1_000_000 USDC (6 decimales)
-const LOCAL_PROFIT_BPS = 1000n;
+const LOCAL_COOLDOWN = 600n;
 
 const { ethers, networkName } = await network.create();
 
@@ -24,54 +23,40 @@ console.log(`Red: ${networkName}`);
 console.log(`Deployer: ${deployer.address}`);
 
 let usdcAddress: string;
-let routerAddress: string;
 let priceFeedAddress: string;
+let cooldown = LOCAL_COOLDOWN;
 
 if (isLocalNetwork(networkName)) {
   const usdc = await ethers.deployContract("MockERC20", ["USD Coin", "USDC", 6]);
   await usdc.waitForDeployment();
   usdcAddress = await usdc.getAddress();
 
-  const router = await ethers.deployContract("MockSwapRouter", [usdcAddress, LOCAL_PROFIT_BPS]);
-  await router.waitForDeployment();
-  routerAddress = await router.getAddress();
-
-  const mintTx = await usdc.mint(routerAddress, LOCAL_LIQUIDITY);
-  await mintTx.wait();
-
   const feed = await ethers.deployContract("MockV3Aggregator", [8, 2_000_00000000n]);
   await feed.waitForDeployment();
   priceFeedAddress = await feed.getAddress();
-  console.log("MockERC20, MockSwapRouter y MockV3Aggregator desplegados solo en red local.");
+  console.log("MockERC20 y MockV3Aggregator desplegados solo en red local.");
 } else {
   if (networkName !== "polygonAmoy") {
     throw new Error(`Red ${networkName} no soportada. Usa hardhat, localhost, amoyNode o polygonAmoy.`);
   }
 
-  const mockRouter = process.env.MOCK_ROUTER_ADDRESS?.trim();
-  if (!mockRouter) {
-    throw new Error(
-      "En Polygon Amoy define MOCK_ROUTER_ADDRESS: un MockSwapRouter ya desplegado y con USDC para pagar la ganancia simulada.",
-    );
-  }
-
   usdcAddress = ethers.getAddress(resolveAmoyUsdcAddress());
-  routerAddress = ethers.getAddress(mockRouter);
   priceFeedAddress = ethers.getAddress(process.env.ETH_USD_PRICE_FEED?.trim() || AMOY_ETH_USD_FEED);
+  cooldown = BigInt(process.env.EXECUTION_COOLDOWN?.trim() || "600");
 
   if (usdcAddress.toLowerCase() === AMOY_USDC_ADDRESS.toLowerCase()) {
     console.log("USDC de Circle en Amoy (default).");
   }
 }
 
-const agent = await ethers.deployContract("LyraAutonomousAgent", [usdcAddress, routerAddress, priceFeedAddress]);
+const agent = await ethers.deployContract("LyraAutonomousAgent", [usdcAddress, priceFeedAddress, cooldown]);
 await agent.waitForDeployment();
 const agentAddress = await agent.getAddress();
 
 console.log(`LyraAutonomousAgent: ${agentAddress}`);
 console.log(`USDC: ${usdcAddress}`);
-console.log(`Router: ${routerAddress}`);
 console.log(`ETH/USD: ${priceFeedAddress}`);
+console.log(`Cooldown: ${cooldown.toString()} s`);
 if (networkName === "polygonAmoy") {
   console.log(`Explorer: ${AMOY_EXPLORER_URL}/address/${agentAddress}`);
 }

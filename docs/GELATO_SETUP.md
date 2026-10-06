@@ -24,13 +24,13 @@ La USDC de esta demo es el mock `0x367220DC34967Ae19e4B904aCF572fB1eC6eB3CD`. El
    - `canExec`: verdadero solo si pasaron más de 10 minutos desde la última ejecución y el agente tiene USDC.
    - `execPayload`: la llamada ya codificada a `executeStrategy()`.
 6. Gelato debe ejecutar ese `execPayload`. No hace falta pegar otra dirección de contrato de Gelato: la tarea apunta a este agente.
-7. Si la consola solo ofrece un trigger por tiempo, pon el intervalo por encima de 10 minutos. Un intervalo más corto revierte con `LyraAutonomousAgent: cooldown` y gasta gas sin tradear.
+7. Si la consola solo ofrece un trigger por tiempo, pon el intervalo por encima de 10 minutos. Un intervalo más corto revierte por cooldown y gasta gas sin tradear.
 
 `executeStrategy()` no tiene `onlyOwner`. La puede llamar Gelato. `depositUSDC` y `withdraw` siguen siendo solo del owner.
 
 ## Precio ETH/USD
 
-El contrato que ya está en `0x355B1Af7FD423EC1C60D1E0Bfb630C63a236eEcA` no lee un oráculo. El código nuevo sí: antes de tradear llama al proxy Chainlink ETH/USD de Amoy `0xF0d50568e3A7e8259E16663972b11910F89BD8e7` y `checker()` solo devuelve verdadero si ese precio tiene menos de 3 horas. Ese código entra en cadena con el próximo despliegue. Esta tarea de Gelato sigue apuntando al agente que ya está desplegado.
+El contrato que ya está en `0x355B1Af7FD423EC1C60D1E0Bfb630C63a236eEcA` no lee un oráculo y sigue haciendo el swap del mock. El código nuevo llama a `getLatestPrice()` sobre el proxy Chainlink ETH/USD de Amoy `0xF0d50568e3A7e8259E16663972b11910F89BD8e7`. Si el dato tiene menos de 3 horas, `executeStrategy()` anota una ganancia simulada del 0.1 % y no mueve el USDC. Ese código entra en cadena con el próximo despliegue. Esta tarea de Gelato sigue apuntando al agente que ya está desplegado.
 
 ## Pagar el gas
 
