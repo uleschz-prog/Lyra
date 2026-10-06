@@ -1,36 +1,49 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Lyra Autonomous Protocol
 
-## Getting Started
+Agente en Solidity dentro de LYRA. El owner deposita y retira USDC. Un keeper llama `executeStrategy()` (sin `onlyOwner`) como máximo cada 10 minutos. Si hay saldo, el contrato simula un swap contra `MockSwapRouter.swapUSDCForProfit` y emite `StrategyExecuted` con action `BUY` y asset `ETH`. Si no hay saldo, revierte. El router mock se sustituye después por Uniswap.
 
-First, run the development server:
+La sección vive en el dashboard, ruta `/dashboard/protocol`.
+
+## Compile y test
 
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+npm run compile
+npm run test:contracts
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+## Deploy
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+```bash
+cp .env.example .env
+npm run deploy:autonomous:local
+npm run deploy:autonomous
+```
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+`deploy:autonomous:local` usa Hardhat y despliega `MockERC20` y `MockSwapRouter`. En `localhost` o `amoyNode` (nodo local con chainId 80002) hace lo mismo. `deploy:autonomous` usa Polygon Amoy: toma la USDC de `config/amoy.ts` y exige `MOCK_ROUTER_ADDRESS` (un router mock ya desplegado y con USDC para pagar la ganancia). También hace falta `PRIVATE_KEY`.
 
-## Learn More
+Para escuchar eventos en local: `npx hardhat node --network amoyNode` y apunta `NEXT_PUBLIC_LYRA_RPC_URL` a `http://127.0.0.1:8545`.
 
-To learn more about Next.js, take a look at the following resources:
+## Variables
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+Sin secretos en el repositorio. En `.env`:
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+- `POLYGON_AMOY_RPC_URL` — RPC de Amoy. Vacío usa `https://rpc-amoy.polygon.technology`.
+- `PRIVATE_KEY` — cuenta que despliega en Amoy. No la subas.
+- `AMOY_USDC_ADDRESS` — opcional. Vacío usa la USDC de Circle en Amoy `0x41E94Eb019C0762f9Bfcf9Fb1E58725BfB0e7582`.
+- `MOCK_ROUTER_ADDRESS` — obligatorio solo al desplegar en Amoy.
+- `NEXT_PUBLIC_LYRA_AUTONOMOUS_AGENT_ADDRESS` — dirección del agente en el dashboard. Si falta, la sección dice «Sin contrato configurado».
+- `NEXT_PUBLIC_LYRA_RPC_URL` — opcional. Vacío usa el RPC público de Amoy.
 
-## Deploy on Vercel
+Red: Polygon Amoy, chainId `80002`. Explorer: https://amoy.polygonscan.com.
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+## Gelato
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+En [app.gelato.network](https://app.gelato.network), para llamar `executeStrategy()` cada 10 minutos en Amoy:
+
+1. Crea una tarea y elige la red **Polygon Amoy** (chainId 80002).
+2. Contrato: la dirección de `LyraAutonomousAgent` que imprimió el deploy.
+3. Función: `executeStrategy()`. No recibe argumentos.
+4. Trigger de tiempo: cada **10 minutos** (600 segundos). El contrato igual exige `block.timestamp > lastExecutionTime + 10 minutes`.
+5. Si usas resolver: el resolver es **el mismo contrato**, función `checker()`. Devuelve `(bool canExec, bytes execPayload)`. `execPayload` ya trae `abi.encodeCall(executeStrategy, ())`. Gelato debe ejecutar solo cuando `canExec` es true (pasaron 10 minutos y hay saldo USDC).
+6. Activa **dedicated msg.sender**. Esa dirección no está en este repo: Gelato la muestra en el dashboard al crear la tarea y cambia según la red. Cópiala de ahí. El contrato no la exige; cualquiera puede llamar `executeStrategy()`.
+7. Fondea **1Balance** en esa misma pantalla, con el token y la cantidad que indique Gelato para Amoy. La dirección del contrato de 1Balance se copia del dashboard al crear la tarea.
