@@ -15,12 +15,16 @@ describe("LyraAutonomousAgent", function () {
     const router = await ethers.deployContract("MockSwapRouter", [await usdc.getAddress(), PROFIT_BPS]);
     await usdc.mint(await router.getAddress(), ethers.parseUnits("1000000", 6));
 
+    const price = 2_000_00000000n; // 2000 USD con 8 decimales
+    const feed = await ethers.deployContract("MockV3Aggregator", [8, price]);
+
     const agent = await ethers.deployContract("LyraAutonomousAgent", [
       await usdc.getAddress(),
       await router.getAddress(),
+      await feed.getAddress(),
     ]);
 
-    return { owner, other, usdc, router, agent };
+    return { owner, other, usdc, router, feed, agent };
   }
 
   async function fundAndApprove(
@@ -100,6 +104,32 @@ describe("LyraAutonomousAgent", function () {
 
     expect(await usdc.balanceOf(agentAddress)).to.equal(amountOut);
     expect(amountOut).to.be.greaterThan(DEPOSIT);
+    expect(await agent.lastEthPrice()).to.equal(2_000_00000000n);
+
+    const [readPrice, decimals, updatedAt] = await agent.latestEthUsd();
+    expect(readPrice).to.equal(2_000_00000000n);
+    expect(decimals).to.equal(8);
+    expect(updatedAt).to.be.greaterThan(0n);
+  });
+
+  it("executeStrategy revierte si el precio de Chainlink está viejo o incompleto", async function () {
+    const { owner, usdc, feed, agent } = await networkHelpers.loadFixture(deployFixture);
+    const agentAddress = await agent.getAddress();
+    await fundAndApprove(usdc, owner, agentAddress, DEPOSIT);
+    await agent.depositUSDC(DEPOSIT);
+    await passCooldown(await agent.lastExecutionTime());
+
+    const now = BigInt((await ethers.provider.getBlock("latest"))!.timestamp);
+    await feed.setRound(2_000_00000000n, now - (3n * 60n * 60n) - 1n, 1, 1);
+    const [stale] = await agent.checker();
+    expect(stale).to.equal(false);
+    await expect(agent.executeStrategy()).to.be.revertedWith("LyraAutonomousAgent: stale price");
+
+    await feed.setRound(-1n, now, 1, 1);
+    await expect(agent.latestEthUsd()).to.be.revertedWith("LyraAutonomousAgent: stale price");
+
+    await feed.setRound(2_000_00000000n, now, 4, 3);
+    await expect(agent.executeStrategy()).to.be.revertedWith("LyraAutonomousAgent: stale price");
   });
 
   it("el retiro solo lo hace el owner y no por encima del balance", async function () {

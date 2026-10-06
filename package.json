@@ -23,6 +23,7 @@
     "seed": "tsx prisma/seed.ts"
   },
   "dependencies": {
+    "@chainlink/contracts": "^1.5.0",
     "@prisma/client": "^6.19.3",
     "@radix-ui/react-dropdown-menu": "^2.1.24",
     "@radix-ui/react-slot": "^1.3.3",

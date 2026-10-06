@@ -2,6 +2,8 @@ import { writeFileSync } from "node:fs";
 
 import { network } from "hardhat";
 
+import { AMOY_ETH_USD_FEED, POLYGON_ETH_USD_FEED } from "../config/price-feeds.js";
+
 // USDC mock en Polygon Amoy (6 decimales), el que tiene liquidez en el router.
 // La USDC de Circle en Amoy es 0x41E94Eb019C0762f9Bfcf9Fb1E58725BfB0e7582.
 const DEFAULT_USDC = "0x367220DC34967Ae19e4B904aCF572fB1eC6eB3CD";
@@ -25,15 +27,20 @@ if (networkName === "polygonMainnet") {
   throw new Error("Este script despliega en polygonAmoy o polygonMainnet. Para una red local usa npm run deploy:autonomous:local.");
 }
 
+const defaultFeed = networkName === "polygonMainnet" ? POLYGON_ETH_USD_FEED : AMOY_ETH_USD_FEED;
+const priceFeedAddress = process.env.ETH_USD_PRICE_FEED?.trim() || defaultFeed;
+
 console.log("Desplegando LyraAutonomousAgent...");
 console.log(`Red: ${networkName}`);
 // El cooldown no es argumento: LyraAutonomousAgent lo fija en 10 minutos.
 console.log(`USDC: ${usdcAddress}`);
 console.log(`Router: ${routerAddress}`);
+console.log(`ETH/USD: ${priceFeedAddress}`);
 
 const agent = await ethers.deployContract("LyraAutonomousAgent", [
   ethers.getAddress(usdcAddress),
   ethers.getAddress(routerAddress),
+  ethers.getAddress(priceFeedAddress),
 ]);
 await agent.waitForDeployment();
 const address = await agent.getAddress();

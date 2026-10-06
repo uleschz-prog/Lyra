@@ -28,6 +28,10 @@ La USDC de esta demo es el mock `0x367220DC34967Ae19e4B904aCF572fB1eC6eB3CD`. El
 
 `executeStrategy()` no tiene `onlyOwner`. La puede llamar Gelato. `depositUSDC` y `withdraw` siguen siendo solo del owner.
 
+## Precio ETH/USD
+
+El contrato que ya está en `0x355B1Af7FD423EC1C60D1E0Bfb630C63a236eEcA` no lee un oráculo. El código nuevo sí: antes de tradear llama al proxy Chainlink ETH/USD de Amoy `0xF0d50568e3A7e8259E16663972b11910F89BD8e7` y `checker()` solo devuelve verdadero si ese precio tiene menos de 3 horas. Ese código entra en cadena con el próximo despliegue. Esta tarea de Gelato sigue apuntando al agente que ya está desplegado.
+
 ## Pagar el gas
 
 En Amoy el gas es **POL**, no un saldo aparte de Lyra. En la consola de Gelato fondea la tarea con POL de Amoy (a veces la interfaz sigue diciendo el nombre viejo de la red). Sin ese saldo la tarea no se ejecuta.
