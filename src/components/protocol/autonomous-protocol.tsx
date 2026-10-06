@@ -1,12 +1,11 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   createPublicClient,
   createWalletClient,
   custom,
   erc20Abi,
-  formatUnits,
   http,
   parseUnits,
   type Address,
@@ -22,6 +21,7 @@ import {
   lyraAutonomousAgentAddress,
   lyraRpcUrl,
 } from "@/lib/protocol/autonomous-agent";
+import { balanceAfterTrades, formatUsdc, tradeExecutedMessage } from "@/lib/protocol/trade-event";
 
 type TradeRow = {
   id: string;
@@ -47,14 +47,6 @@ const fieldClass =
 
 function shortAddress(value: string) {
   return `${value.slice(0, 6)}…${value.slice(-4)}`;
-}
-
-function formatUsdc(amount: bigint) {
-  const value = Number(formatUnits(amount, 6));
-  return `${new Intl.NumberFormat("es-MX", {
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
-  }).format(value)} USDC`;
 }
 
 function formatTradeTime(timestamp: bigint) {
@@ -138,6 +130,10 @@ export function AutonomousProtocol() {
   const [busy, setBusy] = useState<"deposit" | "withdraw" | null>(null);
   const [formMessage, setFormMessage] = useState<string | null>(null);
   const [formError, setFormError] = useState<string | null>(null);
+  const [agentMood, setAgentMood] = useState<"waiting" | "happy">("waiting");
+  const [lastLog, setLastLog] = useState<string | null>(null);
+  const knownTradeIds = useRef(new Set<string>());
+  const pendingCredit = useRef<{ base: bigint; target: bigint } | null>(null);
 
   const refreshStatus = useCallback(async () => {
     if (!address) return;
@@ -156,14 +152,26 @@ export function AutonomousProtocol() {
         functionName: "balanceOf",
         args: [address],
       });
-      setStatus({
-        owner,
-        usdc,
-        balance,
-        lastExecutionTime,
-        cooldown,
-        blockTimestamp: block.timestamp,
-        canExec: checkerResult[0],
+      setStatus(() => {
+        const credit = pendingCredit.current;
+        let shown = balance;
+        if (credit) {
+          if (balance >= credit.target || balance !== credit.base) {
+            pendingCredit.current = null;
+            shown = balance;
+          } else {
+            shown = credit.target;
+          }
+        }
+        return {
+          owner,
+          usdc,
+          balance: shown,
+          lastExecutionTime,
+          cooldown,
+          blockTimestamp: block.timestamp,
+          canExec: checkerResult[0],
+        };
       });
       setStatusError(null);
     } catch (error) {
@@ -186,13 +194,26 @@ export function AutonomousProtocol() {
     const contractAddress: `0x${string}` = address;
     let unwatch: (() => void) | undefined;
     let cancelled = false;
+    knownTradeIds.current = new Set();
+    pendingCredit.current = null;
+    setTrades([]);
+    setAgentMood("waiting");
+    setLastLog(null);
 
-    function merge(incoming: TradeRow[]) {
-      setTrades((current) => {
-        const seen = new Set(current.map((row) => row.id));
-        const fresh = incoming.filter((row) => !seen.has(row.id));
-        if (fresh.length === 0) return current;
-        return [...fresh, ...current].sort((a, b) => (a.timestamp < b.timestamp ? 1 : -1));
+    function remember(incoming: TradeRow[], live: boolean) {
+      const fresh = incoming.filter((row) => !knownTradeIds.current.has(row.id));
+      if (fresh.length === 0) return;
+      for (const row of fresh) knownTradeIds.current.add(row.id);
+      setTrades((current) => [...fresh, ...current].sort((a, b) => (a.timestamp < b.timestamp ? 1 : -1)));
+      if (!live) return;
+      const latest = fresh.reduce((best, row) => (row.timestamp >= best.timestamp ? row : best));
+      setAgentMood("happy");
+      setLastLog(tradeExecutedMessage(latest.amountIn, latest.amountOut));
+      setStatus((current) => {
+        if (!current) return current;
+        const target = balanceAfterTrades(current.balance, fresh);
+        pendingCredit.current = { base: current.balance, target };
+        return { ...current, balance: target };
       });
     }
 
@@ -224,13 +245,13 @@ export function AutonomousProtocol() {
       try {
         const logs = await readHistory();
         if (cancelled) return;
-        merge(logs.map(toRow).filter((row): row is TradeRow => row !== null));
+        remember(logs.map(toRow).filter((row): row is TradeRow => row !== null), false);
         unwatch = client.watchContractEvent({
           address: contractAddress,
           abi: lyraAutonomousAgentAbi,
           eventName: "StrategyExecuted",
           onLogs(logs) {
-            merge(logs.map(toRow).filter((row): row is TradeRow => row !== null));
+            remember(logs.map(toRow).filter((row): row is TradeRow => row !== null), true);
             void refreshStatus();
           },
           onError(watchError) {
@@ -369,9 +390,26 @@ export function AutonomousProtocol() {
   const readyAt = status ? status.lastExecutionTime + status.cooldown : BigInt(0);
   const remaining = status && status.blockTimestamp < readyAt ? readyAt - status.blockTimestamp : BigInt(0);
   const localRpc = /localhost|127\.0\.0\.1/.test(rpcUrl);
+  const happy = agentMood === "happy";
 
   return (
     <div className="space-y-6">
+      <section
+        className={
+          happy
+            ? "rounded-2xl border border-[#059669] bg-[#ECFDF5] p-6 dark:border-[#34D399] dark:bg-[#052E26]"
+            : "rounded-2xl border border-border bg-surface p-6"
+        }
+      >
+        <p className="text-[11px] font-medium tracking-[0.22em] text-[#5C5854] uppercase dark:text-[#9B96AC]">Agente</p>
+        <p className={happy ? "mt-3 text-3xl font-medium text-[#059669] dark:text-[#34D399]" : "mt-3 text-3xl font-medium text-foreground"}>
+          {happy ? "Feliz" : "En espera"}
+        </p>
+        <p className={happy ? "mt-2 text-sm text-[#047857] dark:text-[#6EE7B7]" : "mt-2 text-sm text-muted"} aria-live="polite">
+          {lastLog ?? "Escuchando StrategyExecuted en Polygon Amoy."}
+        </p>
+      </section>
+
       <section className="grid gap-4 md:grid-cols-3">
         <article className="rounded-2xl border border-border bg-surface p-6">
           <p className="text-[11px] font-medium tracking-[0.22em] text-[#5C5854] uppercase dark:text-[#9B96AC]">Red</p>
@@ -380,7 +418,9 @@ export function AutonomousProtocol() {
         </article>
         <article className="rounded-2xl border border-border bg-surface p-6">
           <p className="text-[11px] font-medium tracking-[0.22em] text-[#5C5854] uppercase dark:text-[#9B96AC]">Saldo USDC</p>
-          <p className="mt-3 text-3xl text-[#7C3AED] tabular-nums">{status ? formatUsdc(status.balance) : "…"}</p>
+          <p className={happy ? "mt-3 text-3xl text-[#059669] tabular-nums dark:text-[#34D399]" : "mt-3 text-3xl text-[#7C3AED] tabular-nums"}>
+            {status ? formatUsdc(status.balance) : "…"}
+          </p>
           <p className="mt-1 text-sm text-muted">{status?.canExec ? "El keeper puede ejecutar" : "Esperando cooldown o saldo"}</p>
         </article>
         <article className="rounded-2xl border border-border bg-surface p-6">
