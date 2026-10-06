@@ -69,7 +69,7 @@ function formatTradeTime(timestamp: bigint) {
 }
 
 function formatRemaining(seconds: bigint) {
-  if (seconds <= 0n) return "Listo";
+  if (seconds <= BigInt(0)) return "Listo";
   const total = Number(seconds);
   const minutes = Math.floor(total / 60);
   const rest = total % 60;
@@ -365,8 +365,8 @@ export function AutonomousProtocol() {
     );
   }
 
-  const readyAt = status ? status.lastExecutionTime + status.cooldown : 0n;
-  const remaining = status && status.blockTimestamp < readyAt ? readyAt - status.blockTimestamp : 0n;
+  const readyAt = status ? status.lastExecutionTime + status.cooldown : BigInt(0);
+  const remaining = status && status.blockTimestamp < readyAt ? readyAt - status.blockTimestamp : BigInt(0);
   const localRpc = /localhost|127\.0\.0\.1/.test(rpcUrl);
 
   return (
@@ -417,7 +417,7 @@ export function AutonomousProtocol() {
             <div>
               <dt className="text-[#8A8680]">Última ejecución</dt>
               <dd className="mt-1 text-foreground">
-                {status.lastExecutionTime === 0n ? "Aún no corre" : formatTradeTime(status.lastExecutionTime)}
+                {status.lastExecutionTime === BigInt(0) ? "Aún no corre" : formatTradeTime(status.lastExecutionTime)}
               </dd>
             </div>
           </dl>
