@@ -12,14 +12,12 @@ import {
   lyraAutonomousAgentAddress,
   lyraRpcUrl,
 } from "@/lib/protocol/autonomous-agent";
-import { balanceAfterTrades, tradeExecutedMessage } from "@/lib/protocol/trade-event";
+import { tradeExecutedMessage } from "@/lib/protocol/trade-event";
 
 export type TradeRow = {
   id: string;
   action: string;
-  asset: string;
-  amountIn: bigint;
-  amountOut: bigint;
+  profit: bigint;
   timestamp: bigint;
 };
 
@@ -31,6 +29,8 @@ export type ProtocolStatus = {
   cooldown: bigint;
   blockTimestamp: bigint;
   canExec: boolean;
+  ethPrice: bigint | null;
+  feedDecimals: number;
 };
 
 function toRow(log: {
@@ -38,21 +38,17 @@ function toRow(log: {
   logIndex: number | null;
   args: {
     action?: string;
-    asset?: string;
-    amountIn?: bigint;
-    amountOut?: bigint;
+    profit?: bigint;
     timestamp?: bigint;
   };
 }): TradeRow | null {
-  if (!log.args.action || !log.args.asset || log.args.amountIn === undefined || log.args.amountOut === undefined) {
+  if (!log.args.action || log.args.profit === undefined) {
     return null;
   }
   return {
     id: `${log.transactionHash ?? "tx"}-${log.logIndex ?? 0}`,
     action: log.args.action,
-    asset: log.args.asset,
-    amountIn: log.args.amountIn,
-    amountOut: log.args.amountOut,
+    profit: log.args.profit,
     timestamp: log.args.timestamp ?? BigInt(0),
   };
 }
@@ -89,17 +85,18 @@ export function useLyraAgent() {
   const [happy, setHappy] = useState(false);
   const [lastLog, setLastLog] = useState<string | null>(null);
   const knownTradeIds = useRef(new Set<string>());
-  const pendingCredit = useRef<{ base: bigint; target: bigint } | null>(null);
 
   const refreshStatus = useCallback(async () => {
     if (!address) return;
     try {
-      const [owner, usdc, lastExecutionTime, cooldown, checkerResult, block] = await Promise.all([
+      const [owner, usdc, lastExecutionTime, cooldown, checkerResult, feedDecimals, latestPrice, block] = await Promise.all([
         client.readContract({ address, abi: lyraAutonomousAgentAbi, functionName: "owner" }),
-        client.readContract({ address, abi: lyraAutonomousAgentAbi, functionName: "usdc" }),
+        client.readContract({ address, abi: lyraAutonomousAgentAbi, functionName: "usdcToken" }),
         client.readContract({ address, abi: lyraAutonomousAgentAbi, functionName: "lastExecutionTime" }),
-        client.readContract({ address, abi: lyraAutonomousAgentAbi, functionName: "COOLDOWN" }),
+        client.readContract({ address, abi: lyraAutonomousAgentAbi, functionName: "executionCooldown" }),
         client.readContract({ address, abi: lyraAutonomousAgentAbi, functionName: "checker" }),
+        client.readContract({ address, abi: lyraAutonomousAgentAbi, functionName: "feedDecimals" }),
+        client.readContract({ address, abi: lyraAutonomousAgentAbi, functionName: "getLatestPrice" }),
         client.getBlock(),
       ]);
       const balance = await client.readContract({
@@ -108,26 +105,17 @@ export function useLyraAgent() {
         functionName: "balanceOf",
         args: [address],
       });
-      setStatus(() => {
-        const credit = pendingCredit.current;
-        let shown = balance;
-        if (credit) {
-          if (balance >= credit.target || balance !== credit.base) {
-            pendingCredit.current = null;
-            shown = balance;
-          } else {
-            shown = credit.target;
-          }
-        }
-        return {
-          owner,
-          usdc,
-          balance: shown,
-          lastExecutionTime,
-          cooldown,
-          blockTimestamp: block.timestamp,
-          canExec: checkerResult[0],
-        };
+      const price = latestPrice > BigInt(0) ? latestPrice : null;
+      setStatus({
+        owner,
+        usdc,
+        balance,
+        lastExecutionTime,
+        cooldown,
+        blockTimestamp: block.timestamp,
+        canExec: checkerResult[0],
+        ethPrice: price,
+        feedDecimals: Number(feedDecimals),
       });
       setStatusError(null);
     } catch (error) {
@@ -151,7 +139,6 @@ export function useLyraAgent() {
     let unwatch: (() => void) | undefined;
     let cancelled = false;
     knownTradeIds.current = new Set();
-    pendingCredit.current = null;
     setTrades([]);
     setHappy(false);
     setLastLog(null);
@@ -165,13 +152,7 @@ export function useLyraAgent() {
       const latest = fresh.reduce((best, row) => (row.timestamp >= best.timestamp ? row : best));
       setHappy(true);
       setTradeError(null);
-      setLastLog(tradeExecutedMessage(latest.amountIn, latest.amountOut));
-      setStatus((current) => {
-        if (!current) return current;
-        const target = balanceAfterTrades(current.balance, fresh);
-        pendingCredit.current = { base: current.balance, target };
-        return { ...current, balance: target };
-      });
+      setLastLog(tradeExecutedMessage(latest.profit));
     }
 
     async function readHistory() {

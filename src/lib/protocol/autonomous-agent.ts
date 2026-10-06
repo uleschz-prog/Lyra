@@ -14,12 +14,9 @@ const typedAgentAbi = [
     type: "event",
     name: "StrategyExecuted",
     inputs: [
-      { name: "agent", type: "address", indexed: true },
-      { name: "action", type: "string", indexed: false },
-      { name: "asset", type: "string", indexed: false },
-      { name: "amountIn", type: "uint256", indexed: false },
-      { name: "amountOut", type: "uint256", indexed: false },
       { name: "timestamp", type: "uint256", indexed: false },
+      { name: "action", type: "string", indexed: false },
+      { name: "profit", type: "uint256", indexed: false },
     ],
   },
   {
@@ -31,7 +28,7 @@ const typedAgentAbi = [
   },
   {
     type: "function",
-    name: "usdc",
+    name: "usdcToken",
     stateMutability: "view",
     inputs: [],
     outputs: [{ name: "", type: "address" }],
@@ -45,10 +42,24 @@ const typedAgentAbi = [
   },
   {
     type: "function",
-    name: "COOLDOWN",
+    name: "executionCooldown",
     stateMutability: "view",
     inputs: [],
     outputs: [{ name: "", type: "uint256" }],
+  },
+  {
+    type: "function",
+    name: "feedDecimals",
+    stateMutability: "view",
+    inputs: [],
+    outputs: [{ name: "", type: "uint8" }],
+  },
+  {
+    type: "function",
+    name: "getLatestPrice",
+    stateMutability: "view",
+    inputs: [],
+    outputs: [{ name: "", type: "int256" }],
   },
   {
     type: "function",
@@ -76,7 +87,7 @@ const typedAgentAbi = [
   },
 ] as const;
 
-/** ABI compilado en contractConfig.js. Los tipos siguen el evento real del contrato. */
+/** ABI compilado en contractConfig.js. Los tipos siguen el evento timestamp, action, profit. */
 export const lyraAutonomousAgentAbi = CONTRACT_ABI as unknown as typeof typedAgentAbi;
 
 export function lyraRpcUrl(): string {

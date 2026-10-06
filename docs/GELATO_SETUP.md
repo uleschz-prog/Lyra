@@ -1,45 +1,47 @@
 # Gelato para Lyra Autonomous Protocol
 
-El keeper no vive en un servidor de Lyra. Gelato llama a `executeStrategy()` cuando el propio contrato dice que ya puede. El cooldown de 10 minutos y el saldo USDC están en la cadena.
+El keeper no vive en un servidor de Lyra. En Polygon Amoy, Gelato llama a `executeStrategy()` por tiempo. El contrato lee el precio ETH/USD de Chainlink, exige saldo USDC y respeta el cooldown.
+
+Hay que crear la tarea con MetaMask en la consola de Gelato. La dirección de la billetera que paga el gas la muestra Gelato al crear la tarea. No está en este repositorio.
 
 ## Contrato en Polygon Amoy
 
 Dirección desplegada:
 
-`0x355B1Af7FD423EC1C60D1E0Bfb630C63a236eEcA`
+`0x3C50c13B237F1c6c8fA43a399dCa321e7D4aD17F`
+
+Transacción de despliegue: `0x384d16de26a82eb2dee2ef96963a734c025d86efab4d24baade4486512b735ce`
 
 También está en `contract-address.json`. Explorador:
 
-https://amoy.polygonscan.com/address/0x355B1Af7FD423EC1C60D1E0Bfb630C63a236eEcA
+https://amoy.polygonscan.com/address/0x3C50c13B237F1c6c8fA43a399dCa321e7D4aD17F
 
-La USDC de esta demo es el mock `0x367220DC34967Ae19e4B904aCF572fB1eC6eB3CD`. El router `0x9f7C9Ed6431E45C72f919c089D9686138A541Dd7` devuelve el monto más un 10 %. La ganancia que muestra el dashboard es `amountOut - amountIn`.
+Constructor:
+
+- USDC mock `0x367220DC34967Ae19e4B904aCF572fB1eC6eB3CD` (6 decimales)
+- Feed Chainlink ETH/USD `0xF0d50568e3A7e8259E16663972b11910F89BD8e7` (8 decimales)
+- Cooldown `300` segundos
+
+`executeStrategy()` no es `onlyOwner`. Revierte si el cooldown no pasó (`Cooldown active`), si el precio es inválido o tiene más de 3 horas, o si el agente no tiene USDC (`No funds to operate`). Con saldo, anota una ganancia simulada del 0.1 % (`balance / 1000`), no mueve el USDC y emite `StrategyExecuted(timestamp, "PROFIT_CAPTURED", profit)`.
+
+`depositUSDC` y `withdraw` siguen siendo solo del owner. Sin un depósito, Gelato llama igual y la transacción revierte.
 
 ## Crear la tarea
 
-1. Entra a [app.gelato.network](https://app.gelato.network) (la consola que antes estaba en console.gelato.network) con la misma billetera que puede pagar gas de prueba.
-2. Elige la red **Polygon Amoy** (chainId 80002).
-3. Crea una tarea de tipo **Resolver** (no un intervalo ciego).
-4. Contrato: `0x355B1Af7FD423EC1C60D1E0Bfb630C63a236eEcA`.
-5. Función resolver: `checker()`. No recibe argumentos. Devuelve:
-   - `canExec`: verdadero solo si pasaron más de 10 minutos desde la última ejecución y el agente tiene USDC.
-   - `execPayload`: la llamada ya codificada a `executeStrategy()`.
-6. Gelato debe ejecutar ese `execPayload`. No hace falta pegar otra dirección de contrato de Gelato: la tarea apunta a este agente.
-7. Si la consola solo ofrece un trigger por tiempo, pon el intervalo por encima de 10 minutos. Un intervalo más corto revierte por cooldown y gasta gas sin tradear.
+1. Entra a [app.gelato.network](https://app.gelato.network). La consola anterior era [console.gelato.network](https://console.gelato.network).
+2. Conecta MetaMask en **Polygon Amoy** (chainId 80002).
+3. Crea una **New Task**.
+4. Target contract: `0x3C50c13B237F1c6c8fA43a399dCa321e7D4aD17F`.
+5. Function to call: `executeStrategy()`. No recibe argumentos.
+6. Trigger type: **Time-Based** (intervalo).
+7. Interval: `3600` segundos (1 hora). Para una prueba rápida, `300` segundos. El cooldown on-chain es 300 segundos: un intervalo menor revierte con `Cooldown active` y gasta gas sin emitir el evento.
+8. Payment token: en Amoy el gas es **POL**. La interfaz a veces sigue diciendo MATIC. Elige el token nativo de Polygon Amoy.
+9. Gelato muestra una dirección de billetera para esa tarea. Cópiala de la consola y envíale POL de Amoy desde un faucet. Ese saldo paga las ejecuciones.
 
-`executeStrategy()` no tiene `onlyOwner`. La puede llamar Gelato. `depositUSDC` y `withdraw` siguen siendo solo del owner.
-
-## Precio ETH/USD
-
-El contrato que ya está en `0x355B1Af7FD423EC1C60D1E0Bfb630C63a236eEcA` no lee un oráculo y sigue haciendo el swap del mock. El código nuevo llama a `getLatestPrice()` sobre el proxy Chainlink ETH/USD de Amoy `0xF0d50568e3A7e8259E16663972b11910F89BD8e7`. Si el dato tiene menos de 3 horas, `executeStrategy()` anota una ganancia simulada del 0.1 % y no mueve el USDC. Ese código entra en cadena con el próximo despliegue. Esta tarea de Gelato sigue apuntando al agente que ya está desplegado.
-
-## Pagar el gas
-
-En Amoy el gas es **POL**, no un saldo aparte de Lyra. En la consola de Gelato fondea la tarea con POL de Amoy (a veces la interfaz sigue diciendo el nombre viejo de la red). Sin ese saldo la tarea no se ejecuta.
-
-No hace falta un backend que firme transacciones.
+El contrato también expone `checker()`. Una tarea de tipo resolver puede usarlo. La configuración de esta guía es el intervalo de tiempo.
 
 ## Qué verás en el dashboard
 
-Con la tarea activa, cada trade emite `StrategyExecuted`. El dashboard en `/dashboard/protocol` lo escucha y Vega pasa a feliz. El aviso dice la ganancia en USDC y el saldo suma esa diferencia.
+Con la tarea activa y USDC depositado, cada ejecución emite `StrategyExecuted`. El dashboard en `/dashboard/protocol` lo escucha en vivo: Vega sonríe y el aviso dice `Trade ejecutado: Ganancia de X USDC`. El saldo USDC que se muestra es el del token. La ganancia simulada no se suma a ese saldo porque el contrato no acuña USDC.
 
-Mientras el checker dice que ya puede ejecutar, Vega queda pensando. Si la lectura de la red falla, Vega queda en alerta.
+El historial no cambia la cara de Vega. Solo un evento nuevo, mientras la página escucha, la pone feliz.

@@ -1,6 +1,8 @@
 # Lyra Autonomous Protocol
 
-Agente en Solidity dentro de LYRA. El owner deposita y retira USDC. Un keeper llama `executeStrategy()` (sin `onlyOwner`) como máximo cada 10 minutos. Si hay saldo, el contrato simula un swap contra `MockSwapRouter.swapUSDCForProfit` y emite `StrategyExecuted` con action `BUY` y asset `ETH`. Si no hay saldo, revierte. El router mock se sustituye después por Uniswap.
+Agente en Solidity dentro de LYRA. El owner deposita y retira USDC. Un keeper llama `executeStrategy()` (sin `onlyOwner`) cuando pasó el cooldown. El contrato lee el precio ETH/USD de Chainlink. Si hay saldo y el precio está fresco, anota una ganancia simulada del 0.1 % y emite `StrategyExecuted` con action `PROFIT_CAPTURED` y el campo `profit`. El USDC no se mueve. Si no hay saldo, revierte.
+
+En Polygon Amoy el agente desplegado es `0x3C50c13B237F1c6c8fA43a399dCa321e7D4aD17F`, con cooldown de 300 segundos y el feed `0xF0d50568e3A7e8259E16663972b11910F89BD8e7`.
 
 La sección vive en el dashboard, ruta `/dashboard/protocol`.
 
@@ -19,7 +21,9 @@ npm run deploy:autonomous:local
 npm run deploy:autonomous
 ```
 
-`deploy:autonomous:local` usa Hardhat y despliega `MockERC20` y `MockSwapRouter`. En `localhost` o `amoyNode` (nodo local con chainId 80002) hace lo mismo. `deploy:autonomous` usa Polygon Amoy: toma la USDC de `config/amoy.ts` y exige `MOCK_ROUTER_ADDRESS` (un router mock ya desplegado y con USDC para pagar la ganancia). También hace falta `PRIVATE_KEY`.
+`npm run deploy` ejecuta `scripts/deploy.js` en Polygon Amoy. El feed sale de `ETH_USD_PRICE_FEED` (vacío usa el ETH/USD de Amoy) y el cooldown de `EXECUTION_COOLDOWN` (vacío usa 600 segundos). La USDC por defecto es el mock ya desplegado en Amoy. El script escribe `contract-address.json`. Hace falta `PRIVATE_KEY`.
+
+`deploy:autonomous:local` despliega `MockERC20` y un agregador de precio en Hardhat. `deploy:autonomous` usa el script TypeScript equivalente en Amoy.
 
 Para escuchar eventos en local: `npx hardhat node --network amoyNode` y apunta `NEXT_PUBLIC_LYRA_RPC_URL` a `http://127.0.0.1:8545`.
 
@@ -29,21 +33,22 @@ Sin secretos en el repositorio. En `.env`:
 
 - `POLYGON_AMOY_RPC_URL` — RPC de Amoy. Vacío usa `https://rpc-amoy.polygon.technology`.
 - `PRIVATE_KEY` — cuenta que despliega en Amoy. No la subas.
-- `AMOY_USDC_ADDRESS` — opcional. Vacío usa la USDC de Circle en Amoy `0x41E94Eb019C0762f9Bfcf9Fb1E58725BfB0e7582`.
-- `MOCK_ROUTER_ADDRESS` — obligatorio solo al desplegar en Amoy.
-- `NEXT_PUBLIC_LYRA_AUTONOMOUS_AGENT_ADDRESS` — dirección del agente en el dashboard. Si falta, la sección dice «Sin contrato configurado».
+- `AMOY_USDC_ADDRESS` — opcional. Vacío usa el mock de Amoy `0x367220DC34967Ae19e4B904aCF572fB1eC6eB3CD`.
+- `ETH_USD_PRICE_FEED` — opcional. Vacío usa el ETH/USD de Chainlink en la red del deploy.
+- `EXECUTION_COOLDOWN` — segundos entre ejecuciones. Vacío usa 600. El agente de Amoy se desplegó con 300.
+- `NEXT_PUBLIC_LYRA_AUTONOMOUS_AGENT_ADDRESS` — dirección del agente en el dashboard. Si falta, usa `CONTRACT_ADDRESS`. Una dirección inválida deja la sección en «Sin contrato configurado».
 - `NEXT_PUBLIC_LYRA_RPC_URL` — opcional. Vacío usa el RPC público de Amoy.
 
 Red: Polygon Amoy, chainId `80002`. Explorer: https://amoy.polygonscan.com.
 
 ## Gelato
 
-En [app.gelato.network](https://app.gelato.network), para llamar `executeStrategy()` cada 10 minutos en Amoy:
+En [app.gelato.network](https://app.gelato.network) (antes console.gelato.network), con MetaMask en Polygon Amoy:
 
-1. Crea una tarea y elige la red **Polygon Amoy** (chainId 80002).
-2. Contrato: la dirección de `LyraAutonomousAgent` que imprimió el deploy.
-3. Función: `executeStrategy()`. No recibe argumentos.
-4. Trigger de tiempo: cada **10 minutos** (600 segundos). El contrato igual exige `block.timestamp > lastExecutionTime + 10 minutes`.
-5. Si usas resolver: el resolver es **el mismo contrato**, función `checker()`. Devuelve `(bool canExec, bytes execPayload)`. `execPayload` ya trae `abi.encodeCall(executeStrategy, ())`. Gelato debe ejecutar solo cuando `canExec` es true (pasaron 10 minutos y hay saldo USDC).
-6. Activa **dedicated msg.sender**. Esa dirección no está en este repo: Gelato la muestra en el dashboard al crear la tarea y cambia según la red. Cópiala de ahí. El contrato no la exige; cualquiera puede llamar `executeStrategy()`.
-7. Fondea **1Balance** en esa misma pantalla, con el token y la cantidad que indique Gelato para Amoy. La dirección del contrato de 1Balance se copia del dashboard al crear la tarea.
+1. Crea una tarea. Target: `0x3C50c13B237F1c6c8fA43a399dCa321e7D4aD17F`.
+2. Función: `executeStrategy()`. No recibe argumentos.
+3. Trigger **Time-Based**. Intervalo `3600` segundos, o `300` para una prueba. El cooldown on-chain es 300 segundos; un intervalo menor revierte.
+4. Pago: POL de Amoy. La interfaz a veces dice MATIC.
+5. Gelato muestra la billetera de esa tarea. Envíale POL de testnet. Esa dirección no está en este repo: cópiala de la consola.
+
+El detalle está en `docs/GELATO_SETUP.md`. Sin USDC depositado, la llamada revierte con `No funds to operate`.

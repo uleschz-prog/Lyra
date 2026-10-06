@@ -1,23 +1,55 @@
 // ABI compilado de LyraAutonomousAgent (Polygon Amoy).
-// StrategyExecuted emite agent, action, asset, amountIn, amountOut y timestamp.
-export const CONTRACT_ADDRESS = "0x355B1Af7FD423EC1C60D1E0Bfb630C63a236eEcA";
+// StrategyExecuted emite timestamp, action y profit.
+export const CONTRACT_ADDRESS = "0x3C50c13B237F1c6c8fA43a399dCa321e7D4aD17F";
 
 export const CONTRACT_ABI = [
   {
     "inputs": [
       {
         "internalType": "address",
-        "name": "usdc_",
+        "name": "_usdcAddress",
         "type": "address"
       },
       {
         "internalType": "address",
-        "name": "router_",
+        "name": "_priceFeedAddress",
         "type": "address"
+      },
+      {
+        "internalType": "uint256",
+        "name": "_cooldown",
+        "type": "uint256"
       }
     ],
     "stateMutability": "nonpayable",
     "type": "constructor"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "address",
+        "name": "owner",
+        "type": "address"
+      }
+    ],
+    "name": "OwnableInvalidOwner",
+    "type": "error"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "address",
+        "name": "account",
+        "type": "address"
+      }
+    ],
+    "name": "OwnableUnauthorizedAccount",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "ReentrancyGuardReentrantCall",
+    "type": "error"
   },
   {
     "anonymous": false,
@@ -44,8 +76,27 @@ export const CONTRACT_ABI = [
       {
         "indexed": true,
         "internalType": "address",
-        "name": "agent",
+        "name": "previousOwner",
         "type": "address"
+      },
+      {
+        "indexed": true,
+        "internalType": "address",
+        "name": "newOwner",
+        "type": "address"
+      }
+    ],
+    "name": "OwnershipTransferred",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": false,
+        "internalType": "uint256",
+        "name": "timestamp",
+        "type": "uint256"
       },
       {
         "indexed": false,
@@ -55,26 +106,8 @@ export const CONTRACT_ABI = [
       },
       {
         "indexed": false,
-        "internalType": "string",
-        "name": "asset",
-        "type": "string"
-      },
-      {
-        "indexed": false,
         "internalType": "uint256",
-        "name": "amountIn",
-        "type": "uint256"
-      },
-      {
-        "indexed": false,
-        "internalType": "uint256",
-        "name": "amountOut",
-        "type": "uint256"
-      },
-      {
-        "indexed": false,
-        "internalType": "uint256",
-        "name": "timestamp",
+        "name": "profit",
         "type": "uint256"
       }
     ],
@@ -102,7 +135,7 @@ export const CONTRACT_ABI = [
   },
   {
     "inputs": [],
-    "name": "COOLDOWN",
+    "name": "PRICE_STALENESS",
     "outputs": [
       {
         "internalType": "uint256",
@@ -153,6 +186,45 @@ export const CONTRACT_ABI = [
   },
   {
     "inputs": [],
+    "name": "executionCooldown",
+    "outputs": [
+      {
+        "internalType": "uint256",
+        "name": "",
+        "type": "uint256"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "feedDecimals",
+    "outputs": [
+      {
+        "internalType": "uint8",
+        "name": "",
+        "type": "uint8"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "getLatestPrice",
+    "outputs": [
+      {
+        "internalType": "int256",
+        "name": "",
+        "type": "int256"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
     "name": "lastExecutionTime",
     "outputs": [
       {
@@ -179,23 +251,77 @@ export const CONTRACT_ABI = [
   },
   {
     "inputs": [],
-    "name": "router",
+    "name": "renounceOwnership",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "tradeCount",
     "outputs": [
       {
-        "internalType": "contract IProfitSwapRouter",
+        "internalType": "uint256",
         "name": "",
-        "type": "address"
+        "type": "uint256"
       }
     ],
     "stateMutability": "view",
     "type": "function"
   },
   {
-    "inputs": [],
-    "name": "usdc",
+    "inputs": [
+      {
+        "internalType": "uint256",
+        "name": "",
+        "type": "uint256"
+      }
+    ],
+    "name": "tradeHistory",
     "outputs": [
       {
-        "internalType": "contract IERC20",
+        "internalType": "uint256",
+        "name": "timestamp",
+        "type": "uint256"
+      },
+      {
+        "internalType": "string",
+        "name": "action",
+        "type": "string"
+      },
+      {
+        "internalType": "uint256",
+        "name": "amount",
+        "type": "uint256"
+      },
+      {
+        "internalType": "string",
+        "name": "status",
+        "type": "string"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "address",
+        "name": "newOwner",
+        "type": "address"
+      }
+    ],
+    "name": "transferOwnership",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "usdcToken",
+    "outputs": [
+      {
+        "internalType": "address",
         "name": "",
         "type": "address"
       }

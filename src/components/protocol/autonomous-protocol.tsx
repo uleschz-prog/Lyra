@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { VegaMark } from "@/components/vega/vega-mark";
 import { AMOY_CHAIN_ID, AMOY_EXPLORER_URL } from "@/lib/protocol/autonomous-agent";
 import { agentFaceLabel } from "@/lib/protocol/agent-face";
-import { formatUsdc } from "@/lib/protocol/trade-event";
+import { formatEthUsd, formatUsdc } from "@/lib/protocol/trade-event";
 import { useLyraAgent } from "@/hooks/useLyraAgent";
 
 const fieldClass =
@@ -32,6 +32,20 @@ function formatRemaining(seconds: bigint) {
   const rest = total % 60;
   if (minutes <= 0) return `${rest} s`;
   return `${minutes} min ${rest} s`;
+}
+
+function cooldownCaption(seconds: bigint) {
+  const total = Number(seconds);
+  if (!Number.isFinite(total) || total <= 0) return "Entre ejecuciones";
+  if (total % 3600 === 0) {
+    const hours = total / 3600;
+    return hours === 1 ? "1 hora entre ejecuciones" : `${hours} horas entre ejecuciones`;
+  }
+  if (total % 60 === 0) {
+    const minutes = total / 60;
+    return minutes === 1 ? "1 minuto entre ejecuciones" : `${minutes} minutos entre ejecuciones`;
+  }
+  return `${total} segundos entre ejecuciones`;
 }
 
 export function AutonomousProtocol() {
@@ -69,6 +83,7 @@ export function AutonomousProtocol() {
   const readyAt = status ? status.lastExecutionTime + status.cooldown : BigInt(0);
   const remaining = status && status.blockTimestamp < readyAt ? readyAt - status.blockTimestamp : BigInt(0);
   const localRpc = /localhost|127\.0\.0\.1/.test(rpcUrl);
+  const ethUsd = status?.ethPrice != null ? formatEthUsd(status.ethPrice, status.feedDecimals) : null;
 
   return (
     <div className="space-y-6">
@@ -85,6 +100,7 @@ export function AutonomousProtocol() {
           <p className="text-[11px] font-medium tracking-[0.22em] text-[#5C5854] uppercase dark:text-[#9B96AC]">Red</p>
           <p className="mt-3 text-lg font-medium text-foreground">Polygon Amoy</p>
           <p className="mt-1 text-sm text-muted">chainId {AMOY_CHAIN_ID}</p>
+          {ethUsd ? <p className="mt-1 text-sm text-muted">ETH/USD {ethUsd}</p> : null}
         </article>
         <article className="rounded-2xl border border-border bg-surface p-6">
           <p className="text-[11px] font-medium tracking-[0.22em] text-[#5C5854] uppercase dark:text-[#9B96AC]">Saldo USDC</p>
@@ -94,7 +110,7 @@ export function AutonomousProtocol() {
         <article className="rounded-2xl border border-border bg-surface p-6">
           <p className="text-[11px] font-medium tracking-[0.22em] text-[#5C5854] uppercase dark:text-[#9B96AC]">Cooldown</p>
           <p className="mt-3 text-3xl text-foreground tabular-nums">{status ? formatRemaining(remaining) : "…"}</p>
-          <p className="mt-1 text-sm text-muted">10 minutos entre ejecuciones</p>
+          <p className="mt-1 text-sm text-muted">{status ? cooldownCaption(status.cooldown) : "Entre ejecuciones"}</p>
         </article>
       </section>
 
@@ -203,14 +219,11 @@ export function AutonomousProtocol() {
                 className="grid gap-2 border-b border-border px-5 py-4 last:border-b-0 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center"
               >
                 <div>
-                  <p className="text-sm font-medium text-foreground">
-                    {trade.action} · {trade.asset}
-                  </p>
+                  <p className="text-sm font-medium text-foreground">{trade.action}</p>
                   <p className="text-xs text-[#8A8680]">{formatTradeTime(trade.timestamp)}</p>
                 </div>
                 <div className="text-left sm:text-right">
-                  <p className="text-sm tabular-nums text-[#5C5854] dark:text-[#9B96AC]">{formatUsdc(trade.amountIn)}</p>
-                  <p className="text-sm font-medium tabular-nums text-[#22d3ee]">{formatUsdc(trade.amountOut)}</p>
+                  <p className="text-sm font-medium tabular-nums text-[#22d3ee]">{formatUsdc(trade.profit)}</p>
                 </div>
               </li>
             ))}
