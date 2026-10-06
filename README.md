@@ -43,7 +43,7 @@ Red: Polygon Amoy, chainId `80002`. Explorer: https://amoy.polygonscan.com.
 
 ## Gelato
 
-En [app.gelato.cloud](https://app.gelato.cloud/), que abre el login en [app.gelato.cloud/sign-in](https://app.gelato.cloud/sign-in). `app.gelato.network` responde 404. Con la sesión iniciada y MetaMask en Polygon Amoy:
+En [app.gelato.cloud/sign-in](https://app.gelato.cloud/sign-in). Gelato no acepta cuentas nuevas. Solo entra una cuenta que ya existía, con Google. `app.gelato.network` responde 404. Con la sesión iniciada y MetaMask en Polygon Amoy:
 
 1. Crea una tarea. Target: `0x3C50c13B237F1c6c8fA43a399dCa321e7D4aD17F`.
 2. Función: `executeStrategy()`. No recibe argumentos.

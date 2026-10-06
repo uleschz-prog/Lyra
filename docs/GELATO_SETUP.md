@@ -28,8 +28,8 @@ Constructor:
 
 ## Crear la tarea
 
-1. Entra a [app.gelato.cloud](https://app.gelato.cloud/). Te manda a [app.gelato.cloud/sign-in](https://app.gelato.cloud/sign-in). Inicia sesión con Google o con el correo. `app.gelato.network` y `console.gelato.network` ya no existen: Vercel responde `404 DEPLOYMENT_NOT_FOUND`.
-2. Dentro de la app, elige la red **Polygon Amoy** (chainId 80002) y conecta MetaMask.
+1. Entra a [app.gelato.cloud/sign-in](https://app.gelato.cloud/sign-in). `app.gelato.network` responde 404. Gelato ya no abre cuentas nuevas: la pantalla dice que las inscripciones están restringidas y [app.gelato.cloud/sign-up](https://app.gelato.cloud/sign-up) lo confirma. Un correo nuevo no entra. Solo una cuenta que ya existía puede usar «Continúa con Google».
+2. Si entras, elige la red **Polygon Amoy** (chainId 80002) y conecta MetaMask.
 3. Crea una **New Task**.
 4. Target contract: `0x3C50c13B237F1c6c8fA43a399dCa321e7D4aD17F`.
 5. Function to call: `executeStrategy()`. No recibe argumentos.
