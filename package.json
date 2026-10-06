@@ -11,6 +11,7 @@
     "test": "vitest run",
     "compile": "hardhat compile",
     "test:contracts": "hardhat test",
+    "deploy": "hardhat run scripts/deploy.js --network polygonAmoy",
     "deploy:autonomous": "hardhat run scripts/deploy-lyra-autonomous.ts --network polygonAmoy",
     "deploy:autonomous:local": "hardhat run scripts/deploy-lyra-autonomous.ts --network hardhat",
     "postinstall": "DATABASE_URL=\"${DATABASE_URL:-postgresql://build:build@127.0.0.1:5432/lyra}\" prisma generate",
