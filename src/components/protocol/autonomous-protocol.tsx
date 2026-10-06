@@ -207,7 +207,8 @@ export function AutonomousProtocol() {
         });
       } catch {
         const latest = await client.getBlockNumber();
-        const windowSize = BigInt(50_000);
+        // Los RPC públicos de Amoy rechazan rangos de más de 10 000 bloques.
+        const windowSize = BigInt(9_000);
         const fromBlock = latest > windowSize ? latest - windowSize : BigInt(0);
         return client.getContractEvents({
           address: contractAddress,
