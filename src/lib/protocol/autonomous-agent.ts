@@ -73,6 +73,13 @@ const typedAgentAbi = [
   },
   {
     type: "function",
+    name: "executeStrategy",
+    stateMutability: "nonpayable",
+    inputs: [],
+    outputs: [],
+  },
+  {
+    type: "function",
     name: "depositUSDC",
     stateMutability: "nonpayable",
     inputs: [{ name: "amount", type: "uint256" }],

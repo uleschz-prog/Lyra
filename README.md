@@ -38,17 +38,19 @@ Sin secretos en el repositorio. En `.env`:
 - `EXECUTION_COOLDOWN` — segundos entre ejecuciones. Vacío usa 600. El agente de Amoy se desplegó con 300.
 - `NEXT_PUBLIC_LYRA_AUTONOMOUS_AGENT_ADDRESS` — dirección del agente en el dashboard. Si falta, usa `CONTRACT_ADDRESS`. Una dirección inválida deja la sección en «Sin contrato configurado».
 - `NEXT_PUBLIC_LYRA_RPC_URL` — opcional. Vacío usa el RPC público de Amoy.
+- `CRON_SECRET` — bearer de `GET /api/protocol/execute`.
+- `LYRA_KEEPER_PRIVATE_KEY` — llave que solo paga el gas. No es el owner y no puede retirar.
 
 Red: Polygon Amoy, chainId `80002`. Explorer: https://amoy.polygonscan.com.
 
-## Gelato
+## Keeper
 
-En [app.gelato.cloud/sign-in](https://app.gelato.cloud/sign-in). Gelato no acepta cuentas nuevas. Solo entra una cuenta que ya existía, con Google. `app.gelato.network` responde 404. Con la sesión iniciada y MetaMask en Polygon Amoy:
+Gelato ya no abre cuentas nuevas, así que Lyra llama `executeStrategy()` sola.
 
-1. Crea una tarea. Target: `0x3C50c13B237F1c6c8fA43a399dCa321e7D4aD17F`.
-2. Función: `executeStrategy()`. No recibe argumentos.
-3. Trigger **Time-Based**. Intervalo `3600` segundos, o `300` para una prueba. El cooldown on-chain es 300 segundos; un intervalo menor revierte.
-4. Pago: POL de Amoy. La interfaz a veces dice MATIC.
-5. Gelato muestra la billetera de esa tarea. Envíale POL de testnet. Esa dirección no está en este repo: cópiala de la consola.
+`GET /api/protocol/execute` con `Authorization: Bearer CRON_SECRET` lee `checker()`. Si el cooldown pasó, hay USDC y el precio ETH/USD está fresco, la billetera de `LYRA_KEEPER_PRIVATE_KEY` envía la transacción. Si no toca, responde 200 y no gasta gas. La llave del owner se rechaza.
 
-El detalle está en `docs/GELATO_SETUP.md`. Sin USDC depositado, la llamada revierte con `No funds to operate`.
+Vercel Hobby solo admite un cron al día. En `vercel.json` el respaldo es `15 11 * * *` (11:15 UTC). Un cron cada hora en ese archivo hace fallar el deploy.
+
+Cada hora lo intenta GitHub Actions (`.github/workflows/lyra-keeper.yml`, minuto 5). GitHub solo programa workflows de la rama `main`. El archivo está en esta rama; el horario no corre hasta copiarlo a `main`. No hace falta fusionar el resto del protocolo: producción ya se publica desde esta rama.
+
+El detalle está en `docs/GELATO_SETUP.md`. Sin USDC depositado, la llamada no se envía.

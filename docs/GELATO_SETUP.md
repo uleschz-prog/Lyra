@@ -1,10 +1,8 @@
-# Gelato para Lyra Autonomous Protocol
+# Keeper de Lyra Autonomous Protocol
 
-El keeper no vive en un servidor de Lyra. En Polygon Amoy, Gelato llama a `executeStrategy()` por tiempo. El contrato lee el precio ETH/USD de Chainlink, exige saldo USDC y respeta el cooldown.
+Gelato ya no abre cuentas nuevas. [app.gelato.cloud/sign-up](https://app.gelato.cloud/sign-up) lo dice, y [app.gelato.network](https://app.gelato.network) responde 404. Por eso el keeper vive en Lyra: una ruta llama a `executeStrategy()` en Polygon Amoy. No hace falta una cuenta de Gelato.
 
-Hay que crear la tarea con MetaMask en la consola de Gelato. La dirección de la billetera que paga el gas la muestra Gelato al crear la tarea. No está en este repositorio.
-
-## Contrato en Polygon Amoy
+## Contrato
 
 Dirección desplegada:
 
@@ -24,24 +22,27 @@ Constructor:
 
 `executeStrategy()` no es `onlyOwner`. Revierte si el cooldown no pasó (`Cooldown active`), si el precio es inválido o tiene más de 3 horas, o si el agente no tiene USDC (`No funds to operate`). Con saldo, anota una ganancia simulada del 0.1 % (`balance / 1000`), no mueve el USDC y emite `StrategyExecuted(timestamp, "PROFIT_CAPTURED", profit)`.
 
-`depositUSDC` y `withdraw` siguen siendo solo del owner. Sin un depósito, Gelato llama igual y la transacción revierte.
+`depositUSDC` y `withdraw` siguen siendo solo del owner. La llave del keeper no puede retirar.
 
-## Crear la tarea
+La billetera que paga el gas es `0xDAf485619B13207232fC29B1F016A99D3eB5f53e`. No es el owner. Su llave no está en el repositorio.
 
-1. Entra a [app.gelato.cloud/sign-in](https://app.gelato.cloud/sign-in). `app.gelato.network` responde 404. Gelato ya no abre cuentas nuevas: la pantalla dice que las inscripciones están restringidas y [app.gelato.cloud/sign-up](https://app.gelato.cloud/sign-up) lo confirma. Un correo nuevo no entra. Solo una cuenta que ya existía puede usar «Continúa con Google».
-2. Si entras, elige la red **Polygon Amoy** (chainId 80002) y conecta MetaMask.
-3. Crea una **New Task**.
-4. Target contract: `0x3C50c13B237F1c6c8fA43a399dCa321e7D4aD17F`.
-5. Function to call: `executeStrategy()`. No recibe argumentos.
-6. Trigger type: **Time-Based** (intervalo).
-7. Interval: `3600` segundos (1 hora). Para una prueba rápida, `300` segundos. El cooldown on-chain es 300 segundos: un intervalo menor revierte con `Cooldown active` y gasta gas sin emitir el evento.
-8. Payment token: en Amoy el gas es **POL**. La interfaz a veces sigue diciendo MATIC. Elige el token nativo de Polygon Amoy.
-9. Gelato muestra una dirección de billetera para esa tarea. Cópiala de la consola y envíale POL de Amoy desde un faucet. Ese saldo paga las ejecuciones.
+## Cómo se dispara
 
-El contrato también expone `checker()`. Una tarea de tipo resolver puede usarlo. La configuración de esta guía es el intervalo de tiempo.
+1. Cada hora, GitHub Actions (`.github/workflows/lyra-keeper.yml`) hace `GET https://lyyra.vercel.app/api/protocol/execute` con `Authorization: Bearer CRON_SECRET`. El cron es `5 * * * *` (minuto 5). GitHub solo programa ese archivo si está en `main`. En esta rama queda escrito, pero el horario no arranca hasta copiar el workflow a `main`. Se puede lanzar a mano con `workflow_dispatch`.
+2. Cada día, Vercel llama la misma ruta a las 11:15 UTC (`15 11 * * *`). El plan Hobby no acepta un cron más frecuente: una expresión horaria falla el deploy. Este es el respaldo que sí corre en el deploy de producción.
+
+La ruta:
+
+1. Sin el bearer correcto responde 401 `{ error: "No autorizado." }`.
+2. Lee `checker()`, el saldo USDC, el cooldown, el owner y la hora del bloque.
+3. Si no toca ejecutar, responde 200 y no envía transacción. Motivos: `sin_contrato`, `sin_ejecutor`, `es_owner`, `cooldown`, `sin_saldo`, `precio`.
+4. Si toca, simula la llamada y luego la firma `LYRA_KEEPER_PRIVATE_KEY`. Esa variable es solo de producción. No es `PRIVATE_KEY` del owner.
+5. Una transacción enviada que no confirma responde 502. Un revert esperado (cooldown, sin USDC, precio) responde 200 para que el cron no reintente y gaste gas.
+
+Cada `executeStrategy` exitosa en Amoy gasta alrededor de 0.009 POL. 0.05 POL alcanzan para unas cinco llamadas. No alcanza para semanas de ejecuciones horarias.
 
 ## Qué verás en el dashboard
 
-Con la tarea activa y USDC depositado, cada ejecución emite `StrategyExecuted`. El dashboard en `/dashboard/protocol` lo escucha en vivo: Vega sonríe y el aviso dice `Trade ejecutado: Ganancia de X USDC`. El saldo USDC que se muestra es el del token. La ganancia simulada no se suma a ese saldo porque el contrato no acuña USDC.
+Con USDC depositado, cada ejecución emite `StrategyExecuted`. El dashboard en `/dashboard/protocol` lo escucha en vivo: Vega sonríe y el aviso dice `Trade ejecutado: Ganancia de X USDC`. El saldo USDC que se muestra es el del token. La ganancia simulada no se suma a ese saldo porque el contrato no acuña USDC.
 
 El historial no cambia la cara de Vega. Solo un evento nuevo, mientras la página escucha, la pone feliz.

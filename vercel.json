@@ -2,6 +2,7 @@
   "crons": [
     { "path": "/api/commissions/close", "schedule": "0 7 1 * *" },
     { "path": "/api/vega/tasks/run", "schedule": "0 13 * * *" },
-    { "path": "/api/telegram/followups/run", "schedule": "0 16 * * *" }
+    { "path": "/api/telegram/followups/run", "schedule": "0 16 * * *" },
+    { "path": "/api/protocol/execute", "schedule": "15 11 * * *" }
   ]
 }
