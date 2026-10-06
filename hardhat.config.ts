@@ -50,5 +50,19 @@ export default defineConfig({
       }),
       ...(privateKey ? { accounts: [configVariable("PRIVATE_KEY")] } : {}),
     },
+    polygonMainnet: {
+      type: "http",
+      chainType: "generic",
+      chainId: 137,
+      url: configVariable("POLYGON_MAINNET_RPC_URL", {
+        default: "https://polygon-bor-rpc.publicnode.com",
+      }),
+      ...(privateKey ? { accounts: [configVariable("PRIVATE_KEY")] } : {}),
+    },
+  },
+  verify: {
+    etherscan: {
+      apiKey: configVariable("ETHERSCAN_API_KEY"),
+    },
   },
 });

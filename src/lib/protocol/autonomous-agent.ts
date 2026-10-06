@@ -86,7 +86,9 @@ export function lyraRpcUrl(): string {
 
 /** Dirección pública del agente. Vacío o inválido = pantalla sin contrato. */
 export function lyraAutonomousAgentAddress(): `0x${string}` | null {
-  const fromEnv = process.env.NEXT_PUBLIC_LYRA_AUTONOMOUS_AGENT_ADDRESS?.trim();
+  const fromEnv =
+    process.env.NEXT_PUBLIC_LYRA_AUTONOMOUS_AGENT_ADDRESS?.trim() ||
+    process.env.NEXT_PUBLIC_CONTRACT_ADDRESS?.trim();
   const raw = fromEnv || CONTRACT_ADDRESS;
   if (!raw || !isAddress(raw)) return null;
   return raw;

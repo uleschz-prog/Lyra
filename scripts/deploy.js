@@ -10,12 +10,20 @@ const DEFAULT_ROUTER = "0x9f7C9Ed6431E45C72f919c089D9686138A541Dd7";
 
 const { ethers, networkName } = await network.create();
 
-if (networkName !== "polygonAmoy") {
-  throw new Error("Este script despliega en polygonAmoy. Para una red local usa npm run deploy:autonomous:local.");
-}
+let usdcAddress = process.env.AMOY_USDC_ADDRESS?.trim() || DEFAULT_USDC;
+let routerAddress = process.env.MOCK_ROUTER_ADDRESS?.trim() || DEFAULT_ROUTER;
 
-const usdcAddress = process.env.AMOY_USDC_ADDRESS?.trim() || DEFAULT_USDC;
-const routerAddress = process.env.MOCK_ROUTER_ADDRESS?.trim() || DEFAULT_ROUTER;
+if (networkName === "polygonMainnet") {
+  usdcAddress = process.env.MAINNET_USDC_ADDRESS?.trim() ?? "";
+  routerAddress = process.env.MAINNET_ROUTER_ADDRESS?.trim() ?? "";
+  if (!usdcAddress || !routerAddress) {
+    throw new Error(
+      "polygonMainnet necesita MAINNET_USDC_ADDRESS y MAINNET_ROUTER_ADDRESS. El router tiene que implementar swapUSDCForProfit; no hay una dirección de Uniswap escrita en el script.",
+    );
+  }
+} else if (networkName !== "polygonAmoy") {
+  throw new Error("Este script despliega en polygonAmoy o polygonMainnet. Para una red local usa npm run deploy:autonomous:local.");
+}
 
 console.log("Desplegando LyraAutonomousAgent...");
 console.log(`Red: ${networkName}`);
