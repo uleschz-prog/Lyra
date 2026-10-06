@@ -30,5 +30,13 @@
     ".next/dev/types/**/*.ts",
     "**/*.mts"
   ],
-  "exclude": ["node_modules"]
+  "exclude": [
+    "node_modules",
+    "hardhat.config.ts",
+    "test",
+    "scripts/deploy-lyra-autonomous.ts",
+    "typechain-types",
+    "artifacts",
+    "cache"
+  ]
 }

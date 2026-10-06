@@ -1,0 +1,21 @@
+name: Keeper Lyra
+
+# GitHub solo programa este archivo si está en la rama por defecto (main).
+# En la rama del protocolo queda listo, pero el horario no corre hasta copiarlo a main.
+# Vercel Hobby no admite un cron cada hora: el respaldo diario está en vercel.json.
+on:
+  schedule:
+    - cron: "5 * * * *"
+  workflow_dispatch:
+
+jobs:
+  execute:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Llamar executeStrategy
+        env:
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}
+        run: |
+          curl --fail-with-body -sS \
+            -H "Authorization: Bearer ${CRON_SECRET}" \
+            "https://lyyra.vercel.app/api/protocol/execute"
