@@ -14,6 +14,7 @@ import {
 import { polygonAmoy } from "viem/chains";
 
 import { Button } from "@/components/ui/button";
+import { VegaMark } from "@/components/vega/vega-mark";
 import {
   AMOY_CHAIN_ID,
   AMOY_EXPLORER_URL,
@@ -394,18 +395,10 @@ export function AutonomousProtocol() {
 
   return (
     <div className="space-y-6">
-      <section
-        className={
-          happy
-            ? "rounded-2xl border border-[#059669] bg-[#ECFDF5] p-6 dark:border-[#34D399] dark:bg-[#052E26]"
-            : "rounded-2xl border border-border bg-surface p-6"
-        }
-      >
-        <p className="text-[11px] font-medium tracking-[0.22em] text-[#5C5854] uppercase dark:text-[#9B96AC]">Agente</p>
-        <p className={happy ? "mt-3 text-3xl font-medium text-[#059669] dark:text-[#34D399]" : "mt-3 text-3xl font-medium text-foreground"}>
-          {happy ? "Feliz" : "En espera"}
-        </p>
-        <p className={happy ? "mt-2 text-sm text-[#047857] dark:text-[#6EE7B7]" : "mt-2 text-sm text-muted"} aria-live="polite">
+      <section className="flex flex-col items-center rounded-2xl border border-[#DDD6FE] bg-surface px-6 py-8 text-center dark:border-white/12">
+        <VegaMark className="size-36" mood={happy ? "happy" : "neutral"} />
+        <p className="sr-only">{happy ? "Feliz" : "En espera"}</p>
+        <p className="mt-4 max-w-sm text-sm text-muted" aria-live="polite">
           {lastLog ?? "Escuchando StrategyExecuted en Polygon Amoy."}
         </p>
       </section>
@@ -418,9 +411,7 @@ export function AutonomousProtocol() {
         </article>
         <article className="rounded-2xl border border-border bg-surface p-6">
           <p className="text-[11px] font-medium tracking-[0.22em] text-[#5C5854] uppercase dark:text-[#9B96AC]">Saldo USDC</p>
-          <p className={happy ? "mt-3 text-3xl text-[#059669] tabular-nums dark:text-[#34D399]" : "mt-3 text-3xl text-[#7C3AED] tabular-nums"}>
-            {status ? formatUsdc(status.balance) : "…"}
-          </p>
+          <p className="mt-3 text-3xl text-[#7C3AED] tabular-nums">{status ? formatUsdc(status.balance) : "…"}</p>
           <p className="mt-1 text-sm text-muted">{status?.canExec ? "El keeper puede ejecutar" : "Esperando cooldown o saldo"}</p>
         </article>
         <article className="rounded-2xl border border-border bg-surface p-6">
