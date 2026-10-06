@@ -41,6 +41,8 @@ La ruta:
 
 Cada `executeStrategy` exitosa en Amoy gasta alrededor de 0.009 POL. 0.05 POL alcanzan para unas cinco llamadas. No alcanza para semanas de ejecuciones horarias.
 
+La primera llamada de esta billetera fue `0x60920af0783531e092a2a974e8d1a651d79fb037226c1ab31af3067101d32a11`. Salió de `0xDAf485619B13207232fC29B1F016A99D3eB5f53e`, no del owner. Emitió `StrategyExecuted` con `PROFIT_CAPTURED` y profit `1000000` (1.00 USDC). El POL de prueba llegó con `0xe2c0b2d9b0f2a374c476a1190588c1f7ec551fa804a4c9b3c98e0391dfbe7a01`. Esa llamada gastó unos 0.020 POL. Quedaron unos 0.030 POL, suficientes para una o dos ejecuciones más si el gas sigue en ese nivel.
+
 ## Qué verás en el dashboard
 
 Con USDC depositado, cada ejecución emite `StrategyExecuted`. El dashboard en `/dashboard/protocol` lo escucha en vivo: Vega sonríe y el aviso dice `Trade ejecutado: Ganancia de X USDC`. El saldo USDC que se muestra es el del token. La ganancia simulada no se suma a ese saldo porque el contrato no acuña USDC.
