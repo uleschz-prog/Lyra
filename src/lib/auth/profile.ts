@@ -20,6 +20,7 @@ const profileSelect = {
   walletBalance: true,
   isSubscriptionExempt: true,
   activationCredits: true,
+  activatedWithCode: true,
   alphaFastTrackUntil: true,
   avatar: true,
   usdtTrc20: true,

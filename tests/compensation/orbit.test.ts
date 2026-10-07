@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { founderCodeBudget, getPackage, signupPlans } from "@/config/compensation-plan";
+import { canSpendSignupCreditsOnCodes, founderCodeBudget, getPackage, signupPlans } from "@/config/compensation-plan";
 import { distributeSale, estimateInvitationEarnings, monthlyClose, roundMoney, type CompensationMember } from "@/lib/compensation/engine";
 
 function member(
@@ -26,6 +26,13 @@ describe("códigos de un Pro", () => {
     expect(founderCodeBudget({ spentUsd: 249, credits: 751, activationCredits: 0 })).toBe(251);
     expect(founderCodeBudget({ spentUsd: 500, credits: 500, activationCredits: 0 })).toBe(0);
     expect(founderCodeBudget({ spentUsd: 0, credits: 80, activationCredits: 0 })).toBe(80);
+  });
+
+  it("solo el Pro que pagó con dinero puede crear códigos", () => {
+    expect(canSpendSignupCreditsOnCodes({ packageId: "FOUNDER", activatedWithCode: false })).toBe(true);
+    expect(canSpendSignupCreditsOnCodes({ packageId: "FOUNDER", activatedWithCode: true })).toBe(false);
+    expect(canSpendSignupCreditsOnCodes({ packageId: "PRO", activatedWithCode: false })).toBe(false);
+    expect(canSpendSignupCreditsOnCodes({ packageId: "STARTED", activatedWithCode: false })).toBe(false);
   });
 });
 

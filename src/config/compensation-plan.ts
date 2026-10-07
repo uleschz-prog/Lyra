@@ -301,6 +301,17 @@ export function founderCodeBudget(input: { spentUsd: number; credits: number; ac
   return input.activationCredits + Math.min(remainingCap, Math.max(0, input.credits));
 }
 
+/**
+ * El Pro que pagó con dinero puede convertir 500 créditos en códigos.
+ * Una cuenta que entró con código conserva su plan y sus créditos, y no puede repetir el regalo.
+ */
+export function canSpendSignupCreditsOnCodes(input: {
+  packageId: string | null | undefined;
+  activatedWithCode: boolean;
+}) {
+  return isFounderPackage(input.packageId) && !input.activatedWithCode;
+}
+
 export function isFounderPackage(packageId: string | null | undefined) {
   return packageId === "FOUNDER";
 }

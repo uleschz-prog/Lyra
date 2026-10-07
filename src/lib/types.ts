@@ -20,6 +20,7 @@ export type AuthProfile = {
   activeDirects: number;
   rebuyPaidThisMonth: boolean;
   activationCredits: number;
+  activatedWithCode: boolean;
   pendingPackage: string | null;
   avatar: string | null;
   usdtTrc20: string | null;

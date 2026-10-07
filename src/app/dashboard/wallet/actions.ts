@@ -6,6 +6,7 @@ import { headers } from "next/headers";
 import { revalidatePath } from "next/cache";
 
 import {
+  canSpendSignupCreditsOnCodes,
   creditRechargeUsd,
   founderSignupCodeCredits,
   getPackage,
@@ -304,9 +305,19 @@ export async function createActivationCode(packageId: string) {
   const price = getPackage(packageId).price;
   const prisma = getPrisma();
 
+  const canSpendCredits = canSpendSignupCreditsOnCodes({
+    packageId: user.package,
+    activatedWithCode: user.activatedWithCode,
+  });
   if (user.activationCredits < price) {
-    if (!isFounderPackage(user.package)) {
-      return { ok: false as const, error: "No tienes créditos suficientes para generar ese código." };
+    if (!canSpendCredits) {
+      return {
+        ok: false as const,
+        error:
+          user.activatedWithCode && isFounderPackage(user.package)
+            ? "Esta cuenta entró con un código. Solo quien pagó el Pro puede activar otras cuentas."
+            : "No tienes créditos suficientes para generar ese código.",
+      };
     }
     const used = await prisma.activationCode.aggregate({
       where: { ownerId: user.id },
@@ -333,15 +344,15 @@ export async function createActivationCode(packageId: string) {
       });
     }
 
-    // 2) Pro: paga desde sus créditos normales, hasta 500 de los 1,000 iniciales.
-    if (user.package !== "FOUNDER") return null;
+    // 2) Pro pagado con dinero: hasta 500 de los 1,000 iniciales. Una cuenta de código no repite el regalo.
+    if (!canSpendCredits) return null;
     const used = await tx.activationCode.aggregate({
       where: { ownerId: user.id },
       _sum: { price: true },
     });
     if ((used._sum.price ?? 0) + price > founderSignupCodeCredits) return null;
     const debited = await tx.user.updateMany({
-      where: { id: user.id, credits: { gte: price } },
+      where: { id: user.id, package: "FOUNDER", activatedWithCode: false, credits: { gte: price } },
       data: { credits: { decrement: price } },
     });
     if (debited.count === 0) return null;

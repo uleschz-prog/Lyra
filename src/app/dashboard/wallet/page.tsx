@@ -8,7 +8,13 @@ import { CreditRecharge } from "@/components/wallet/credit-recharge";
 import { UsdtWallet } from "@/components/wallet/usdt-wallet";
 import { WalletPanel } from "@/components/wallet/wallet-panel";
 import { brand } from "@/config/brand";
-import { creditRechargeUsd, founderCodeBudget, isFounderPackage, rebuyStatus } from "@/config/compensation-plan";
+import {
+  canSpendSignupCreditsOnCodes,
+  creditRechargeUsd,
+  founderCodeBudget,
+  isFounderPackage,
+  rebuyStatus,
+} from "@/config/compensation-plan";
 import { getCurrentUser } from "@/lib/auth/profile";
 import { mercadoPagoQuote, mercadoPagoReady } from "@/lib/payments/mercadopago";
 import { getPrisma } from "@/lib/prisma";
@@ -34,7 +40,11 @@ export default async function WalletPage({
         credits: extraUsd ? await mercadoPagoQuote(extraUsd) : null,
       }
     : null;
-  const activation = user.package === "CORPORATE" || user.package === "FOUNDER" || user.activationCredits > 0;
+  const canMint = canSpendSignupCreditsOnCodes({
+    packageId: user.package,
+    activatedWithCode: user.activatedWithCode,
+  });
+  const activation = canMint || user.package === "CORPORATE" || user.activationCredits > 0;
   const codes = activation
     ? await getPrisma().activationCode.findMany({
         where: { ownerId: user.id },
@@ -44,7 +54,7 @@ export default async function WalletPage({
       })
     : [];
   const spentOnCodes = codes.reduce((total, row) => total + row.price, 0);
-  const activationBalance = isFounderPackage(user.package)
+  const activationBalance = canMint
     ? founderCodeBudget({ spentUsd: spentOnCodes, credits: user.credits, activationCredits: user.activationCredits })
     : user.activationCredits;
   const headerStore = await headers();
