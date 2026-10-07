@@ -25,8 +25,8 @@ export const sectionDesks: Record<
   },
   compensation: {
     star: "Sulafat",
-    squad: "Planes",
-    line: "Inicio $29, Negocio $99 y Pro $249. Un crédito equivale a $1.",
+    squad: "Partners",
+    line: "Órbita paga 20%, 10% y 5% hasta el nivel 6. Inicio cobra 2 niveles, Negocio 4 y Pro 6.",
   },
   academy: {
     star: "Epsilon",

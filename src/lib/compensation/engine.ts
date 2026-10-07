@@ -286,21 +286,39 @@ export function estimateInvitationEarnings(input: {
 }) {
   const sale = getPackage(input.salePackageId);
   const profile = bonusProfile(input.earnerPackageId);
-  const [orbita1 = 0, orbita2 = 0] = compensationPlan.unilevel;
-  const level1Rate = profile && profile.orbitaLevels >= 1 ? orbita1 : 0;
-  const level2Rate = profile && profile.orbitaLevels >= 2 ? orbita2 : 0;
-  const paid = sale.price + sale.rebuy;
-  const level1 = roundMoney(input.directs * paid * level1Rate);
-  const level2 = roundMoney(input.directs * input.invitesEach * paid * level2Rate);
+  const depth = profile?.orbitaLevels ?? 0;
+  const levels = compensationPlan.unilevel.map((listedRate, index) => {
+    const level = index + 1;
+    const active = depth >= level;
+    const rate = active ? listedRate : 0;
+    const people = level === 1 ? input.directs : level === 2 ? input.directs * input.invitesEach : 0;
+    return {
+      level,
+      rate,
+      listedRate,
+      active,
+      packageUsd: active ? roundMoney(sale.price * listedRate) : 0,
+      rebuyUsd: active ? roundMoney(sale.rebuy * listedRate) : 0,
+      networkUsd: active && people > 0 ? roundMoney(people * sale.price * listedRate) : 0,
+    };
+  });
+  const level1 = levels[0]?.networkUsd ?? 0;
+  const level2 = levels[1]?.networkUsd ?? 0;
 
   return {
+    levels,
     level1,
     level2,
     total: roundMoney(level1 + level2),
-    level1Rate,
-    level2Rate,
+    packageTotal: roundMoney(levels.reduce((sum, level) => sum + level.packageUsd, 0)),
+    rebuyTotal: roundMoney(levels.reduce((sum, level) => sum + level.rebuyUsd, 0)),
+    networkTotal: roundMoney(level1 + level2),
+    level1Rate: levels[0]?.rate ?? 0,
+    level2Rate: levels[1]?.rate ?? 0,
     price: sale.price,
-    earnerLevels: profile?.orbitaLevels ?? 0,
+    rebuy: sale.rebuy,
+    earnerLevels: depth,
+    earnerShare: roundMoney(compensationPlan.unilevel.slice(0, depth).reduce((sum, rate) => sum + rate, 0)),
   };
 }
 

@@ -8,6 +8,7 @@ import { PromoBadge, RebuyPromo } from "@/components/plan/rebuy-promo";
 import {
   bonusProfile,
   compensationPlan,
+  getPackage,
   rebuyExemptionRule,
   signupPlans,
   type PackageId,
@@ -29,6 +30,8 @@ export function PlanWorkspace({ plan }: { plan: MemberPlanView }) {
   const [invitesEach, setInvitesEach] = useState(2);
   const [salePackageId, setSalePackageId] = useState<PackageId>("STARTED");
   const earnerPackageId = (plan.packageId ?? "STARTED") as PackageId;
+  const yours = plan.packageId ? getPackage(plan.packageId) : null;
+  const earner = bonusProfile(plan.packageId);
   const estimate = useMemo(
     () =>
       estimateInvitationEarnings({
@@ -47,22 +50,26 @@ export function PlanWorkspace({ plan }: { plan: MemberPlanView }) {
             <p className="text-[11px] uppercase tracking-[0.28em] text-lyra-cyan">Tu membresía</p>
             <p className="mt-3 text-4xl text-[#1E1E24]">{plan.packageLabel}</p>
             <p className="mt-1 text-sm text-[#5C5854]">
-              {plan.exempt ? plan.exemptLabel : `Recompra de ${formatUsd(plan.rebuyUsd)} al mes`}
+              {earner
+                ? `Órbita en ${earner.orbitaLevels} niveles · ${percent(estimate.earnerShare)} de cada paquete y de cada recarga`
+                : "Sin bono Órbita"}
             </p>
           </div>
-          <Badge variant={plan.exempt ? "cyan" : "violet"}>
-            {plan.exempt
-              ? "Créditos bonus activos"
-              : `${plan.activeDirects} de ${plan.requiredDirects} directos activos`}
+          <Badge variant="violet">
+            {yours && yours.credits > 0 ? `${formatCredits(yours.credits)} créditos` : plan.packageLabel}
           </Badge>
         </div>
-        <p className="mt-4 text-sm leading-6 text-[#1E1E24]">{plan.message}</p>
+        <p className="mt-4 text-sm leading-6 text-[#1E1E24]">
+          {plan.rebuyUsd > 0
+            ? `La recarga es de ${formatUsd(plan.rebuyUsd)} al mes siguiente y también genera Órbita. ${rebuyExemptionRule}`
+            : plan.message}
+        </p>
       </section>
 
       <section>
-        <h2 className="text-lg font-bold tracking-tight text-[#1E1E24]">Poder de cómputo</h2>
+        <h2 className="text-lg font-bold tracking-tight text-[#1E1E24]">Los tres paquetes</h2>
         <p className="mt-2 max-w-2xl text-sm leading-6 text-[#5C5854]">
-          Inicio entra con $29 y 150 créditos, Negocio con $99 y 300, y Pro con $249 y 1,000. Todos incluyen los mismos servicios. Cambia hasta qué nivel cobras Órbita y cuántos créditos recibes. {rebuyExemptionRule}
+          Inicio entra con $29 y 150 créditos, Negocio con $99 y 300, y Pro con $249 y 1,000. Todos incluyen los mismos servicios. La diferencia es hasta qué nivel cobras Órbita y cuántos créditos recibes.
         </p>
         <div className="mt-6 grid items-stretch gap-4 md:grid-cols-2 xl:grid-cols-3">
           {signupPlans.map((planPackage: PlanSpec) => {
@@ -158,13 +165,14 @@ export function PlanWorkspace({ plan }: { plan: MemberPlanView }) {
       <section>
         <h2 className="text-lg font-bold tracking-tight text-[#1E1E24]">{compensationPlan.name}</h2>
         <p className="mt-2 max-w-2xl text-sm leading-6 text-[#5C5854]">
-          El único bono es Órbita: 20%, 10% y 5% del nivel 3 al 6 sobre el dinero del paquete o de la recarga de créditos. Los seis niveles suman 50%. Tu paquete define hasta qué nivel cobras.
+          El porcentaje sale del dinero pagado: el paquete de inicio y cada recarga de créditos. Subir de paquete no genera comisión. Los seis niveles suman 50%.
         </p>
         <div className="mt-5 overflow-x-auto rounded-3xl border border-[#E7E2DA] bg-white dark:border-white/12 dark:bg-[#181625]">
           <table className="w-full min-w-[640px] text-left text-sm">
             <thead>
               <tr className="border-b border-[#E7E2DA] text-xs uppercase tracking-[0.14em] text-[#8A8680]">
-                <th className="px-5 py-3 font-medium">Bono</th>
+                <th className="px-5 py-3 font-medium">Nivel</th>
+                <th className="px-5 py-3 font-medium">Del pago</th>
                 {signupPlans.map((planPackage) => (
                   <th key={planPackage.id} className="px-5 py-3 font-medium">
                     {planPackage.label}
@@ -173,18 +181,33 @@ export function PlanWorkspace({ plan }: { plan: MemberPlanView }) {
               </tr>
             </thead>
             <tbody className="text-[#1E1E24]">
-              <tr>
-                <td className="px-5 py-3">
-                  <p className="font-medium">Órbita</p>
-                  <p className="text-xs text-[#8A8680]">
-                    {compensationPlan.unilevel.map(percent).join(" / ")} del dinero pagado
-                  </p>
-                </td>
+              {compensationPlan.unilevel.map((rate, index) => {
+                const level = index + 1;
+                return (
+                  <tr key={level} className="border-b border-[#EFEAE3] last:border-0">
+                    <td className="px-5 py-3 font-medium">Nivel {level}</td>
+                    <td className="px-5 py-3 tabular-nums">{percent(rate)}</td>
+                    {signupPlans.map((planPackage) => {
+                      const depth = bonusProfile(planPackage.id)?.orbitaLevels ?? 0;
+                      const pays = depth >= level;
+                      return (
+                        <td key={planPackage.id} className={`px-5 py-3 ${pays ? "text-[#1E1E24]" : "text-[#8A8680]"}`}>
+                          {pays ? "Cobra" : "—"}
+                        </td>
+                      );
+                    })}
+                  </tr>
+                );
+              })}
+              <tr className="border-t border-[#E7E2DA]">
+                <td className="px-5 py-3 font-medium">Total</td>
+                <td className="px-5 py-3 tabular-nums">{percent(compensationPlan.payoutCap)}</td>
                 {signupPlans.map((planPackage) => {
-                  const profile = bonusProfile(planPackage.id);
+                  const depth = bonusProfile(planPackage.id)?.orbitaLevels ?? 0;
+                  const share = compensationPlan.unilevel.slice(0, depth).reduce((sum, rate) => sum + rate, 0);
                   return (
-                    <td key={planPackage.id} className="px-5 py-3 tabular-nums">
-                      {profile ? `${profile.orbitaLevels} niveles` : "—"}
+                    <td key={planPackage.id} className="px-5 py-3 font-medium tabular-nums">
+                      {percent(share)}
                     </td>
                   );
                 })}
@@ -197,7 +220,7 @@ export function PlanWorkspace({ plan }: { plan: MemberPlanView }) {
       <section className="rounded-3xl border border-border bg-surface/80 backdrop-blur-md transition-colors hover:border-border-bright p-6 sm:p-8">
         <h2 className="text-lg font-bold tracking-tight text-[#1E1E24]">Calcula lo que ganas</h2>
         <p className="mt-2 max-w-2xl text-sm leading-6 text-[#5C5854]">
-          Elige el paquete de tus invitados. Tu plan {plan.packageLabel} cobra Órbita hasta el nivel {estimate.earnerLevels}, sobre el precio de entrada y la recarga.
+          Elige el paquete de quien entra. Tu plan {plan.packageLabel} cobra hasta el nivel {estimate.earnerLevels}. Una venta y una recarga se calculan aparte. Los invitados del ejemplo solo multiplican los niveles 1 y 2.
         </p>
         <div className="mt-6 flex flex-wrap gap-2">
           {signupPlans.map((planPackage) => (
@@ -239,10 +262,36 @@ export function PlanWorkspace({ plan }: { plan: MemberPlanView }) {
             />
           </label>
         </div>
-        <div className="mt-6 grid gap-3 sm:grid-cols-3">
-          <Metric label={`Órbita nivel 1 · ${Math.round(estimate.level1Rate * 100)}%`} value={formatUsd(estimate.level1)} />
-          <Metric label={`Órbita nivel 2 · ${Math.round(estimate.level2Rate * 100)}%`} value={formatUsd(estimate.level2)} />
-          <Metric label="Primer mes" value={formatUsd(estimate.total)} emphasis />
+        <div className="mt-6 overflow-x-auto rounded-2xl border border-[#E7E2DA]">
+          <table className="w-full min-w-[560px] text-left text-sm">
+            <thead>
+              <tr className="border-b border-[#E7E2DA] text-xs uppercase tracking-[0.14em] text-[#8A8680]">
+                <th className="px-4 py-3 font-medium">Nivel</th>
+                <th className="px-4 py-3 font-medium">Una venta</th>
+                <th className="px-4 py-3 font-medium">Una recarga</th>
+                <th className="px-4 py-3 font-medium">Tu ejemplo</th>
+              </tr>
+            </thead>
+            <tbody>
+              {estimate.levels.map((level) => (
+                <tr key={level.level} className="border-b border-[#EFEAE3] last:border-0">
+                  <td className="px-4 py-3 font-medium text-[#1E1E24]">
+                    Nivel {level.level} · {percent(level.listedRate)}
+                  </td>
+                  <td className="px-4 py-3 tabular-nums text-[#1E1E24]">{level.active ? formatUsd(level.packageUsd) : "—"}</td>
+                  <td className="px-4 py-3 tabular-nums text-[#1E1E24]">{level.active ? formatUsd(level.rebuyUsd) : "—"}</td>
+                  <td className="px-4 py-3 tabular-nums text-[#5C5854]">
+                    {level.level <= 2 && level.active ? formatUsd(level.networkUsd) : level.active ? "Si la línea sigue" : "Fuera de tu paquete"}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+        <div className="mt-4 grid gap-3 sm:grid-cols-3">
+          <Metric label="Una venta, en tus niveles" value={formatUsd(estimate.packageTotal)} />
+          <Metric label="Una recarga, en tus niveles" value={formatUsd(estimate.rebuyTotal)} />
+          <Metric label="Niveles 1 y 2 del ejemplo" value={formatUsd(estimate.networkTotal)} emphasis />
         </div>
       </section>
     </div>
