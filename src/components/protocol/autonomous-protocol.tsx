@@ -130,7 +130,7 @@ export function AutonomousProtocol({ canControl = false }: { canControl?: boolea
         <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
           <div className="min-w-0">
             <p className="text-[11px] font-medium tracking-[0.28em] text-[#A78BFA] uppercase">Protocolo on-chain</p>
-            <h2 className="mt-2 text-2xl font-semibold tracking-tight sm:text-3xl">Lyra Autonomous</h2>
+            <h2 className="mt-2 text-2xl font-semibold tracking-tight sm:text-3xl">Lyra Web3</h2>
             <p className="mt-2 max-w-xl text-sm leading-6 text-[#B7B1C8]">
               El agente intercambia USDC de verdad contra su mercado cuando el precio se separa de Chainlink. Puedes pausarlo o volver a activarlo cuando quieras.
             </p>

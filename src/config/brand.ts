@@ -94,7 +94,7 @@ export const officeModes = [
       },
       {
         href: "/dashboard/protocol",
-        label: "Lyra Autonomous Protocol",
+        label: "Lyra Web3",
         description: "Agente en Polygon Amoy",
         icon: Activity,
       },

@@ -7,7 +7,7 @@ import { brand } from "@/config/brand";
 import { getCurrentUser } from "@/lib/auth/profile";
 
 export const metadata: Metadata = {
-  title: "Lyra Autonomous Protocol",
+  title: "Lyra Web3",
 };
 
 export default async function ProtocolPage() {
@@ -18,7 +18,7 @@ export default async function ProtocolPage() {
     <>
       <PageHeader
         eyebrow="Protocolo"
-        title="Lyra Autonomous Protocol"
+        title="Lyra Web3"
         description="El agente intercambia en Polygon Amoy. Puedes pausarlo o activarlo cuando quieras."
         section="protocol"
       />
