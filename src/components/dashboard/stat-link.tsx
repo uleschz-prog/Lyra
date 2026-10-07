@@ -26,7 +26,7 @@ export function StatLink({
   return (
     <Link
       href={href}
-      className="group flex flex-col rounded-2xl border border-[#E7E2DA] bg-white p-5 transition-all hover:-translate-y-0.5 hover:border-[#C4B5FD] hover:shadow-[0_10px_30px_rgba(124,58,237,0.08)]"
+      className="group flex min-w-0 flex-col rounded-2xl border border-[#E7E2DA] bg-white p-4 transition-all hover:-translate-y-0.5 hover:border-[#C4B5FD] hover:shadow-[0_10px_30px_rgba(124,58,237,0.08)] sm:p-5"
     >
       <div className="flex items-center justify-between">
         <span className={cn("grid h-9 w-9 place-items-center rounded-xl", tones[tone])}>
@@ -34,7 +34,7 @@ export function StatLink({
         </span>
         <ArrowRight className="h-4 w-4 text-[#C9C4BC] transition-transform group-hover:translate-x-0.5 group-hover:text-[#7C3AED]" aria-hidden />
       </div>
-      <p className="mt-5 text-[11px] tracking-[0.16em] text-[#8A8680] uppercase">{label}</p>
+      <p className="mt-4 text-[11px] leading-4 tracking-[0.12em] text-[#8A8680] uppercase sm:mt-5 sm:tracking-[0.16em]">{label}</p>
       {children}
     </Link>
   );
