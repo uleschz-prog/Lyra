@@ -5,7 +5,7 @@ import { BuilderConsole } from "@/components/landing/builder-console";
 import { SiteFooter } from "@/components/landing/site-footer";
 import { SiteHeader } from "@/components/landing/site-header";
 import { PromoBadge, RebuyPromo } from "@/components/plan/rebuy-promo";
-import { VegaMarket } from "@/components/vega/vega-mark";
+import { VegaMascot } from "@/components/vega/vega-mark";
 import { brand } from "@/config/brand";
 import { signupPlans, type PlanSpec } from "@/config/compensation-plan";
 
@@ -100,7 +100,7 @@ export default function HomePage() {
                 Inicio entra con $29 y 150 créditos, Negocio con $99 y 300, y Pro con $249 y 1,000. Todos incluyen los mismos servicios. Un crédito equivale a $1.
               </p>
               <div className="mt-10 flex flex-1 items-center justify-center lg:mt-12">
-                <VegaMarket className="h-64 w-56 drop-shadow-[0_28px_48px_rgba(124,58,237,0.35)] sm:h-80 sm:w-72 lg:h-[28rem] lg:w-96" />
+                <VegaMascot className="h-52 w-52 drop-shadow-[0_28px_48px_rgba(124,58,237,0.35)] sm:h-64 sm:w-64 lg:h-80 lg:w-80" />
               </div>
             </div>
             <div className="space-y-4">
