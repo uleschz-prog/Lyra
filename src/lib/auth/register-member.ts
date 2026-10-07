@@ -206,6 +206,7 @@ export async function registerMember(input: RegisterInput) {
           userId: created.id,
           purpose: "signup",
           amountUsd: planPackage.price,
+          db: tx,
         });
         if (!redeemed.ok) {
           throw new AuthError(402, redeemed.error);

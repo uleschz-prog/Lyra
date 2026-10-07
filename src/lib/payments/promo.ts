@@ -1,3 +1,5 @@
+import { Prisma } from "@prisma/client";
+
 import { getPrisma } from "@/lib/prisma";
 
 export type PromoPurpose = "signup" | "rebuy" | "credits" | "upgrade";
@@ -70,55 +72,62 @@ export async function redeemPromoCode(params: {
   userId: string;
   purpose: PromoPurpose;
   amountUsd: number;
+  /** Misma transacción que crea la cuenta. Si se abre otra, el usuario aún no existe y la llave foránea falla. */
+  db?: Prisma.TransactionClient;
 }): Promise<RedeemResult> {
-  const { rawCode, userId, purpose, amountUsd } = params;
+  const { rawCode, userId, purpose, amountUsd, db } = params;
   const code = normalizePromoCode(rawCode);
   if (!code.startsWith(PROMO_PREFIX)) {
     return { ok: false, error: "Ese no es un código promocional LYRA." };
   }
   if (amountUsd <= 0) return { ok: false, error: "El monto a cubrir no es válido." };
 
-  const prisma = getPrisma();
   const amount = Math.round(amountUsd);
 
-  try {
-    const result = await prisma.$transaction(async (tx) => {
-      // Bloquea la fila del código para evitar dobles usos concurrentes.
-      const promo = await tx.$queryRaw<{ id: string }[]>`
-        SELECT id FROM "PromoCode" WHERE code = ${code} FOR UPDATE
-      `;
-      if (!promo?.length) throw new Error("Ese código promocional no existe.");
+  const apply = async (tx: Prisma.TransactionClient) => {
+    const promo = await tx.$queryRaw<{ id: string }[]>`
+      SELECT id FROM "PromoCode" WHERE code = ${code} FOR UPDATE
+    `;
+    if (!promo?.length) throw new Error("Ese código promocional no existe.");
 
-      const fresh = await tx.promoCode.findUnique({
-        where: { code },
-        select: { id: true, active: true, expiresAt: true, budgetUsd: true, usedUsd: true },
-      });
-      if (!fresh || !fresh.active) throw new Error("Ese código promocional está desactivado.");
-      if (fresh.expiresAt && fresh.expiresAt < new Date()) {
-        throw new Error("Ese código promocional ya expiró.");
-      }
-      const remainingUsd = fresh.budgetUsd - fresh.usedUsd;
-      if (amount > remainingUsd) {
-        throw new Error(
-          `El saldo del código ($${remainingUsd} USD) no alcanza para cubrir este pago ($${amount} USD).`,
-        );
-      }
+    const fresh = await tx.promoCode.findUnique({
+      where: { code },
+      select: { id: true, active: true, expiresAt: true, budgetUsd: true, usedUsd: true },
+    });
+    if (!fresh || !fresh.active) throw new Error("Ese código promocional está desactivado.");
+    if (fresh.expiresAt && fresh.expiresAt < new Date()) {
+      throw new Error("Ese código promocional ya expiró.");
+    }
+    const remainingUsd = fresh.budgetUsd - fresh.usedUsd;
+    if (amount > remainingUsd) {
+      throw new Error(
+        `El saldo del código ($${remainingUsd} USD) no alcanza para cubrir este pago ($${amount} USD).`,
+      );
+    }
 
-      await tx.promoCode.update({
-        where: { id: fresh.id },
-        data: { usedUsd: fresh.usedUsd + amount },
-      });
-
-      await tx.promoCodeUse.create({
-        data: { promoId: fresh.id, code, userId, purpose, amountUsd: amount },
-      });
-
-      return { usedUsd: fresh.usedUsd + amount, remainingUsd: remainingUsd - amount };
+    await tx.promoCode.update({
+      where: { id: fresh.id },
+      data: { usedUsd: fresh.usedUsd + amount },
     });
 
+    await tx.promoCodeUse.create({
+      data: { promoId: fresh.id, code, userId, purpose, amountUsd: amount },
+    });
+
+    return { usedUsd: fresh.usedUsd + amount, remainingUsd: remainingUsd - amount };
+  };
+
+  try {
+    const result = db ? await apply(db) : await getPrisma().$transaction(apply);
     return { ok: true, ...result };
   } catch (error) {
-    const message = error instanceof Error ? error.message : "No se pudo aplicar el código promocional.";
+    if (error instanceof Prisma.PrismaClientKnownRequestError) {
+      return { ok: false, error: "No se pudo aplicar el código. Intenta de nuevo." };
+    }
+    const message = error instanceof Error ? error.message : "";
+    if (!message || message.includes("prisma.") || message.includes("Invalid ")) {
+      return { ok: false, error: "No se pudo aplicar el código promocional." };
+    }
     return { ok: false, error: message };
   }
 }
