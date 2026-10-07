@@ -73,6 +73,34 @@ export async function saveCreation(input: {
   return { id: row.id, createdAt: row.createdAt.toISOString() };
 }
 
+export async function updateCreation(input: {
+  id: string;
+  title: string;
+  body: string;
+  media?: string | null;
+}) {
+  const user = await getCurrentUser();
+  if (!user || !process.env.DATABASE_URL) return null;
+  if (input.media && input.media.length > 2_000_000) return null;
+
+  const result = await getPrisma().mediaPiece.updateMany({
+    where: { id: input.id, userId: user.id },
+    data: {
+      title: input.title.trim().slice(0, 120) || "Pieza",
+      body: input.body.slice(0, 20000),
+      media: input.media ? input.media.slice(0, 2_000_000) : null,
+    },
+  });
+  if (result.count === 0) return null;
+
+  const row = await getPrisma().mediaPiece.findFirst({
+    where: { id: input.id, userId: user.id },
+    select: { id: true, createdAt: true },
+  });
+  if (!row) return null;
+  return { id: row.id, createdAt: row.createdAt.toISOString() };
+}
+
 export async function removeCreation(id: string) {
   const user = await getCurrentUser();
   if (!user || !process.env.DATABASE_URL) return false;

@@ -1,10 +1,10 @@
 "use client";
 
-import { Download, Pencil, Play, Sparkles, Trash2, Upload } from "lucide-react";
+import { Download, Pencil, Play, Save, Sparkles, Trash2, Upload } from "lucide-react";
 import { useEffect, useState, type ReactNode } from "react";
 import { toast } from "sonner";
 
-import { discardCreation, storeCreation } from "@/app/dashboard/studio/actions";
+import { discardCreation, reviseCreation, storeCreation } from "@/app/dashboard/studio/actions";
 import { CreationHistory } from "@/components/media/creation-history";
 import { useCredits } from "@/components/dashboard/credit-provider";
 import { Button } from "@/components/ui/button";
@@ -20,7 +20,10 @@ import {
   videoTemplates,
 } from "@/components/studio/studio-pieces";
 import type { CreationRecord } from "@/lib/media-pieces";
+import { recordStudioClip } from "@/lib/studio/record-clip";
 import { cn } from "@/lib/utils";
+
+const mediaLimit = 1_900_000;
 
 type StudioTab = "video" | "image" | "search";
 
@@ -41,6 +44,39 @@ type SearchResult = {
   highlight: string;
 };
 
+async function persistPiece(input: {
+  id: string | null;
+  kind: "video" | "image";
+  title: string;
+  body: string;
+  media: string;
+}) {
+  if (input.media.length > mediaLimit) {
+    toast.error("La pieza es demasiado grande para guardarla. Prueba 15 segundos.");
+    return null;
+  }
+  if (input.id) {
+    const revised = await reviseCreation({ id: input.id, title: input.title, body: input.body, media: input.media });
+    if (!revised) {
+      toast.error("No se pudo actualizar la pieza.");
+      return null;
+    }
+    return revised;
+  }
+  const saved = await storeCreation({
+    area: "studio",
+    kind: input.kind,
+    title: input.title,
+    body: input.body,
+    media: input.media,
+  });
+  if (!saved) {
+    toast.error("No se pudo guardar la pieza.");
+    return null;
+  }
+  return saved;
+}
+
 const tabs: { id: StudioTab; label: string; hint: string }[] = [
   { id: "video", label: "Video", hint: "Guion, voz y estilo" },
   { id: "image", label: "Imagen", hint: "Piezas y portadas" },
@@ -57,7 +93,7 @@ export function CreativeStudio({ initialPieces = [] }: { initialPieces?: Creatio
       <StudioHero
         title="Crea como en un patio de juegos"
         subtitle="Elige una plantilla, cámbiale el estilo y mírala antes de generar. Video, imagen y voz en un solo lugar."
-        stat={`${initialPieces.length} ${initialPieces.length === 1 ? "pieza guardada" : "piezas guardadas"}`}
+        stat={`${pieces.length} ${pieces.length === 1 ? "pieza guardada" : "piezas guardadas"}`}
       />
 
       <div role="tablist" aria-label="Estudio creativo" className="grid gap-2 sm:grid-cols-3">
@@ -147,18 +183,20 @@ function VideoPanel({
 
   const busy = pending || job?.status === "processing";
   const style = videoStyles.find((item) => item.id === look) ?? videoStyles[0];
+  const locked = Boolean(job?.videoUrl) && !editing;
 
   if (restore && restore.kind === "video" && restore.id !== restoredId) {
     setRestoredId(restore.id);
     setTitle(restore.title);
     setScript(restore.body);
     setPieceId(restore.id);
+    setEditing(false);
     setJob({
-      mode: "preview",
+      mode: restore.media ? "live" : "preview",
       provider: "lyra",
       status: restore.media ? "completed" : "ready",
       videoUrl: restore.media,
-      message: restore.title,
+      message: restore.media ? "Video guardado. Puedes editarlo o eliminarlo." : restore.title,
     });
   }
 
@@ -199,42 +237,73 @@ function VideoPanel({
   async function generate() {
     setPending(true);
     try {
-      const visual = images.length > 0 ? ` Imágenes de referencia: ${images.map((image) => image.name).join(", ")}.` : "";
-      const brief = ` Formato ${format}. Duración ${duration}. Estilo ${style.name}. Voz ${voice}. Música ${music}. ${captions}.${detail.trim() ? ` Debe verse: ${detail.trim()}.` : ""}`;
-      const response = await fetch("/api/ai/video", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ title, script: `${script}${brief}${visual}` }),
-      });
-      const data = (await response.json()) as VideoJob;
-      if (!response.ok) {
-        toast.error(data.error ?? "No se pudo preparar el video.");
-        return;
+      const spoken = [script.trim(), detail.trim()].filter(Boolean).join(" ");
+      const withCaptions = captions === "Con subtítulos";
+      let data: VideoJob | null = null;
+      try {
+        const response = await fetch("/api/ai/video", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ title, script: spoken, format, styleId: look, duration, captions: withCaptions }),
+        });
+        const payload = (await response.json()) as VideoJob;
+        if (response.ok && payload.videoUrl) data = payload;
+      } catch {
+        data = null;
+      }
+      if (!data?.videoUrl) {
+        const clip = await recordStudioClip({
+          title,
+          script: spoken,
+          format,
+          styleId: look,
+          duration,
+          imageUrl: images[0]?.url ?? null,
+          captions: withCaptions,
+        });
+        data = {
+          mode: "live",
+          provider: "lyra",
+          status: "completed",
+          videoUrl: clip.url,
+          scenes: clip.scenes,
+          message: "Video listo. Puedes guardarlo, editarlo o eliminarlo.",
+        };
       }
       setJob(data);
       setEditing(false);
-      const saved = await storeCreation({
-        area: "studio",
-        kind: "video",
-        title,
-        body: script,
-        media: data.videoUrl ?? null,
-      }).catch(() => null);
-      if (saved) {
-        setPieceId(saved.id);
-        onSaved({
-          id: saved.id,
-          area: "studio",
-          kind: "video",
-          title,
-          body: script,
-          media: data.videoUrl ?? null,
-          createdAt: saved.createdAt,
-        });
-      }
+      toast.success("Video listo. Guárdalo si quieres conservarlo.");
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "No se pudo crear el video.");
     } finally {
       setPending(false);
     }
+  }
+
+  async function saveVideo() {
+    if (!job?.videoUrl) {
+      toast.error("Crea el video antes de guardarlo.");
+      return;
+    }
+    const saved = await persistPiece({
+      id: pieceId,
+      kind: "video",
+      title,
+      body: script,
+      media: job.videoUrl,
+    });
+    if (!saved) return;
+    setPieceId(saved.id);
+    onSaved({
+      id: saved.id,
+      area: "studio",
+      kind: "video",
+      title,
+      body: script,
+      media: job.videoUrl,
+      createdAt: saved.createdAt,
+    });
+    toast.success(pieceId ? "Video actualizado." : "Video guardado.");
   }
 
   function addImages(files: FileList | null) {
@@ -254,7 +323,6 @@ function VideoPanel({
     setPieceId(null);
     setJob(null);
     setEditing(false);
-    setScript("");
   }
 
   async function downloadVideo() {
@@ -269,7 +337,8 @@ function VideoPanel({
       const href = URL.createObjectURL(blob);
       const link = document.createElement("a");
       link.href = href;
-      link.download = `${title.slice(0, 40) || "video-lyra"}.mp4`;
+      const extension = job.videoUrl.startsWith("data:video/webm") ? "webm" : "mp4";
+      link.download = `${title.slice(0, 40) || "video-lyra"}.${extension}`;
       link.click();
       URL.revokeObjectURL(href);
     } catch {
@@ -285,28 +354,30 @@ function VideoPanel({
 
   return (
     <div className="space-y-5">
-      <StudioSection
-        eyebrow="Empieza con una plantilla"
-        title="Toca una idea y queda lista para editar"
-        hint="Las plantillas traen guion, estilo y duración listos. Solo cambia lo tuyo."
-      >
-        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
-          {videoTemplates.map((template) => (
-            <TemplateCard
-              key={template.id}
-              gradient={template.gradient}
-              title={template.title}
-              tag={template.tag}
-              meta={template.duration}
-              active={activeTemplate === template.id}
-              onClick={() => applyTemplate(template.id)}
-            />
-          ))}
-        </div>
-      </StudioSection>
+      <div className={cn(locked && "pointer-events-none opacity-60")}>
+        <StudioSection
+          eyebrow="Empieza con una plantilla"
+          title="Toca una idea y queda lista para editar"
+          hint="Las plantillas traen guion, estilo y duración listos. Solo cambia lo tuyo."
+        >
+          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
+            {videoTemplates.map((template) => (
+              <TemplateCard
+                key={template.id}
+                gradient={template.gradient}
+                title={template.title}
+                tag={template.tag}
+                meta={template.duration}
+                active={activeTemplate === template.id}
+                onClick={() => applyTemplate(template.id)}
+              />
+            ))}
+          </div>
+        </StudioSection>
+      </div>
 
       <section className="grid gap-6 rounded-3xl border border-[#E7E2DA] bg-white p-4 sm:p-6 lg:grid-cols-[minmax(0,0.95fr)_minmax(0,1.05fr)]">
-        <div>
+        <div className={cn(locked && "pointer-events-none opacity-60")}>
           <p className="text-[11px] tracking-[0.22em] uppercase text-[#8A8680]">Video</p>
           <h2 className="mt-2 text-2xl font-semibold tracking-tight text-[#1E1E24]">Arma tu plano</h2>
           <p className="mt-1 text-sm text-[#5C5854]">Cambia el encuadre y el estilo; el preview se actualiza en vivo.</p>
@@ -371,50 +442,46 @@ function VideoPanel({
           <p className="mb-2 text-[11px] tracking-[0.22em] uppercase text-[#8A8680]">Preview en vivo</p>
           <div className="flex flex-1 items-center justify-center">
             <div
-              className={`relative flex w-full flex-col justify-end overflow-hidden rounded-2xl bg-[#1E1E24] bg-cover bg-center p-4 text-white shadow-[0_24px_60px_-30px_rgba(30,30,36,0.9)] ${frame}`}
-              style={images[0] ? { backgroundImage: `linear-gradient(to top, rgba(30,30,36,0.9), rgba(30,30,36,0.15)), url(${images[0].url})` } : undefined}
+              className={`relative flex w-full flex-col justify-end overflow-hidden rounded-2xl bg-[#1E1E24] bg-cover bg-center text-white shadow-[0_24px_60px_-30px_rgba(30,30,36,0.9)] ${job?.videoUrl ? "" : "p-4"} ${frame}`}
+              style={images[0] && !job?.videoUrl ? { backgroundImage: `linear-gradient(to top, rgba(30,30,36,0.9), rgba(30,30,36,0.15)), url(${images[0].url})` } : undefined}
             >
-              <span className={`pointer-events-none absolute inset-0 bg-gradient-to-br opacity-70 ${style.gradient}`} aria-hidden />
-              <span className="pointer-events-none absolute -top-10 -right-8 h-32 w-32 rounded-full bg-white/20 blur-2xl vega-pulse" aria-hidden />
-              <span className="absolute top-3 left-3 flex items-center gap-1.5 rounded-full bg-black/40 px-2.5 py-1 text-[10px] font-medium backdrop-blur">
-                <span className="h-1.5 w-1.5 rounded-full bg-[#10B981]" />
-                {style.name} · {format} · {duration}
-              </span>
-              <div className="relative">
-                <p className="text-lg font-medium drop-shadow">{title || "Sin título"}</p>
-                {detail ? <p className="mt-2 text-sm text-white/85 drop-shadow">{detail}</p> : null}
-                <p className="mt-3 text-[11px] text-white/70">
-                  Voz {voice.toLowerCase()} · {music.toLowerCase()} · {captions.toLowerCase()}
-                </p>
-              </div>
-              {!job ? (
-                <span className="absolute inset-0 grid place-items-center">
-                  <span className="grid h-14 w-14 place-items-center rounded-full bg-white/25 backdrop-blur">
-                    <Play className="h-5 w-5 translate-x-[1px] fill-white text-white" aria-hidden />
+              {job?.videoUrl ? (
+                <video controls src={job.videoUrl} className="absolute inset-0 h-full w-full bg-black object-contain" />
+              ) : (
+                <>
+                  <span className={`pointer-events-none absolute inset-0 bg-gradient-to-br opacity-70 ${style.gradient}`} aria-hidden />
+                  <span className="pointer-events-none absolute -top-10 -right-8 h-32 w-32 rounded-full bg-white/20 blur-2xl vega-pulse" aria-hidden />
+                  <span className="absolute top-3 left-3 flex items-center gap-1.5 rounded-full bg-black/40 px-2.5 py-1 text-[10px] font-medium backdrop-blur">
+                    <span className="h-1.5 w-1.5 rounded-full bg-[#10B981]" />
+                    {style.name} · {format} · {duration}
                   </span>
-                </span>
-              ) : null}
+                  <div className="relative">
+                    <p className="text-lg font-medium drop-shadow">{title || "Sin título"}</p>
+                    {detail ? <p className="mt-2 text-sm text-white/85 drop-shadow">{detail}</p> : null}
+                    <p className="mt-3 text-[11px] text-white/70">
+                      Voz {voice.toLowerCase()} · {music.toLowerCase()} · {captions.toLowerCase()}
+                    </p>
+                  </div>
+                  <span className="absolute inset-0 grid place-items-center">
+                    <span className="grid h-14 w-14 place-items-center rounded-full bg-white/25 backdrop-blur">
+                      <Play className="h-5 w-5 translate-x-[1px] fill-white text-white" aria-hidden />
+                    </span>
+                  </span>
+                </>
+              )}
             </div>
           </div>
 
-          {job ? (
+          {job?.videoUrl ? (
             <div className="mt-4 space-y-3">
-              <div className="flex flex-wrap gap-2">
-                <button type="button" onClick={() => void downloadVideo()} className="inline-flex items-center gap-1.5 rounded-lg border border-[#E7E2DA] bg-white px-2.5 py-1.5 text-xs text-[#1E1E24]">
-                  <Download className="h-3.5 w-3.5" aria-hidden />
-                  Descargar
-                </button>
-                <button type="button" onClick={() => setEditing((current) => !current)} className="inline-flex items-center gap-1.5 rounded-lg border border-[#E7E2DA] bg-white px-2.5 py-1.5 text-xs text-[#1E1E24]">
-                  <Pencil className="h-3.5 w-3.5" aria-hidden />
-                  {editing ? "Cerrar" : "Editar"}
-                </button>
-                <button type="button" onClick={removePiece} className="inline-flex items-center gap-1.5 rounded-lg border border-[#E7E2DA] bg-white px-2.5 py-1.5 text-xs text-[#9A3B2F]">
-                  <Trash2 className="h-3.5 w-3.5" aria-hidden />
-                  Eliminar
-                </button>
-              </div>
+              <PieceActions
+                editing={editing}
+                onDownload={() => void downloadVideo()}
+                onSave={() => void saveVideo()}
+                onEdit={() => setEditing((current) => !current)}
+                onDelete={removePiece}
+              />
               <p className="text-sm text-[#5C5854]">{job.message ?? job.error}</p>
-              {job.videoUrl ? <video controls src={job.videoUrl} className="w-full rounded-xl" /> : null}
               {job.scenes ? (
                 <ol className="grid gap-2 sm:grid-cols-3">
                   {job.scenes.map((scene) => (
@@ -495,10 +562,12 @@ function ImagePanel({
   const [imageUrl, setImageUrl] = useState<string | null>(null);
   const [reference, setReference] = useState<string | null>(null);
   const [pieceId, setPieceId] = useState<string | null>(null);
+  const [editing, setEditing] = useState(false);
   const [activeTemplate, setActiveTemplate] = useState<string | null>(null);
   const [restoredId, setRestoredId] = useState<string | null>(null);
 
   const chosen = imageStyles.find((item) => item.id === style) ?? imageStyles[0];
+  const locked = Boolean(imageUrl) && !editing;
 
   if (restore && restore.kind === "image" && restore.id !== restoredId) {
     setRestoredId(restore.id);
@@ -506,6 +575,7 @@ function ImagePanel({
     setDetail(restore.body);
     setImageUrl(restore.media);
     setPieceId(restore.id);
+    setEditing(false);
   }
 
   function pickReference(files: FileList | null) {
@@ -571,13 +641,22 @@ function ImagePanel({
     context.fillText("LYRA", 72, canvas.height - 64);
     const url = canvas.toDataURL("image/png");
     setImageUrl(url);
-    const saved = await storeCreation({
-      area: "studio",
+    setEditing(false);
+    toast.success("Imagen lista. Guárdala si quieres conservarla.");
+  }
+
+  async function saveImage() {
+    if (!imageUrl) {
+      toast.error("Crea la imagen antes de guardarla.");
+      return;
+    }
+    const saved = await persistPiece({
+      id: pieceId,
       kind: "image",
       title: title || "Imagen",
       body: detail,
-      media: url,
-    }).catch(() => null);
+      media: imageUrl,
+    });
     if (!saved) return;
     setPieceId(saved.id);
     onSaved({
@@ -586,9 +665,20 @@ function ImagePanel({
       kind: "image",
       title: title || "Imagen",
       body: detail,
-      media: url,
+      media: imageUrl,
       createdAt: saved.createdAt,
     });
+    toast.success(pieceId ? "Imagen actualizada." : "Imagen guardada.");
+  }
+
+  function removeImage() {
+    if (pieceId) {
+      void discardCreation(pieceId);
+      onRemoved(pieceId);
+    }
+    setPieceId(null);
+    setImageUrl(null);
+    setEditing(false);
   }
 
   function download() {
@@ -603,27 +693,29 @@ function ImagePanel({
 
   return (
     <div className="space-y-5">
-      <StudioSection
-        eyebrow="Empieza con una plantilla"
-        title="Piezas listas para tu marca"
-        hint="Toca una idea y ajústala. Cambia el estilo y el preview se actualiza."
-      >
-        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
-          {imageTemplates.map((template) => (
-            <TemplateCard
-              key={template.id}
-              gradient={template.gradient}
-              title={template.title}
-              tag={template.tag}
-              active={activeTemplate === template.id}
-              onClick={() => applyTemplate(template.id)}
-            />
-          ))}
-        </div>
-      </StudioSection>
+      <div className={cn(locked && "pointer-events-none opacity-60")}>
+        <StudioSection
+          eyebrow="Empieza con una plantilla"
+          title="Piezas listas para tu marca"
+          hint="Toca una idea y ajústala. Cambia el estilo y el preview se actualiza."
+        >
+          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
+            {imageTemplates.map((template) => (
+              <TemplateCard
+                key={template.id}
+                gradient={template.gradient}
+                title={template.title}
+                tag={template.tag}
+                active={activeTemplate === template.id}
+                onClick={() => applyTemplate(template.id)}
+              />
+            ))}
+          </div>
+        </StudioSection>
+      </div>
 
       <section className="grid gap-6 rounded-3xl border border-[#E7E2DA] bg-white p-4 sm:p-6 lg:grid-cols-[minmax(0,0.95fr)_minmax(0,1.05fr)]">
-        <div>
+        <div className={cn(locked && "pointer-events-none opacity-60")}>
           <p className="text-[11px] tracking-[0.22em] uppercase text-[#8A8680]">Imagen</p>
           <h2 className="mt-2 text-2xl font-semibold tracking-tight text-[#1E1E24]">Una pieza, con lo que importa</h2>
 
@@ -672,26 +764,45 @@ function ImagePanel({
             </div>
           )}
           {imageUrl ? (
-            <div className="mt-4 flex gap-2">
-              <button type="button" onClick={download} className="rounded-lg border border-[#E7E2DA] bg-white px-3 py-1.5 text-xs">Descargar</button>
-              <button
-                type="button"
-                onClick={() => {
-                  if (pieceId) {
-                    void discardCreation(pieceId);
-                    onRemoved(pieceId);
-                  }
-                  setPieceId(null);
-                  setImageUrl(null);
-                }}
-                className="rounded-lg border border-[#E7E2DA] bg-white px-3 py-1.5 text-xs text-[#9A3B2F]"
-              >
-                Eliminar
-              </button>
-            </div>
+            <PieceActions editing={editing} onDownload={download} onSave={() => void saveImage()} onEdit={() => setEditing((current) => !current)} onDelete={removeImage} />
           ) : null}
         </div>
       </section>
+    </div>
+  );
+}
+
+function PieceActions({
+  editing,
+  onDownload,
+  onSave,
+  onEdit,
+  onDelete,
+}: {
+  editing: boolean;
+  onDownload: () => void;
+  onSave: () => void;
+  onEdit: () => void;
+  onDelete: () => void;
+}) {
+  return (
+    <div className="mt-4 flex flex-wrap gap-2">
+      <button type="button" onClick={onDownload} className="inline-flex items-center gap-1.5 rounded-lg border border-[#E7E2DA] bg-white px-2.5 py-1.5 text-xs text-[#1E1E24]">
+        <Download className="h-3.5 w-3.5" aria-hidden />
+        Descargar
+      </button>
+      <button type="button" onClick={onSave} className="inline-flex items-center gap-1.5 rounded-lg border border-[#E7E2DA] bg-white px-2.5 py-1.5 text-xs text-[#1E1E24]">
+        <Save className="h-3.5 w-3.5" aria-hidden />
+        Guardar
+      </button>
+      <button type="button" onClick={onEdit} className="inline-flex items-center gap-1.5 rounded-lg border border-[#E7E2DA] bg-white px-2.5 py-1.5 text-xs text-[#1E1E24]">
+        <Pencil className="h-3.5 w-3.5" aria-hidden />
+        {editing ? "Cerrar" : "Editar"}
+      </button>
+      <button type="button" onClick={onDelete} className="inline-flex items-center gap-1.5 rounded-lg border border-[#E7E2DA] bg-white px-2.5 py-1.5 text-xs text-[#9A3B2F]">
+        <Trash2 className="h-3.5 w-3.5" aria-hidden />
+        Eliminar
+      </button>
     </div>
   );
 }
