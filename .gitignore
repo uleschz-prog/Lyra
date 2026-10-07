@@ -41,8 +41,14 @@ yarn-error.log*
 *.tsbuildinfo
 next-env.d.ts
 
+# hardhat
+/artifacts
+/cache
+/typechain-types
+
 # Documentos internos de negocio e inversionistas (no subir al repo público)
-/docs/
+/docs/*
+!/docs/GELATO_SETUP.md
 
 # Espacio de trabajo privado por socio (herramientas de asistente de Vega)
 /.vega-workspace/
