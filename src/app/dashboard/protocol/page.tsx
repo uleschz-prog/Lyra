@@ -19,7 +19,7 @@ export default async function ProtocolPage() {
       <PageHeader
         eyebrow="Protocolo"
         title="Lyra Autonomous Protocol"
-        description="Estado del agente en Polygon Amoy, depósito y retiro del owner, e historial de trades en vivo."
+        description="Conecta tu MetaMask, mira el agente en Polygon Amoy y el historial de trades en vivo."
         section="protocol"
       />
       <AutonomousProtocol />

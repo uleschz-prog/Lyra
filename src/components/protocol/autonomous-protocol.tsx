@@ -1,5 +1,7 @@
 "use client";
 
+import { formatUnits } from "viem";
+
 import { Button } from "@/components/ui/button";
 import { VegaMark } from "@/components/vega/vega-mark";
 import { AMOY_CHAIN_ID, AMOY_EXPLORER_URL } from "@/lib/protocol/autonomous-agent";
@@ -7,8 +9,10 @@ import { agentFaceLabel } from "@/lib/protocol/agent-face";
 import { formatEthUsd, formatUsdc } from "@/lib/protocol/trade-event";
 import { useLyraAgent } from "@/hooks/useLyraAgent";
 
+const METAMASK_INSTALL = "https://metamask.io/download/";
+
 const fieldClass =
-  "mt-2 h-11 w-full rounded-md border border-border bg-surface px-3 text-sm text-foreground outline-none focus:border-[#8b5cf6]";
+  "mt-2 h-11 w-full rounded-xl border border-white/10 bg-[#16141F] px-3 text-sm text-[#F4F1EC] outline-none focus:border-[#A78BFA]";
 
 function shortAddress(value: string) {
   return `${value.slice(0, 6)}…${value.slice(-4)}`;
@@ -48,6 +52,30 @@ function cooldownCaption(seconds: bigint) {
   return `${total} segundos entre ejecuciones`;
 }
 
+function formatPol(value: bigint) {
+  const amount = Number(formatUnits(value, 18));
+  return `${new Intl.NumberFormat("es-MX", { maximumFractionDigits: 4 }).format(amount)} POL`;
+}
+
+const desk = [
+  {
+    title: "Oráculo",
+    text: "Chainlink ETH/USD en Amoy. El agente no opera con un precio en cero o vencido.",
+  },
+  {
+    title: "Agente",
+    text: "El contrato custodia el USDC y deja cada ejecución en el evento StrategyExecuted.",
+  },
+  {
+    title: "Keeper",
+    text: "Una tarea propia llama executeStrategy cuando el checker de la cadena lo permite.",
+  },
+  {
+    title: "Custodia",
+    text: "Depositar y retirar exige la billetera owner. Cada persona conecta la suya.",
+  },
+] as const;
+
 export function AutonomousProtocol() {
   const {
     address,
@@ -70,6 +98,15 @@ export function AutonomousProtocol() {
     thinking,
     deposit,
     withdraw,
+    walletPhase,
+    account,
+    walletUsdc,
+    walletPol,
+    connecting,
+    onAmoy,
+    isOwner,
+    connectWallet,
+    disconnectWallet,
   } = useLyraAgent();
 
   if (!address) {
@@ -84,152 +121,278 @@ export function AutonomousProtocol() {
   const remaining = status && status.blockTimestamp < readyAt ? readyAt - status.blockTimestamp : BigInt(0);
   const localRpc = /localhost|127\.0\.0\.1/.test(rpcUrl);
   const ethUsd = status?.ethPrice != null ? formatEthUsd(status.ethPrice, status.feedDecimals) : null;
+  const contractHref = `${AMOY_EXPLORER_URL}/address/${address}`;
 
   return (
-    <div className="space-y-6">
-      <section className="flex flex-col items-center rounded-2xl border border-[#DDD6FE] bg-surface px-6 py-8 text-center dark:border-white/12">
-        <VegaMark className="size-36" mood={vegaMood} thinking={thinking} />
-        <p className="sr-only">{agentFaceLabel(face)}</p>
-        <p className="mt-4 max-w-sm text-sm text-muted" aria-live="polite">
-          {lastLog ?? "Escuchando StrategyExecuted en Polygon Amoy."}
-        </p>
-      </section>
+    <div className="overflow-hidden rounded-[28px] border border-[#2A2438] bg-[#0C0B12] text-[#F4F1EC] shadow-[0_30px_80px_-48px_rgba(124,58,237,0.8)]">
+      <div className="border-b border-white/10 bg-[radial-gradient(circle_at_top_left,rgba(124,58,237,0.28),transparent_42%),linear-gradient(180deg,#14121C,#0C0B12)] px-4 py-5 sm:px-6">
+        <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+          <div className="min-w-0">
+            <p className="text-[11px] font-medium tracking-[0.28em] text-[#A78BFA] uppercase">Protocolo on-chain</p>
+            <h2 className="mt-2 text-2xl font-semibold tracking-tight sm:text-3xl">Lyra Autonomous</h2>
+            <p className="mt-2 max-w-xl text-sm leading-6 text-[#B7B1C8]">
+              Un agente en Polygon Amoy lee Chainlink, espera su cooldown y registra la ejecución en la cadena. Tú conectas tu MetaMask. La llave no sale de tu navegador.
+            </p>
+            <p className="mt-3 inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-3 py-1 text-xs text-[#D6D1E4]">
+              <span className="h-1.5 w-1.5 rounded-full bg-[#34D399]" />
+              Polygon Amoy · chainId {AMOY_CHAIN_ID}
+              {listening ? <span className="text-[#22D3EE]">· en vivo</span> : null}
+            </p>
+          </div>
+          <WalletConnect
+            phase={walletPhase}
+            account={account}
+            connecting={connecting}
+            onAmoy={onAmoy}
+            isOwner={isOwner}
+            onConnect={() => void connectWallet(false)}
+            onSwitch={() => void connectWallet(true)}
+            onDisconnect={disconnectWallet}
+          />
+        </div>
+      </div>
 
-      <section className="grid gap-4 md:grid-cols-3">
-        <article className="rounded-2xl border border-border bg-surface p-6">
-          <p className="text-[11px] font-medium tracking-[0.22em] text-[#5C5854] uppercase dark:text-[#9B96AC]">Red</p>
-          <p className="mt-3 text-lg font-medium text-foreground">Polygon Amoy</p>
-          <p className="mt-1 text-sm text-muted">chainId {AMOY_CHAIN_ID}</p>
-          {ethUsd ? <p className="mt-1 text-sm text-muted">ETH/USD {ethUsd}</p> : null}
-        </article>
-        <article className="rounded-2xl border border-border bg-surface p-6">
-          <p className="text-[11px] font-medium tracking-[0.22em] text-[#5C5854] uppercase dark:text-[#9B96AC]">Saldo USDC</p>
-          <p className="mt-3 text-3xl text-[#8b5cf6] tabular-nums">{status ? formatUsdc(status.balance) : "…"}</p>
-          <p className="mt-1 text-sm text-muted">{status?.canExec ? "El keeper puede ejecutar" : "Esperando cooldown o saldo"}</p>
-        </article>
-        <article className="rounded-2xl border border-border bg-surface p-6">
-          <p className="text-[11px] font-medium tracking-[0.22em] text-[#5C5854] uppercase dark:text-[#9B96AC]">Cooldown</p>
-          <p className="mt-3 text-3xl text-foreground tabular-nums">{status ? formatRemaining(remaining) : "…"}</p>
-          <p className="mt-1 text-sm text-muted">{status ? cooldownCaption(status.cooldown) : "Entre ejecuciones"}</p>
-        </article>
-      </section>
+      <div className="grid gap-px bg-white/10 sm:grid-cols-2 xl:grid-cols-4">
+        <Metric label="Custodia USDC" value={status ? formatUsdc(status.balance) : "…"} hint={status?.canExec ? "El keeper puede ejecutar" : "Esperando saldo o cooldown"} />
+        <Metric label="ETH / USD" value={ethUsd ?? "…"} hint="Chainlink en Amoy" />
+        <Metric label="Siguiente ejecución" value={status ? formatRemaining(remaining) : "…"} hint={status ? cooldownCaption(status.cooldown) : "Entre ejecuciones"} />
+        <Metric label="Trades" value={String(trades.length)} hint={listening ? "Escuchando StrategyExecuted" : "Sincronizando la red"} />
+      </div>
 
-      <section className="rounded-2xl border border-border bg-surface p-6">
-        <h2 className="text-sm tracking-[0.16em] text-foreground">ESTADO</h2>
-        {statusError ? <p className="mt-3 text-sm text-[#e11d48]">{statusError}</p> : null}
-        {status ? (
-          <dl className="mt-4 grid gap-3 text-sm sm:grid-cols-2">
-            <div>
-              <dt className="text-[#8A8680]">Contrato</dt>
-              <dd className="mt-1 font-mono text-foreground">
-                {localRpc ? (
-                  shortAddress(address)
-                ) : (
-                  <a className="text-[#8b5cf6] hover:underline" href={`${AMOY_EXPLORER_URL}/address/${address}`}>
-                    {shortAddress(address)}
-                  </a>
-                )}
-              </dd>
-            </div>
-            <div>
-              <dt className="text-[#8A8680]">Owner</dt>
-              <dd className="mt-1 font-mono text-foreground">{shortAddress(status.owner)}</dd>
-            </div>
-            <div>
-              <dt className="text-[#8A8680]">USDC</dt>
-              <dd className="mt-1 font-mono text-foreground">{shortAddress(status.usdc)}</dd>
-            </div>
-            <div>
-              <dt className="text-[#8A8680]">Última ejecución</dt>
-              <dd className="mt-1 text-foreground">
-                {status.lastExecutionTime === BigInt(0) ? "Aún no corre" : formatTradeTime(status.lastExecutionTime)}
-              </dd>
-            </div>
-          </dl>
-        ) : (
-          <p className="mt-3 text-sm text-muted">Leyendo el protocolo…</p>
-        )}
-      </section>
+      <div className="grid gap-4 p-4 sm:p-6 lg:grid-cols-[minmax(0,0.9fr)_minmax(0,1.1fr)]">
+        <section className="flex flex-col items-center justify-center rounded-2xl border border-white/10 bg-[#14121C] px-6 py-8 text-center">
+          <VegaMark className="size-32" mood={vegaMood} thinking={thinking} />
+          <p className="sr-only">{agentFaceLabel(face)}</p>
+          <p className="mt-4 max-w-sm text-sm leading-6 text-[#D6D1E4]" aria-live="polite">
+            {lastLog ?? "El agente espera la siguiente ventana. Cuando el keeper ejecuta, Vega lo muestra aquí."}
+          </p>
+        </section>
 
-      <section className="grid gap-4 md:grid-cols-2">
+        <section className="rounded-2xl border border-white/10 bg-[#14121C] p-5">
+          <div className="flex items-center justify-between gap-3">
+            <h3 className="text-[11px] font-medium tracking-[0.22em] text-[#A78BFA] uppercase">Tu MetaMask</h3>
+            {isOwner ? <span className="rounded-full bg-[#34D399]/15 px-2 py-1 text-[10px] tracking-[0.14em] text-[#6EE7B7] uppercase">Custodia</span> : null}
+          </div>
+          {account ? (
+            <div className="mt-4 space-y-3">
+              <p className="font-mono text-lg text-[#F4F1EC]">{shortAddress(account)}</p>
+              <p className="text-sm text-[#B7B1C8]">{onAmoy ? "Red lista: Polygon Amoy." : "Esta cuenta está en otra red. Conectar de nuevo te pide Amoy."}</p>
+              <div className="grid grid-cols-2 gap-2">
+                <div className="rounded-xl bg-white/5 px-3 py-2">
+                  <p className="text-[10px] tracking-[0.16em] text-[#8E879E] uppercase">USDC</p>
+                  <p className="mt-1 text-sm tabular-nums">{walletUsdc != null ? formatUsdc(walletUsdc) : "…"}</p>
+                </div>
+                <div className="rounded-xl bg-white/5 px-3 py-2">
+                  <p className="text-[10px] tracking-[0.16em] text-[#8E879E] uppercase">Gas</p>
+                  <p className="mt-1 text-sm tabular-nums">{walletPol != null ? formatPol(walletPol) : "…"}</p>
+                </div>
+              </div>
+              <p className="text-sm leading-6 text-[#B7B1C8]">
+                {isOwner
+                  ? "Esta cuenta es la custodia. Desde aquí apruebas USDC y lo mueves al agente."
+                  : status
+                    ? `Esta cuenta observa el protocolo. La custodia es ${shortAddress(status.owner)}.`
+                    : "Esta cuenta observa el protocolo."}
+              </p>
+            </div>
+          ) : (
+            <p className="mt-4 text-sm leading-6 text-[#B7B1C8]">
+              {walletPhase === "checking"
+                ? "Buscando MetaMask en este navegador…"
+                : walletPhase === "absent"
+                  ? "MetaMask no respondió. Instálala, ábrela y pulsa Reintentar. La conexión usa la extensión, no un inicio de sesión de LYRA."
+                  : "MetaMask está en el navegador. Conéctala para ver tu dirección, tu USDC y la red Amoy."}
+            </p>
+          )}
+          {formError ? <p className="mt-3 text-sm text-[#FB7185]">{formError}</p> : null}
+          {formMessage ? <p className="mt-3 text-sm text-[#C4B5FD]">{formMessage}</p> : null}
+        </section>
+      </div>
+
+      <section className="grid gap-4 px-4 pb-2 sm:px-6 md:grid-cols-2">
         <form
-          className="rounded-2xl border border-border bg-surface p-6"
+          className="rounded-2xl border border-white/10 bg-[#14121C] p-5"
           onSubmit={(event) => {
             event.preventDefault();
+            if (!account) {
+              void connectWallet(false);
+              return;
+            }
             void deposit();
           }}
         >
-          <h2 className="text-sm tracking-[0.16em] text-foreground">DEPÓSITO</h2>
-          <p className="mt-2 text-sm text-muted">Solo el owner. Aprueba USDC y lo mueve al agente.</p>
-          <label className="mt-4 block text-sm text-foreground">
+          <h3 className="text-[11px] font-medium tracking-[0.22em] text-[#A78BFA] uppercase">Depósito</h3>
+          <p className="mt-2 text-sm leading-6 text-[#B7B1C8]">La custodia aprueba el USDC del contrato y lo deja en el agente.</p>
+          <label className="mt-4 block text-sm">
             Cantidad USDC
-            <input
-              inputMode="decimal"
-              value={depositAmount}
-              onChange={(event) => setDepositAmount(event.target.value)}
-              className={fieldClass}
-              placeholder="1000"
-            />
+            <input inputMode="decimal" value={depositAmount} onChange={(event) => setDepositAmount(event.target.value)} className={fieldClass} placeholder="1000" />
           </label>
-          <Button type="submit" className="mt-4" disabled={busy !== null || !status}>
-            {busy === "deposit" ? "Depositando…" : "Depositar"}
+          <Button type="submit" className="mt-4" disabled={busy !== null || !status || connecting}>
+            {busy === "deposit" ? "Depositando…" : account ? "Depositar" : "Conectar para depositar"}
           </Button>
         </form>
         <form
-          className="rounded-2xl border border-border bg-surface p-6"
+          className="rounded-2xl border border-white/10 bg-[#14121C] p-5"
           onSubmit={(event) => {
             event.preventDefault();
+            if (!account) {
+              void connectWallet(false);
+              return;
+            }
             void withdraw();
           }}
         >
-          <h2 className="text-sm tracking-[0.16em] text-foreground">RETIRO</h2>
-          <p className="mt-2 text-sm text-muted">Solo el owner, y nunca por encima del saldo.</p>
-          <label className="mt-4 block text-sm text-foreground">
+          <h3 className="text-[11px] font-medium tracking-[0.22em] text-[#A78BFA] uppercase">Retiro</h3>
+          <p className="mt-2 text-sm leading-6 text-[#B7B1C8]">Solo la custodia, y nunca por encima del saldo del agente.</p>
+          <label className="mt-4 block text-sm">
             Cantidad USDC
-            <input
-              inputMode="decimal"
-              value={withdrawAmount}
-              onChange={(event) => setWithdrawAmount(event.target.value)}
-              className={fieldClass}
-              placeholder="100"
-            />
+            <input inputMode="decimal" value={withdrawAmount} onChange={(event) => setWithdrawAmount(event.target.value)} className={fieldClass} placeholder="100" />
           </label>
-          <Button type="submit" variant="secondary" className="mt-4" disabled={busy !== null || !status}>
-            {busy === "withdraw" ? "Retirando…" : "Retirar"}
+          <Button type="submit" variant="secondary" className="mt-4" disabled={busy !== null || !status || connecting}>
+            {busy === "withdraw" ? "Retirando…" : account ? "Retirar" : "Conectar para retirar"}
           </Button>
         </form>
       </section>
-      {formMessage ? <p className="text-sm text-[#8b5cf6]">{formMessage}</p> : null}
-      {formError ? <p className="text-sm text-[#e11d48]">{formError}</p> : null}
 
-      <section className="rounded-2xl border border-border bg-surface">
-        <div className="flex items-center justify-between gap-3 border-b border-border px-5 py-4">
-          <h2 className="text-sm tracking-[0.16em] text-foreground">TRADES</h2>
-          {listening ? <p className="text-xs font-medium text-[#22d3ee]">En vivo</p> : null}
+      <section className="px-4 py-4 sm:px-6">
+        <h3 className="text-[11px] font-medium tracking-[0.22em] text-[#8E879E] uppercase">Mesa del protocolo</h3>
+        <div className="mt-3 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+          {desk.map((item) => (
+            <article key={item.title} className="rounded-2xl border border-white/10 bg-[#14121C] p-4">
+              <p className="text-sm font-medium text-[#F4F1EC]">{item.title}</p>
+              <p className="mt-2 text-sm leading-6 text-[#B7B1C8]">{item.text}</p>
+            </article>
+          ))}
         </div>
-        {tradeError && trades.length === 0 ? (
-          <p className="px-5 py-6 text-sm text-muted">No se pudo leer la red. Revisa la dirección y el RPC.</p>
-        ) : trades.length === 0 ? (
-          <p className="px-5 py-6 text-sm text-muted">Todavía no hay trades. Cuando el keeper ejecute la estrategia, aparecen aquí.</p>
+      </section>
+
+      <section className="mx-4 mb-4 rounded-2xl border border-white/10 bg-[#14121C] sm:mx-6 sm:mb-6">
+        <div className="flex flex-wrap items-center justify-between gap-3 border-b border-white/10 px-5 py-4">
+          <h3 className="text-[11px] font-medium tracking-[0.22em] text-[#A78BFA] uppercase">Estado en cadena</h3>
+          {listening ? <p className="text-xs font-medium text-[#22D3EE]">En vivo</p> : null}
+        </div>
+        {statusError ? <p className="px-5 py-4 text-sm text-[#FB7185]">{statusError}</p> : null}
+        {status ? (
+          <dl className="grid gap-4 px-5 py-4 text-sm sm:grid-cols-2">
+            <div>
+              <dt className="text-[#8E879E]">Contrato</dt>
+              <dd className="mt-1 font-mono">
+                {localRpc ? shortAddress(address) : <a className="text-[#C4B5FD] hover:underline" href={contractHref}>{shortAddress(address)}</a>}
+              </dd>
+            </div>
+            <div>
+              <dt className="text-[#8E879E]">Custodia</dt>
+              <dd className="mt-1 font-mono">{shortAddress(status.owner)}</dd>
+            </div>
+            <div>
+              <dt className="text-[#8E879E]">USDC</dt>
+              <dd className="mt-1 font-mono">{shortAddress(status.usdc)}</dd>
+            </div>
+            <div>
+              <dt className="text-[#8E879E]">Última ejecución</dt>
+              <dd className="mt-1">{status.lastExecutionTime === BigInt(0) ? "Aún no corre" : formatTradeTime(status.lastExecutionTime)}</dd>
+            </div>
+          </dl>
         ) : (
-          <ul>
-            {trades.map((trade) => (
-              <li
-                key={trade.id}
-                className="grid gap-2 border-b border-border px-5 py-4 last:border-b-0 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center"
-              >
-                <div>
-                  <p className="text-sm font-medium text-foreground">{trade.action}</p>
-                  <p className="text-xs text-[#8A8680]">{formatTradeTime(trade.timestamp)}</p>
-                </div>
-                <div className="text-left sm:text-right">
-                  <p className="text-sm font-medium tabular-nums text-[#22d3ee]">{formatUsdc(trade.profit)}</p>
-                </div>
-              </li>
-            ))}
-          </ul>
+          <p className="px-5 py-4 text-sm text-[#B7B1C8]">Leyendo el protocolo…</p>
         )}
+        <div className="border-t border-white/10 px-5 py-4">
+          <h3 className="text-[11px] font-medium tracking-[0.22em] text-[#8E879E] uppercase">Trades</h3>
+          {tradeError && trades.length === 0 ? (
+            <p className="mt-3 text-sm text-[#B7B1C8]">No se pudo leer la red. Revisa la dirección y el RPC.</p>
+          ) : trades.length === 0 ? (
+            <p className="mt-3 text-sm text-[#B7B1C8]">Todavía no hay trades. Cuando el keeper ejecute la estrategia, aparecen aquí.</p>
+          ) : (
+            <ul className="mt-2">
+              {trades.map((trade) => (
+                <li key={trade.id} className="grid gap-1 border-b border-white/10 py-3 last:border-b-0 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center">
+                  <div>
+                    <p className="text-sm font-medium">{trade.action}</p>
+                    <p className="text-xs text-[#8E879E]">{formatTradeTime(trade.timestamp)}</p>
+                  </div>
+                  <p className="text-sm font-medium tabular-nums text-[#22D3EE]">{formatUsdc(trade.profit)}</p>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
       </section>
     </div>
+  );
+}
+
+function Metric({ label, value, hint }: { label: string; value: string; hint: string }) {
+  return (
+    <article className="bg-[#100F16] px-4 py-4 sm:px-5">
+      <p className="text-[10px] tracking-[0.18em] text-[#8E879E] uppercase">{label}</p>
+      <p className="mt-2 text-xl font-semibold tabular-nums text-[#F4F1EC] sm:text-2xl">{value}</p>
+      <p className="mt-1 text-xs leading-5 text-[#B7B1C8]">{hint}</p>
+    </article>
+  );
+}
+
+function WalletConnect({
+  phase,
+  account,
+  connecting,
+  onAmoy,
+  isOwner,
+  onConnect,
+  onSwitch,
+  onDisconnect,
+}: {
+  phase: "checking" | "absent" | "available" | "connected";
+  account: string | null;
+  connecting: boolean;
+  onAmoy: boolean;
+  isOwner: boolean;
+  onConnect: () => void;
+  onSwitch: () => void;
+  onDisconnect: () => void;
+}) {
+  if (account) {
+    return (
+      <div className="flex w-full min-w-0 flex-col gap-2 rounded-2xl border border-white/10 bg-black/30 p-3 lg:w-[280px]">
+        <div className="flex items-center justify-between gap-2">
+          <p className="font-mono text-sm">{shortAddress(account)}</p>
+          <span className={`rounded-full px-2 py-0.5 text-[10px] tracking-[0.12em] uppercase ${onAmoy ? "bg-[#34D399]/15 text-[#6EE7B7]" : "bg-[#FBBF24]/15 text-[#FCD34D]"}`}>
+            {onAmoy ? "Amoy" : "Otra red"}
+          </span>
+        </div>
+        <p className="text-xs text-[#B7B1C8]">{isOwner ? "Custodia conectada" : "Billetera conectada"}</p>
+        <div className="grid grid-cols-2 gap-2">
+          <button type="button" onClick={onSwitch} className="rounded-xl border border-white/10 px-2 py-2 text-xs text-[#F4F1EC] hover:border-[#A78BFA]">
+            Cambiar cuenta
+          </button>
+          <button type="button" onClick={onDisconnect} className="rounded-xl border border-white/10 px-2 py-2 text-xs text-[#F4F1EC] hover:border-[#A78BFA]">
+            Desconectar
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  if (phase === "absent") {
+    return (
+      <div className="flex w-full flex-col gap-2 lg:w-[280px]">
+        <a href={METAMASK_INSTALL} target="_blank" rel="noreferrer" className="inline-flex items-center justify-center rounded-xl bg-[#F6851B] px-4 py-3 text-sm font-medium text-[#1A1208]">
+          Instalar MetaMask
+        </a>
+        <button type="button" onClick={onConnect} disabled={connecting} className="rounded-xl border border-white/15 px-4 py-3 text-sm text-[#F4F1EC] disabled:opacity-60">
+          {connecting ? "Buscando…" : "Reintentar"}
+        </button>
+      </div>
+    );
+  }
+
+  return (
+    <button
+      type="button"
+      onClick={onConnect}
+      disabled={connecting || phase === "checking"}
+      className="inline-flex w-full items-center justify-center rounded-xl bg-[#F6851B] px-4 py-3 text-sm font-medium text-[#1A1208] disabled:opacity-60 lg:w-auto"
+    >
+      {phase === "checking" ? "Buscando MetaMask…" : connecting ? "Abriendo MetaMask…" : "Conectar MetaMask"}
+    </button>
   );
 }

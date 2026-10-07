@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { createWalletClient, custom, erc20Abi, parseUnits, type Address, type EIP1193Provider } from "viem";
+import { createWalletClient, custom, erc20Abi, isAddress, parseUnits, type Address, type EIP1193Provider } from "viem";
 
 import { lyraPublicClient } from "@/lib/wagmi";
 import { agentFace, vegaMoodFor, vegaThinking } from "@/lib/protocol/agent-face";
@@ -12,6 +12,7 @@ import {
   lyraAutonomousAgentAddress,
   lyraRpcUrl,
 } from "@/lib/protocol/autonomous-agent";
+import { pickMetaMask, readInjectedEthereum, walletErrorMessage, type WalletAnnouncement } from "@/lib/protocol/metamask";
 import { tradeExecutedMessage } from "@/lib/protocol/trade-event";
 
 export type TradeRow = {
@@ -53,10 +54,17 @@ function toRow(log: {
   };
 }
 
-function injectedProvider(): EIP1193Provider | null {
-  if (typeof window === "undefined") return null;
-  const ethereum = (window as Window & { ethereum?: EIP1193Provider }).ethereum;
-  return ethereum ?? null;
+export type WalletPhase = "checking" | "absent" | "available" | "connected";
+
+function asAddress(value: unknown): Address | null {
+  return typeof value === "string" && isAddress(value) ? value : null;
+}
+
+async function readChainId(provider: EIP1193Provider) {
+  const hex = await provider.request({ method: "eth_chainId" });
+  if (typeof hex !== "string") return null;
+  const parsed = Number.parseInt(hex, 16);
+  return Number.isFinite(parsed) ? parsed : null;
 }
 
 function parseUsdcInput(raw: string) {
@@ -84,7 +92,123 @@ export function useLyraAgent() {
   const [formError, setFormError] = useState<string | null>(null);
   const [happy, setHappy] = useState(false);
   const [lastLog, setLastLog] = useState<string | null>(null);
+  const [walletPhase, setWalletPhase] = useState<WalletPhase>("checking");
+  const [account, setAccount] = useState<Address | null>(null);
+  const [chainId, setChainId] = useState<number | null>(null);
+  const [walletUsdc, setWalletUsdc] = useState<bigint | null>(null);
+  const [walletPol, setWalletPol] = useState<bigint | null>(null);
+  const [connecting, setConnecting] = useState(false);
   const knownTradeIds = useRef(new Set<string>());
+  const providerRef = useRef<EIP1193Provider | null>(null);
+  const announcedRef = useRef<WalletAnnouncement[]>([]);
+  const pausedRef = useRef(false);
+
+  const adoptProvider = useCallback((next: EIP1193Provider | null) => {
+    if (!next) return;
+    providerRef.current = next;
+    setWalletPhase((current) => (current === "connected" ? "connected" : "available"));
+  }, []);
+
+  const syncWallet = useCallback(async (provider: EIP1193Provider, nextAccount: Address | null) => {
+    const nextChain = await readChainId(provider).catch(() => null);
+    setChainId(nextChain);
+    setAccount(nextAccount);
+    setWalletPhase(nextAccount ? "connected" : "available");
+  }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+    announcedRef.current = [];
+
+    function consider() {
+      const picked = pickMetaMask(announcedRef.current, readInjectedEthereum());
+      if (!cancelled) adoptProvider(picked);
+    }
+
+    function onAnnounce(event: Event) {
+      const detail = (event as CustomEvent<{ info?: { name?: string; rdns?: string }; provider?: EIP1193Provider }>).detail;
+      if (!detail?.provider) return;
+      announcedRef.current = [
+        ...announcedRef.current.filter((item) => item.rdns !== (detail.info?.rdns ?? "")),
+        { name: detail.info?.name ?? "Wallet", rdns: detail.info?.rdns ?? "", provider: detail.provider },
+      ];
+      consider();
+    }
+
+    window.addEventListener("eip6963:announceProvider", onAnnounce);
+    window.addEventListener("ethereum#initialized", consider);
+    window.dispatchEvent(new Event("eip6963:requestProvider"));
+    consider();
+
+    const timer = window.setTimeout(() => {
+      if (cancelled) return;
+      consider();
+      if (!providerRef.current) setWalletPhase((current) => (current === "connected" ? current : "absent"));
+    }, 1200);
+
+    return () => {
+      cancelled = true;
+      window.clearTimeout(timer);
+      window.removeEventListener("eip6963:announceProvider", onAnnounce);
+      window.removeEventListener("ethereum#initialized", consider);
+    };
+  }, [adoptProvider]);
+
+  useEffect(() => {
+    const provider = providerRef.current;
+    if (!provider || walletPhase === "absent" || walletPhase === "checking") return;
+    let unsubscribe = () => {};
+    const onAccounts = (accounts: Address[]) => {
+      const next = accounts[0] ?? null;
+      void syncWallet(provider, next);
+    };
+    const onChain = (hex: string) => {
+      const parsed = Number.parseInt(hex, 16);
+      if (Number.isFinite(parsed)) setChainId(parsed);
+    };
+    provider.on("accountsChanged", onAccounts);
+    provider.on("chainChanged", onChain);
+    unsubscribe = () => {
+      provider.removeListener("accountsChanged", onAccounts);
+      provider.removeListener("chainChanged", onChain);
+    };
+    void provider.request({ method: "eth_accounts" }).then((accounts) => {
+      if (pausedRef.current) return;
+      const list = Array.isArray(accounts) ? accounts : [];
+      const next = asAddress(list[0]);
+      if (next) void syncWallet(provider, next);
+    }).catch(() => undefined);
+    return unsubscribe;
+  }, [syncWallet, walletPhase]);
+
+  useEffect(() => {
+    if (!account || !status) {
+      setWalletUsdc(null);
+      setWalletPol(null);
+      return;
+    }
+    let cancelled = false;
+    void (async () => {
+      try {
+        const [usdcBalance, polBalance] = await Promise.all([
+          client.readContract({ address: status.usdc, abi: erc20Abi, functionName: "balanceOf", args: [account] }),
+          client.getBalance({ address: account }),
+        ]);
+        if (!cancelled) {
+          setWalletUsdc(usdcBalance);
+          setWalletPol(polBalance);
+        }
+      } catch {
+        if (!cancelled) {
+          setWalletUsdc(null);
+          setWalletPol(null);
+        }
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [account, client, status]);
 
   const refreshStatus = useCallback(async () => {
     if (!address) return;
@@ -232,25 +356,71 @@ export function useLyraAgent() {
     }
   }
 
-  async function withOwnerWallet(kind: "deposit" | "withdraw", run: (account: Address) => Promise<void>) {
+  function currentProvider() {
+    return providerRef.current ?? pickMetaMask(announcedRef.current, readInjectedEthereum());
+  }
+
+  async function connectWallet(forcePicker = false) {
+    setConnecting(true);
+    setFormError(null);
+    try {
+      const provider = currentProvider();
+      if (!provider) {
+        setWalletPhase("absent");
+        throw new Error("MetaMask no responde en este navegador. Instálala y pulsa Reintentar.");
+      }
+      adoptProvider(provider);
+      pausedRef.current = false;
+      if (forcePicker) {
+        await provider.request({
+          method: "wallet_requestPermissions",
+          params: [{ eth_accounts: {} }],
+        });
+      }
+      await ensureAmoy(provider);
+      const accounts = await provider.request({ method: "eth_requestAccounts" });
+      const list = Array.isArray(accounts) ? accounts : [];
+      const next = asAddress(list[0]);
+      if (!next) throw new Error("MetaMask no devolvió una cuenta.");
+      await syncWallet(provider, next);
+    } catch (error) {
+      setFormError(walletErrorMessage(error));
+    } finally {
+      setConnecting(false);
+    }
+  }
+
+  function disconnectWallet() {
+    pausedRef.current = true;
+    setAccount(null);
+    setChainId(null);
+    setWalletUsdc(null);
+    setWalletPol(null);
+    setWalletPhase(providerRef.current ? "available" : "absent");
+  }
+
+  async function withOwnerWallet(kind: "deposit" | "withdraw", run: (ownerAccount: Address) => Promise<void>) {
     setBusy(kind);
     setFormError(null);
     setFormMessage(null);
     try {
-      const provider = injectedProvider();
-      if (!provider) throw new Error("No hay billetera en este navegador.");
+      const provider = currentProvider();
+      if (!provider) throw new Error("MetaMask no responde en este navegador. Instálala y pulsa Reintentar.");
       if (!status) throw new Error("El protocolo todavía no responde.");
+      adoptProvider(provider);
       await ensureAmoy(provider);
-      const wallet = createWalletClient({ chain: client.chain, transport: custom(provider) });
-      const [account] = await wallet.requestAddresses();
-      if (!account) throw new Error("La billetera no devolvió una cuenta.");
-      if (account.toLowerCase() !== status.owner.toLowerCase()) {
-        throw new Error("Solo el owner puede depositar o retirar.");
+      const accounts = await provider.request({ method: "eth_requestAccounts" });
+      const list = Array.isArray(accounts) ? accounts : [];
+      const ownerAccount = asAddress(list[0]);
+      if (!ownerAccount) throw new Error("MetaMask no devolvió una cuenta.");
+      await syncWallet(provider, ownerAccount);
+      if (ownerAccount.toLowerCase() !== status.owner.toLowerCase()) {
+        throw new Error("Esta MetaMask no es la custodia del protocolo.");
       }
-      await run(account);
+      await run(ownerAccount);
       await refreshStatus();
     } catch (error) {
-      setFormError(error instanceof Error ? error.message : "La operación no se completó.");
+      setFormError(walletErrorMessage(error));
     } finally {
       setBusy(null);
     }
@@ -262,8 +432,8 @@ export function useLyraAgent() {
     const usdc = status.usdc;
     await withOwnerWallet("deposit", async (account) => {
       const amount = parseUsdcInput(depositAmount);
-      const provider = injectedProvider();
-      if (!provider) throw new Error("No hay billetera en este navegador.");
+      const provider = currentProvider();
+      if (!provider) throw new Error("MetaMask no responde en este navegador. Instálala y pulsa Reintentar.");
       const wallet = createWalletClient({ account, chain: client.chain, transport: custom(provider) });
       const allowance = await client.readContract({
         address: usdc,
@@ -297,8 +467,8 @@ export function useLyraAgent() {
     const agent = address;
     await withOwnerWallet("withdraw", async (account) => {
       const amount = parseUsdcInput(withdrawAmount);
-      const provider = injectedProvider();
-      if (!provider) throw new Error("No hay billetera en este navegador.");
+      const provider = currentProvider();
+      if (!provider) throw new Error("MetaMask no responde en este navegador. Instálala y pulsa Reintentar.");
       const wallet = createWalletClient({ account, chain: client.chain, transport: custom(provider) });
       const hash = await wallet.writeContract({
         address: agent,
@@ -341,5 +511,15 @@ export function useLyraAgent() {
     thinking: vegaThinking(face),
     deposit,
     withdraw,
+    walletPhase,
+    account,
+    chainId,
+    walletUsdc,
+    walletPol,
+    connecting,
+    onAmoy: chainId === AMOY_CHAIN_ID,
+    isOwner: Boolean(account && status && account.toLowerCase() === status.owner.toLowerCase()),
+    connectWallet,
+    disconnectWallet,
   };
 }
