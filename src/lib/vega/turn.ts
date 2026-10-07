@@ -8,6 +8,7 @@ import { chargeCredits, creditPrices, currentCredits, refundCharge } from "@/lib
 import { getPrisma } from "@/lib/prisma";
 import type { AuthProfile } from "@/lib/types";
 import { appStatusLabel } from "@/lib/vega/app-tools";
+import { attachmentMeta, excerptsFromMeta, inlineParts, type ReadyAttachment } from "@/lib/vega/attachments";
 import { noConnections } from "@/lib/vega/apps";
 import { actionView } from "@/lib/vega/decide";
 import type { VegaEvent, VegaMood } from "@/lib/vega/events";
@@ -34,13 +35,16 @@ const moodNames: Record<string, VegaMood> = {
   neutral: "neutral",
 };
 
-function history(rows: { role: string; content: string }[]): GeminiContent[] {
+function history(rows: { role: string; content: string; meta?: unknown }[]): GeminiContent[] {
   const merged: GeminiContent[] = [];
   for (const row of rows) {
     const role = row.role === "user" ? "user" : "model";
+    const notes = role === "user" ? excerptsFromMeta(row.meta) : "";
+    const text = [row.content.trim(), notes].filter(Boolean).join("\n\n") || "(mensaje vacío)";
     const last = merged[merged.length - 1];
-    if (last && last.role === role) last.parts[0].text = `${last.parts[0].text}\n\n${row.content}`;
-    else merged.push({ role, parts: [{ text: row.content }] });
+    if (last && last.role === role && last.parts.length === 1 && last.parts[0].text) {
+      last.parts[0].text = `${last.parts[0].text}\n\n${text}`;
+    } else merged.push({ role, parts: [{ text }] });
   }
   while (merged[0]?.role === "model") merged.shift();
   return merged;
@@ -91,7 +95,14 @@ type Prepared = { ok: true; turn: VegaTurn } | { ok: false; status: number; erro
 /** Cobra el mensaje, lo guarda y abre la primera respuesta de Gemini. */
 export async function prepareVegaTurn(
   user: Pick<AuthProfile, "id" | "name" | "package">,
-  input: { conversationId: string | null; message: string; requestId: string; title?: string; channelNote?: string },
+  input: {
+    conversationId: string | null;
+    message: string;
+    requestId: string;
+    title?: string;
+    channelNote?: string;
+    attachments?: ReadyAttachment[];
+  },
 ): Promise<Prepared> {
   const prisma = getPrisma();
   let conversation = input.conversationId
@@ -104,20 +115,33 @@ export async function prepareVegaTurn(
   if (!charge.ok) return { ok: false, status: 402, error: charge.error, credits: charge.balance };
   if (charge.duplicate) return { ok: false, status: 409, error: "Ese mensaje ya se envió.", credits: charge.balance };
 
+  const attachments = input.attachments ?? [];
+  const titleSource = input.message || attachments[0]?.name || "Archivos";
   conversation ??= await prisma.vegaConversation.create({
-    data: { userId: user.id, title: input.title ?? conversationTitle(input.message) },
+    data: { userId: user.id, title: input.title ?? conversationTitle(titleSource) },
     select: { id: true },
   });
   const chatId = conversation.id;
-  await prisma.vegaMessage.create({ data: { conversationId: chatId, role: "user", content: input.message } });
+  const meta = attachmentMeta(attachments);
+  await prisma.vegaMessage.create({
+    data: {
+      conversationId: chatId,
+      role: "user",
+      content: input.message,
+      ...(meta ? { meta } : {}),
+    },
+  });
 
   const rows = await prisma.vegaMessage.findMany({
     where: { conversationId: chatId },
     orderBy: { createdAt: "desc" },
     take: HISTORY,
-    select: { role: true, content: true },
+    select: { role: true, content: true, meta: true },
   });
   const contents = history(rows.reverse());
+  const inline = inlineParts(attachments);
+  const latest = contents[contents.length - 1];
+  if (inline.length > 0 && latest?.role === "user") latest.parts.push(...inline);
 
   const connections = composioConfigured() ? await userConnections(user.id).catch(() => noConnections) : noConnections;
   const webSearch = Boolean(process.env.EXA_API_KEY);

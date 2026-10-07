@@ -6,9 +6,12 @@ import {
   CalendarClock,
   ChevronLeft,
   EllipsisVertical,
+  FileText,
   Globe,
+  Link2,
   MessageSquarePlus,
   MessagesSquare,
+  Paperclip,
   Pencil,
   Plug,
   ShieldCheck,
@@ -27,11 +30,13 @@ import {
   myCredits,
   openVegaChat,
   renameVegaChat,
+  type VegaAttachmentChip,
   type VegaChatMessage,
   type VegaChatSummary,
 } from "@/app/dashboard/super-agent/actions";
 import { useCredits } from "@/components/dashboard/credit-provider";
 import { ActionCard } from "@/components/vega/action-card";
+import { CreditRing } from "@/components/vega/credit-ring";
 import { ConnectionsPanel } from "@/components/vega/connections-panel";
 import { AutonomyPanel } from "@/components/vega/autonomy-panel";
 import { MemoryPanel } from "@/components/vega/memory-panel";
@@ -39,11 +44,58 @@ import { ProfilePanel } from "@/components/vega/profile-panel";
 import { TasksPanel } from "@/components/vega/tasks-panel";
 import { VegaGreeting, VegaMark } from "@/components/vega/vega-mark";
 import { RichText } from "@/components/vega/rich-text";
+import { attachmentAccept, attachmentLimits } from "@/lib/vega/attachment-limits";
 import { isUserToolkit, toolkitLabels } from "@/lib/vega/apps";
 import type { VegaActionView, VegaEvent, VegaMood } from "@/lib/vega/events";
 import { cn } from "@/lib/utils";
 
 type ChatItem = VegaChatMessage & { status?: string };
+type DraftFile = { id: string; name: string; mime: string; text?: string; data?: string };
+type DraftLink = { id: string; url: string };
+
+const textFile = /^(text\/|application\/json)/;
+
+function fileToPayload(file: File) {
+  const name = file.name || "archivo";
+  const mime = file.type || "application/octet-stream";
+  const asText = textFile.test(mime) || /\.(txt|md|csv|json|html?)$/i.test(name);
+  if (asText) {
+    return file.text().then((text) => ({ name, mime: mime === "application/octet-stream" ? "text/plain" : mime, text }));
+  }
+  if (file.type.startsWith("image/")) return shrinkImage(file);
+  return readBase64(file).then((data) => ({ name, mime, data }));
+}
+
+function readBase64(file: File) {
+  return new Promise<string>((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => {
+      const value = String(reader.result ?? "");
+      const comma = value.indexOf(",");
+      resolve(comma >= 0 ? value.slice(comma + 1) : value);
+    };
+    reader.onerror = () => reject(reader.error);
+    reader.readAsDataURL(file);
+  });
+}
+
+async function shrinkImage(file: File) {
+  const name = file.name.replace(/\.\w+$/, "") + ".jpg";
+  try {
+    const bitmap = await createImageBitmap(file);
+    const scale = Math.min(1, 1600 / Math.max(bitmap.width, bitmap.height));
+    const canvas = document.createElement("canvas");
+    canvas.width = Math.max(1, Math.round(bitmap.width * scale));
+    canvas.height = Math.max(1, Math.round(bitmap.height * scale));
+    canvas.getContext("2d")?.drawImage(bitmap, 0, 0, canvas.width, canvas.height);
+    bitmap.close();
+    const blob = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, "image/jpeg", 0.82));
+    if (!blob) return { name: file.name, mime: file.type || "image/jpeg", data: await readBase64(file) };
+    return { name, mime: "image/jpeg", data: await readBase64(new File([blob], name, { type: "image/jpeg" })) };
+  } catch {
+    return { name: file.name, mime: file.type || "image/jpeg", data: await readBase64(file) };
+  }
+}
 
 const suggestions = [
   "Quiero una app para agendar citas en mi clínica",
@@ -57,11 +109,13 @@ export function VegaChat({
   initialChats,
   justConnected,
   initialMessages = [],
+  creditAllowance = 0,
 }: {
   firstName: string;
   initialChats: VegaChatSummary[];
   justConnected?: string | null;
   initialMessages?: ChatItem[];
+  creditAllowance?: number;
 }) {
   const { balance, syncBalance } = useCredits();
   const [chats, setChats] = useState(initialChats);
@@ -69,6 +123,12 @@ export function VegaChat({
   const [messages, setMessages] = useState<ChatItem[]>(initialMessages);
   const [panel, setPanel] = useState<"connections" | "memory" | "tasks" | "profile" | "autonomy" | null>(justConnected ? "connections" : null);
   const [draft, setDraft] = useState("");
+  const [files, setFiles] = useState<DraftFile[]>([]);
+  const [links, setLinks] = useState<DraftLink[]>([]);
+  const [linkDraft, setLinkDraft] = useState("");
+  const [linkOpen, setLinkOpen] = useState(false);
+  const [dragging, setDragging] = useState(false);
+  const [tank, setTank] = useState(() => Math.max(creditAllowance, balance));
   const [streaming, setStreaming] = useState(false);
   const [mood, setMood] = useState<VegaMood>("neutral");
   const [loadingChat, setLoadingChat] = useState(false);
@@ -77,10 +137,15 @@ export function VegaChat({
   const abortRef = useRef<AbortController | null>(null);
   const endRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
+  const fileRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     endRef.current?.scrollIntoView({ block: "end" });
-  }, [messages]);
+  }, [messages, files, links]);
+
+  useEffect(() => {
+    setTank((current) => Math.max(current, balance, creditAllowance));
+  }, [balance, creditAllowance]);
 
   useEffect(() => {
     if (!justConnected) return;
@@ -145,9 +210,61 @@ export function VegaChat({
     if (result.ok) setChats((current) => current.map((item) => (item.id === chat.id ? { ...item, title: title.trim() } : item)));
   }
 
-  async function send(text = draft) {
+  async function addFiles(list: FileList | File[]) {
+    const incoming = [...list];
+    if (incoming.length === 0) return;
+    const room = attachmentLimits.files - files.length;
+    if (room <= 0) {
+      toast.error(`Puedes adjuntar hasta ${attachmentLimits.files} archivos.`);
+      return;
+    }
+    const accepted = incoming.slice(0, room);
+    if (incoming.length > room) toast.error(`Puedes adjuntar hasta ${attachmentLimits.files} archivos.`);
+    const next: DraftFile[] = [];
+    for (const file of accepted) {
+      if (file.size > attachmentLimits.fileBytes * 4 && !file.type.startsWith("image/")) {
+        toast.error(`«${file.name}» pesa demasiado.`);
+        continue;
+      }
+      try {
+        const payload = await fileToPayload(file);
+        const weight = "text" in payload ? new Blob([payload.text]).size : Math.ceil((payload.data.length * 3) / 4);
+        if (weight > attachmentLimits.fileBytes) {
+          toast.error(`«${file.name}» pesa demasiado. Cada archivo puede medir hasta 1.2 MB.`);
+          continue;
+        }
+        next.push({ id: crypto.randomUUID(), ...payload });
+      } catch {
+        toast.error(`No pude leer «${file.name}».`);
+      }
+    }
+    if (next.length) setFiles((current) => [...current, ...next].slice(0, attachmentLimits.files));
+  }
+
+  function addLink() {
+    const url = linkDraft.trim();
+    let parsed: URL;
+    try {
+      parsed = new URL(url);
+      if (parsed.protocol !== "http:" && parsed.protocol !== "https:") throw new Error("protocolo");
+    } catch {
+      toast.error("Ese enlace no es válido.");
+      return;
+    }
+    if (links.length >= attachmentLimits.links) {
+      toast.error(`Puedes agregar hasta ${attachmentLimits.links} enlaces.`);
+      return;
+    }
+    setLinks((current) => [...current, { id: crypto.randomUUID(), url: parsed.toString() }]);
+    setLinkDraft("");
+    setLinkOpen(false);
+  }
+
+  async function send(text = draft, extras?: { files: DraftFile[]; links: DraftLink[] }) {
     const message = text.trim();
-    if (!message || streaming) return;
+    const pendingFiles = extras?.files ?? files;
+    const pendingLinks = extras?.links ?? links;
+    if ((!message && pendingFiles.length === 0 && pendingLinks.length === 0) || streaming) return;
     if (balance < 1) {
       toast.error("Te quedaste sin créditos", { description: "Recarga en Billetera para seguir hablando con Vega." });
       return;
@@ -155,10 +272,18 @@ export function VegaChat({
 
     const userId = crypto.randomUUID();
     const replyId = crypto.randomUUID();
+    const chips: VegaAttachmentChip[] = [
+      ...pendingFiles.map((file) => ({ kind: "file" as const, name: file.name })),
+      ...pendingLinks.map((link) => ({ kind: "link" as const, name: new URL(link.url).hostname, url: link.url })),
+    ];
     setDraft("");
+    setFiles([]);
+    setLinks([]);
+    setLinkDraft("");
+    setLinkOpen(false);
     setMessages((current) => [
       ...current,
-      { id: userId, role: "user", content: message },
+      { id: userId, role: "user", content: message, ...(chips.length ? { attachments: chips } : {}) },
       { id: replyId, role: "assistant", content: "" },
     ]);
     setStreaming(true);
@@ -175,7 +300,20 @@ export function VegaChat({
       const response = await fetch("/api/vega/chat", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ conversationId: activeId, message, requestId: replyId }),
+        body: JSON.stringify({
+          conversationId: activeId,
+          message,
+          requestId: replyId,
+          attachments: [
+            ...pendingFiles.map((file) => ({
+              kind: "file" as const,
+              name: file.name,
+              mime: file.mime,
+              ...(file.text != null ? { text: file.text } : { data: file.data }),
+            })),
+            ...pendingLinks.map((link) => ({ kind: "link" as const, url: link.url })),
+          ],
+        }),
         signal: controller.signal,
       });
 
@@ -183,16 +321,19 @@ export function VegaChat({
       if (!response.ok || !response.body) {
         const data = (await response.json().catch(() => ({}))) as { error?: string; credits?: number };
         syncBalance(data.credits);
+        setFiles(pendingFiles);
+        setLinks(pendingLinks);
         update({ content: data.error ?? "Vega no pudo responder." });
         toast.error(data.error ?? "Vega no pudo responder.");
         setMood("sad");
         return;
       }
 
+      const label = message || chips[0]?.name || "Archivos";
       if (chatId && chatId !== activeId) {
         setActiveId(chatId);
         setChats((current) => [
-          { id: chatId, title: message.length > 60 ? `${message.slice(0, 57)}…` : message, updatedAt: new Date().toISOString() },
+          { id: chatId, title: label.length > 60 ? `${label.slice(0, 57)}…` : label, updatedAt: new Date().toISOString() },
           ...current.filter((chat) => chat.id !== chatId),
         ]);
       } else if (chatId) {
@@ -248,6 +389,8 @@ export function VegaChat({
     } catch (error) {
       const aborted = error instanceof DOMException && error.name === "AbortError";
       if (!aborted) {
+        setFiles(pendingFiles);
+        setLinks(pendingLinks);
         toast.error("Se cortó la conexión con Vega.");
         setMood("sad");
       }
@@ -352,7 +495,7 @@ export function VegaChat({
           <div className="min-w-0 flex-1">
             <p className="text-[15px] leading-tight font-semibold text-[#1E1E24]">Vega Bot</p>
             <p className={cn("truncate text-xs", streaming ? "text-[#7C3AED]" : "text-[#8A8680]")}>
-              {streaming ? "Escribiendo…" : `En línea · ${balance} créditos`}
+              {streaming ? "Escribiendo…" : "En línea"}
             </p>
           </div>
           <button
@@ -376,8 +519,8 @@ export function VegaChat({
         <header className="hidden items-center gap-3 border-b border-[#F0ECE6] px-4 py-3 md:flex">
           <div className="min-w-0 flex-1">
             <p className="text-sm font-semibold text-[#1E1E24]">Vega Bot</p>
-            <p className="text-xs text-[#8A8680]">1 crédito por mensaje · 3 si crea una pieza, busca en la web o usa tus apps</p>
           </div>
+          <CreditRing balance={balance} tank={tank} />
           {panelButtons.map(({ id, label, icon: Icon }) => (
             <button
               key={id}
@@ -424,9 +567,6 @@ export function VegaChat({
                 </span>
               </button>
             ))}
-            <p className="px-3 pt-2 text-center text-[11px] text-[#A8A29E]">
-              1 crédito por mensaje · 3 si crea una pieza, busca en la web o usa tus apps
-            </p>
           </div>
         ) : null}
 
@@ -448,7 +588,7 @@ export function VegaChat({
                   <button
                     key={suggestion}
                     type="button"
-                    onClick={() => void send(suggestion)}
+                    onClick={() => void send(suggestion, { files: [], links: [] })}
                     className="rounded-2xl border border-[#E7E2DA] bg-[#FCFBF9] px-4 py-3 text-left text-sm text-[#1E1E24] transition-colors hover:border-[#C4B5FD] hover:bg-[#FAF8FF] active:bg-[#F5F3FF] sm:bg-white dark:border-white/12 dark:bg-[#181625] dark:text-[#F2F0F7] dark:hover:border-[#A78BFA]/50 dark:hover:bg-[#221F30] dark:active:bg-[#221F30] dark:sm:bg-[#181625]"
                   >
                     {suggestion}
@@ -461,9 +601,19 @@ export function VegaChat({
             {messages.map((message, index) =>
               message.role === "user" ? (
                 <div key={message.id} className="flex justify-end">
-                  <p className="max-w-[85%] rounded-2xl rounded-br-md bg-[#1E1E24] px-4 py-2.5 text-sm whitespace-pre-wrap text-white">
-                    {message.content}
-                  </p>
+                  <div className="max-w-[85%] rounded-2xl rounded-br-md bg-[#1E1E24] px-4 py-2.5 text-sm text-white">
+                    {message.attachments?.length ? (
+                      <ul className={cn("flex flex-wrap gap-1.5", message.content ? "mb-2" : "")}>
+                        {message.attachments.map((item) => (
+                          <li key={`${item.kind}-${item.name}-${item.url ?? ""}`} className="inline-flex max-w-full items-center gap-1 rounded-full bg-white/10 px-2 py-0.5 text-[11px]">
+                            {item.kind === "link" ? <Link2 className="size-3 shrink-0" /> : <FileText className="size-3 shrink-0" />}
+                            <span className="truncate">{item.name}</span>
+                          </li>
+                        ))}
+                      </ul>
+                    ) : null}
+                    {message.content ? <p className="whitespace-pre-wrap">{message.content}</p> : null}
+                  </div>
                 </div>
               ) : (
                 <div key={message.id} className="flex gap-3">
@@ -501,7 +651,7 @@ export function VegaChat({
                         key={action.id}
                         action={action}
                         onChange={(next, result) => actionChanged(message.id, next, result)}
-                        onSuggest={(text) => void send(text)}
+                        onSuggest={(text) => void send(text, { files: [], links: [] })}
                       />
                     ))}
                     {message.sources?.length ? (
@@ -536,12 +686,105 @@ export function VegaChat({
             event.preventDefault();
             void send();
           }}
+          onDragOver={(event) => {
+            event.preventDefault();
+            setDragging(true);
+          }}
+          onDragLeave={() => setDragging(false)}
+          onDrop={(event) => {
+            event.preventDefault();
+            setDragging(false);
+            if (event.dataTransfer.files.length) void addFiles(event.dataTransfer.files);
+          }}
         >
-          <div className="mx-auto flex max-w-3xl items-end gap-2 rounded-3xl border border-[#E7E2DA] bg-[#FCFBF9] p-1.5 focus-within:border-[#7C3AED] sm:rounded-2xl sm:bg-white sm:p-2 dark:border-white/12 dark:bg-[#181625] dark:focus-within:border-[#A78BFA] dark:sm:bg-[#181625]">
+          <div
+            className={cn(
+              "mx-auto max-w-3xl rounded-3xl border bg-[#FCFBF9] p-1.5 focus-within:border-[#7C3AED] sm:rounded-2xl sm:bg-white sm:p-2 dark:bg-[#181625] dark:focus-within:border-[#A78BFA] dark:sm:bg-[#181625]",
+              dragging ? "border-[#7C3AED] bg-[#F5F3FF]" : "border-[#E7E2DA] dark:border-white/12",
+            )}
+          >
+            {files.length || links.length ? (
+              <ul className="flex flex-wrap gap-1.5 px-2 pt-1 pb-1">
+                {files.map((file) => (
+                  <li key={file.id} className="inline-flex max-w-full items-center gap-1 rounded-full border border-[#E7E2DA] bg-white px-2 py-1 text-[11px] text-[#1E1E24] dark:border-white/12 dark:bg-[#221F30] dark:text-[#F2F0F7]">
+                    <FileText className="size-3 shrink-0 text-[#7C3AED]" />
+                    <span className="max-w-[180px] truncate">{file.name}</span>
+                    <button type="button" className="text-[#8A8680] hover:text-[#1E1E24]" aria-label={`Quitar ${file.name}`} onClick={() => setFiles((current) => current.filter((item) => item.id !== file.id))}>
+                      <X className="size-3" />
+                    </button>
+                  </li>
+                ))}
+                {links.map((link) => (
+                  <li key={link.id} className="inline-flex max-w-full items-center gap-1 rounded-full border border-[#E7E2DA] bg-white px-2 py-1 text-[11px] text-[#1E1E24] dark:border-white/12 dark:bg-[#221F30] dark:text-[#F2F0F7]">
+                    <Link2 className="size-3 shrink-0 text-[#7C3AED]" />
+                    <span className="max-w-[180px] truncate">{new URL(link.url).hostname}</span>
+                    <button type="button" className="text-[#8A8680] hover:text-[#1E1E24]" aria-label={`Quitar ${link.url}`} onClick={() => setLinks((current) => current.filter((item) => item.id !== link.id))}>
+                      <X className="size-3" />
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            ) : null}
+            {linkOpen ? (
+              <div className="flex items-center gap-2 px-2 pt-1">
+                <input
+                  value={linkDraft}
+                  onChange={(event) => setLinkDraft(event.target.value)}
+                  onKeyDown={(event) => {
+                    if (event.key === "Enter") {
+                      event.preventDefault();
+                      addLink();
+                    }
+                  }}
+                  placeholder="https://…"
+                  inputMode="url"
+                  aria-label="Enlace para analizar"
+                  className="h-9 min-w-0 flex-1 rounded-xl border border-[#E7E2DA] bg-white px-3 text-sm text-[#1E1E24] outline-none focus:border-[#7C3AED] dark:border-white/12 dark:bg-[#14121C] dark:text-[#F2F0F7]"
+                />
+                <button type="button" onClick={addLink} className="rounded-xl bg-[#EDE9FE] px-3 py-2 text-xs font-medium text-[#5B21B6]">
+                  Agregar
+                </button>
+              </div>
+            ) : null}
+            <div className="flex items-end gap-1">
+            <input
+              ref={fileRef}
+              type="file"
+              multiple
+              accept={attachmentAccept}
+              className="hidden"
+              onChange={(event) => {
+                if (event.target.files) void addFiles(event.target.files);
+                event.target.value = "";
+              }}
+            />
+            <button
+              type="button"
+              onClick={() => fileRef.current?.click()}
+              className="grid size-10 shrink-0 place-items-center rounded-full text-[#5C5854] hover:bg-[#F3F0EB] hover:text-[#1E1E24] dark:hover:bg-[#221F30]"
+              aria-label="Adjuntar archivos"
+            >
+              <Paperclip className="size-4" />
+            </button>
+            <button
+              type="button"
+              onClick={() => setLinkOpen((open) => !open)}
+              className="grid size-10 shrink-0 place-items-center rounded-full text-[#5C5854] hover:bg-[#F3F0EB] hover:text-[#1E1E24] dark:hover:bg-[#221F30]"
+              aria-label="Agregar enlace"
+            >
+              <Link2 className="size-4" />
+            </button>
             <textarea
               ref={inputRef}
               value={draft}
               onChange={(event) => setDraft(event.target.value)}
+              onPaste={(event) => {
+                const pasted = event.clipboardData.files;
+                if (pasted.length) {
+                  event.preventDefault();
+                  void addFiles(pasted);
+                }
+              }}
               onKeyDown={(event) => {
                 if (event.key === "Enter" && !event.shiftKey && !event.nativeEvent.isComposing) {
                   event.preventDefault();
@@ -551,9 +794,10 @@ export function VegaChat({
               rows={1}
               maxLength={4000}
               enterKeyHint="send"
-              placeholder="Escríbele a Vega Bot…"
-              className="max-h-32 min-h-10 flex-1 resize-none bg-transparent px-3 py-2 text-base text-[#1E1E24] outline-none placeholder:text-[#A8A29E] field-sizing-content sm:max-h-40 sm:px-2 sm:text-sm"
+              placeholder="Escríbele a Vega, adjunta archivos o un enlace…"
+              className="max-h-32 min-h-10 flex-1 resize-none bg-transparent px-1 py-2 text-base text-[#1E1E24] outline-none placeholder:text-[#A8A29E] field-sizing-content sm:max-h-40 sm:text-sm"
             />
+            <CreditRing balance={balance} tank={tank} size={26} className="mb-2 md:hidden" />
             {streaming ? (
               <button
                 type="button"
@@ -566,13 +810,14 @@ export function VegaChat({
             ) : (
               <button
                 type="submit"
-                disabled={!draft.trim()}
+                disabled={!draft.trim() && files.length === 0 && links.length === 0}
                 className="grid size-10 shrink-0 place-items-center rounded-full bg-[#7C3AED] text-white disabled:opacity-40 sm:rounded-xl"
                 aria-label="Enviar"
               >
                 <ArrowUp className="size-5 sm:size-4" />
               </button>
             )}
+            </div>
           </div>
           <p className="mx-auto mt-2 hidden max-w-3xl text-center text-[11px] text-[#A8A29E] sm:block">
             Vega Bot puede equivocarse. Revisa los datos importantes antes de enviarlos.

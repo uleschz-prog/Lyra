@@ -37,9 +37,10 @@ export default async function PreviewVega({ searchParams }: { searchParams: Prom
   const now = new Date().toISOString();
   const project = clinic.ok ? clinic.project : null;
   return (
-    <CreditProvider initialBalance={340} initialTransactions={[]} totalEarnedCommissions={0}>
+    <CreditProvider initialBalance={220} initialTransactions={[]} totalEarnedCommissions={0}>
       <div className="min-h-screen bg-[#F6F4F1] p-6">
         <VegaChat
+          creditAllowance={300}
           firstName="Ana"
           initialChats={[
             { id: "c1", title: "App de citas para la clínica", updatedAt: now },

@@ -9,6 +9,7 @@ import { currentCredits } from "@/lib/credits";
 import { getPrisma } from "@/lib/prisma";
 import { canUseVega } from "@/lib/vega/access";
 import { isUserToolkit, noConnections } from "@/lib/vega/apps";
+import { attachmentChips } from "@/lib/vega/attachments";
 import type { VegaActionView, VegaSource } from "@/lib/vega/events";
 import { forgetAllMemories, forgetMemory, listMemories, saveMemory, type VegaMemoryView } from "@/lib/vega/memory";
 import { defaultAutonomy, type AutonomySettings } from "@/lib/vega/autonomy";
@@ -17,6 +18,7 @@ import { deleteTask, listTasks, setTaskStatus, type VegaTaskView } from "@/lib/v
 import { actionView, decideAction } from "@/lib/vega/decide";
 
 export type VegaChatSummary = { id: string; title: string; updatedAt: string };
+export type VegaAttachmentChip = { kind: "file" | "link"; name: string; url?: string };
 export type VegaChatMessage = {
   id: string;
   role: "user" | "assistant";
@@ -24,6 +26,7 @@ export type VegaChatMessage = {
   sources?: VegaSource[];
   statuses?: string[];
   actions?: VegaActionView[];
+  attachments?: VegaAttachmentChip[];
 };
 
 async function vegaUser() {
@@ -61,10 +64,12 @@ export async function openVegaChat(id: string): Promise<VegaChatMessage[] | null
   const actions = new Map(chat.actions.map((action) => [action.id, actionView(action)]));
   return chat.messages.map((message) => {
     const meta = (message.meta ?? {}) as { sources?: VegaSource[]; actions?: string[]; statuses?: string[] };
+    const attachments = attachmentChips(message.meta);
     return {
       id: message.id,
       role: message.role === "user" ? "user" : "assistant",
       content: message.content,
+      ...(attachments.length ? { attachments } : {}),
       ...(meta.sources?.length ? { sources: meta.sources } : {}),
       ...(meta.statuses?.length ? { statuses: meta.statuses } : {}),
       ...(meta.actions?.length

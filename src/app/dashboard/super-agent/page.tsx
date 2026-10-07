@@ -6,6 +6,7 @@ import { listVegaChats } from "@/app/dashboard/super-agent/actions";
 import { AgentNight } from "@/components/landing/agent-night";
 import { VegaChat } from "@/components/vega/vega-chat";
 import { brand } from "@/config/brand";
+import { getPackage, isPackageId } from "@/config/compensation-plan";
 import { getCurrentUser } from "@/lib/auth/profile";
 import { canUseVega } from "@/lib/vega/access";
 import { isUserToolkit } from "@/lib/vega/apps";
@@ -32,6 +33,7 @@ export default async function SuperAgentPage({ searchParams }: { searchParams: P
         firstName={user.name.split(" ")[0] || user.name}
         initialChats={chats}
         justConnected={conexion && isUserToolkit(conexion) ? conexion : null}
+        creditAllowance={isPackageId(user.package) ? Math.max(getPackage(user.package).credits, 1) : Math.max(user.credits, 1)}
       />
     );
   }
