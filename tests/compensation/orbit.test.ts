@@ -86,6 +86,29 @@ describe("bono órbita", () => {
     expect(pro.levels[2]?.packageUsd).toBe(1.45);
     expect(pro.packageTotal).toBe(14.5);
     expect(pro.rebuyTotal).toBe(9.5);
+    expect(pro.networkSales).toBe(384);
+    expect(pro.globalBonusUsd).toBe(38.4);
+    expect(inicio.globalBonusUsd).toBe(0);
+  });
+
+  it("el simulador suma el 10% de las ventas de la red solo con el paquete de 249", () => {
+    const pro = estimateInvitationEarnings({
+      directs: 3,
+      invitesEach: 3,
+      salePackageId: "FOUNDER",
+      earnerPackageId: "FOUNDER",
+    });
+    expect(pro.networkSales).toBe(4176);
+    expect(pro.globalBonusUsd).toBe(417.6);
+
+    const negocio = estimateInvitationEarnings({
+      directs: 3,
+      invitesEach: 3,
+      salePackageId: "FOUNDER",
+      earnerPackageId: "PRO",
+    });
+    expect(negocio.earnerLevels).toBe(4);
+    expect(negocio.globalBonusUsd).toBe(0);
   });
 
   it("el cierre mensual reparte el 10% entre los Pro que renovaron con 99", () => {

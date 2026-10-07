@@ -347,6 +347,13 @@ export function estimateInvitationEarnings(input: {
   });
   const level1 = levels[0]?.networkUsd ?? 0;
   const level2 = levels[1]?.networkUsd ?? 0;
+  const people = input.directs + input.directs * input.invitesEach;
+  const networkSales = roundMoney(people * (sale.price + sale.rebuy));
+  const earnerPackage = getPackage(input.earnerPackageId);
+  const globalBonusUsd =
+    earnerPackage.price === compensationPlan.globalPoolPrice
+      ? roundMoney(networkSales * compensationPlan.globalPoolRate)
+      : 0;
 
   return {
     levels,
@@ -356,6 +363,8 @@ export function estimateInvitationEarnings(input: {
     packageTotal: roundMoney(levels.reduce((sum, level) => sum + level.packageUsd, 0)),
     rebuyTotal: roundMoney(levels.reduce((sum, level) => sum + level.rebuyUsd, 0)),
     networkTotal: roundMoney(level1 + level2),
+    networkSales,
+    globalBonusUsd,
     level1Rate: levels[0]?.rate ?? 0,
     level2Rate: levels[1]?.rate ?? 0,
     price: sale.price,
