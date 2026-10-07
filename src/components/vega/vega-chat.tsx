@@ -349,7 +349,6 @@ export function VegaChat({
           <Link href="/dashboard" className="grid size-10 place-items-center rounded-full text-[#1E1E24] active:bg-[#F3F0EB] dark:text-[#F2F0F7] dark:active:bg-[#221F30]" aria-label="Volver a LYRA">
             <ChevronLeft className="size-6" />
           </Link>
-          <VegaMark className="size-9" mood={mood} thinking={streaming} />
           <div className="min-w-0 flex-1">
             <p className="text-[15px] leading-tight font-semibold text-[#1E1E24]">Vega Bot</p>
             <p className={cn("truncate text-xs", streaming ? "text-[#7C3AED]" : "text-[#8A8680]")}>
@@ -375,7 +374,6 @@ export function VegaChat({
         </header>
 
         <header className="hidden items-center gap-3 border-b border-[#F0ECE6] px-4 py-3 md:flex">
-          <VegaMark className="size-8" mood={mood} thinking={streaming} />
           <div className="min-w-0 flex-1">
             <p className="text-sm font-semibold text-[#1E1E24]">Vega Bot</p>
             <p className="text-xs text-[#8A8680]">1 crédito por mensaje · 3 si crea una pieza, busca en la web o usa tus apps</p>
