@@ -1,8 +1,8 @@
 # Lyra Autonomous Protocol
 
-Agente en Solidity dentro de LYRA. El owner deposita y retira USDC. Un keeper llama `executeStrategy()` (sin `onlyOwner`) cuando pasó el cooldown. El contrato lee el precio ETH/USD de Chainlink. Si hay saldo y el precio está fresco, anota una ganancia simulada del 0.1 % y emite `StrategyExecuted` con action `PROFIT_CAPTURED` y el campo `profit`. El USDC no se mueve. Si no hay saldo, revierte.
+Agente en Solidity dentro de LYRA. El owner deposita y retira USDC. Un keeper llama `executeStrategy()` (sin `onlyOwner`) cuando pasó el cooldown, el precio ETH/USD de Chainlink está fresco y el mercado ofrece spread. El contrato intercambia USDC y WETH en `LyraSwapMarket` (comisión 0,30 %). `profit` es el USDC que supera el precio del oráculo, no un porcentaje fijo. Si no hay spread, no mueve tokens. El owner y el pauser pueden `pauseAgent()` y `resumeAgent()` en cualquier momento. Mientras está pausado, el checker no deja ejecutar. El retiro sigue disponible.
 
-En Polygon Amoy el agente desplegado es `0x3C50c13B237F1c6c8fA43a399dCa321e7D4aD17F`, con cooldown de 300 segundos y el feed `0xF0d50568e3A7e8259E16663972b11910F89BD8e7`.
+En Polygon Amoy el agente desplegado es `0x31357683cd95afc781ddE1D3894D692EF569ce42`, con cooldown de 300 segundos y el feed `0xF0d50568e3A7e8259E16663972b11910F89BD8e7`. El libro USDC está en la custodia y el agente solo vende WETH cuando ese libro paga más que Chainlink. El USDC del agente anterior (`0x3C50c13B237F1c6c8fA43a399dCa321e7D4aD17F`) sigue ahí: no alcanzó el POL de prueba para moverlo.
 
 La sección vive en el dashboard, ruta `/dashboard/protocol`.
 

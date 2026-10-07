@@ -46,21 +46,34 @@ export async function GET(request: Request) {
   const publicClient = amoyClient();
 
   try {
-    const [checker, usdcToken, lastExecutionTime, executionCooldown, owner, block] = await Promise.all([
-      publicClient.readContract({ address, abi: lyraAutonomousAgentAbi, functionName: "checker" }),
-      publicClient.readContract({ address, abi: lyraAutonomousAgentAbi, functionName: "usdcToken" }),
-      publicClient.readContract({ address, abi: lyraAutonomousAgentAbi, functionName: "lastExecutionTime" }),
-      publicClient.readContract({ address, abi: lyraAutonomousAgentAbi, functionName: "executionCooldown" }),
-      publicClient.readContract({ address, abi: lyraAutonomousAgentAbi, functionName: "owner" }),
-      publicClient.getBlock(),
-    ]);
+    const [checker, usdcToken, wethToken, lastExecutionTime, executionCooldown, owner, isPaused, priceFresh, edge, block] =
+      await Promise.all([
+        publicClient.readContract({ address, abi: lyraAutonomousAgentAbi, functionName: "checker" }),
+        publicClient.readContract({ address, abi: lyraAutonomousAgentAbi, functionName: "usdcToken" }),
+        publicClient.readContract({ address, abi: lyraAutonomousAgentAbi, functionName: "wethToken" }),
+        publicClient.readContract({ address, abi: lyraAutonomousAgentAbi, functionName: "lastExecutionTime" }),
+        publicClient.readContract({ address, abi: lyraAutonomousAgentAbi, functionName: "executionCooldown" }),
+        publicClient.readContract({ address, abi: lyraAutonomousAgentAbi, functionName: "owner" }),
+        publicClient.readContract({ address, abi: lyraAutonomousAgentAbi, functionName: "paused" }),
+        publicClient.readContract({ address, abi: lyraAutonomousAgentAbi, functionName: "priceIsFresh" }),
+        publicClient.readContract({ address, abi: lyraAutonomousAgentAbi, functionName: "tradingEdge" }),
+        publicClient.getBlock(),
+      ]);
 
-    const usdcBalance = await publicClient.readContract({
-      address: usdcToken,
-      abi: erc20BalanceAbi,
-      functionName: "balanceOf",
-      args: [address],
-    });
+    const [usdcBalance, wethBalance] = await Promise.all([
+      publicClient.readContract({
+        address: usdcToken,
+        abi: erc20BalanceAbi,
+        functionName: "balanceOf",
+        args: [address],
+      }),
+      publicClient.readContract({
+        address: wethToken,
+        abi: erc20BalanceAbi,
+        functionName: "balanceOf",
+        args: [address],
+      }),
+    ]);
 
     let executorIsOwner = false;
     if (isKeeperKey(key)) {
@@ -72,7 +85,11 @@ export async function GET(request: Request) {
       hasExecutor: isKeeperKey(key),
       executorIsOwner,
       canExec: checker[0],
+      paused: isPaused,
+      priceFresh,
+      edge,
       usdcBalance,
+      wethBalance,
       lastExecutionTime,
       executionCooldown,
       now: block.timestamp,

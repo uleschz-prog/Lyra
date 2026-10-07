@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { VegaMark } from "@/components/vega/vega-mark";
 import { AMOY_CHAIN_ID, AMOY_EXPLORER_URL } from "@/lib/protocol/autonomous-agent";
 import { agentFaceLabel } from "@/lib/protocol/agent-face";
-import { formatEthUsd, formatUsdc } from "@/lib/protocol/trade-event";
+import { formatEthUsd, formatUsdc, formatWeth } from "@/lib/protocol/trade-event";
 import { useLyraAgent } from "@/hooks/useLyraAgent";
 
 const METAMASK_INSTALL = "https://metamask.io/download/";
@@ -64,19 +64,19 @@ const desk = [
   },
   {
     title: "Agente",
-    text: "El contrato custodia el USDC y deja cada ejecución en el evento StrategyExecuted.",
+    text: "Intercambia USDC y WETH en su mercado. La ganancia es el USDC que supera a Chainlink.",
   },
   {
     title: "Keeper",
-    text: "Una tarea propia llama executeStrategy cuando el checker de la cadena lo permite.",
+    text: "Una tarea propia llama executeStrategy solo si hay spread y el agente está activo.",
   },
   {
     title: "Custodia",
-    text: "Depositar y retirar exige la billetera owner. Cada persona conecta la suya.",
+    text: "Depositar y retirar exige la billetera owner. Pausar y activar lo haces desde aquí.",
   },
 ] as const;
 
-export function AutonomousProtocol() {
+export function AutonomousProtocol({ canControl = false }: { canControl?: boolean }) {
   const {
     address,
     rpcUrl,
@@ -98,6 +98,7 @@ export function AutonomousProtocol() {
     thinking,
     deposit,
     withdraw,
+    setAgentPaused,
     walletPhase,
     account,
     walletUsdc,
@@ -131,7 +132,7 @@ export function AutonomousProtocol() {
             <p className="text-[11px] font-medium tracking-[0.28em] text-[#A78BFA] uppercase">Protocolo on-chain</p>
             <h2 className="mt-2 text-2xl font-semibold tracking-tight sm:text-3xl">Lyra Autonomous</h2>
             <p className="mt-2 max-w-xl text-sm leading-6 text-[#B7B1C8]">
-              Un agente en Polygon Amoy lee Chainlink, espera su cooldown y registra la ejecución en la cadena. Tú conectas tu MetaMask. La llave no sale de tu navegador.
+              El agente intercambia USDC de verdad contra su mercado cuando el precio se separa de Chainlink. Puedes pausarlo o volver a activarlo cuando quieras.
             </p>
             <p className="mt-3 inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-3 py-1 text-xs text-[#D6D1E4]">
               <span className="h-1.5 w-1.5 rounded-full bg-[#34D399]" />
@@ -153,18 +154,55 @@ export function AutonomousProtocol() {
       </div>
 
       <div className="grid gap-px bg-white/10 sm:grid-cols-2 xl:grid-cols-4">
-        <Metric label="Custodia USDC" value={status ? formatUsdc(status.balance) : "…"} hint={status?.canExec ? "El keeper puede ejecutar" : "Esperando saldo o cooldown"} />
+        <Metric
+          label="Custodia USDC"
+          value={status ? formatUsdc(status.balance) : "…"}
+          hint={
+            status?.paused
+              ? "Pausado: no opera"
+              : status?.canExec
+                ? "Hay spread: el keeper puede ejecutar"
+                : "Esperando spread o cooldown"
+          }
+        />
         <Metric label="ETH / USD" value={ethUsd ?? "…"} hint="Chainlink en Amoy" />
         <Metric label="Siguiente ejecución" value={status ? formatRemaining(remaining) : "…"} hint={status ? cooldownCaption(status.cooldown) : "Entre ejecuciones"} />
         <Metric label="Trades" value={String(trades.length)} hint={listening ? "Escuchando StrategyExecuted" : "Sincronizando la red"} />
       </div>
+
+      <section className="flex flex-col gap-3 border-b border-white/10 px-4 py-4 sm:flex-row sm:items-center sm:justify-between sm:px-6">
+        <div className="min-w-0">
+          <p className={`text-[11px] font-medium tracking-[0.22em] uppercase ${status?.paused ? "text-[#FCD34D]" : "text-[#6EE7B7]"}`}>
+            {status ? (status.paused ? "Pausado" : "Activo") : "Leyendo"}
+          </p>
+          <p className="mt-1 max-w-xl text-sm leading-6 text-[#B7B1C8]">
+            {status?.paused
+              ? "El agente está pausado. No intercambia hasta que lo actives."
+              : "El agente está activo. Pausarlo detiene el siguiente intercambio al momento."}
+            {status ? ` WETH en custodia: ${formatWeth(status.wethBalance)}.` : ""}
+          </p>
+        </div>
+        {canControl ? (
+          <button
+            type="button"
+            disabled={!status || busy !== null}
+            onClick={() => void setAgentPaused(!status?.paused)}
+            className="inline-flex h-11 shrink-0 items-center justify-center rounded-xl border border-white/15 px-4 text-sm font-medium text-[#F4F1EC] hover:border-[#A78BFA] disabled:opacity-60"
+          >
+            {busy === "control" ? "Enviando…" : status?.paused ? "Activar agente" : "Pausar agente"}
+          </button>
+        ) : null}
+      </section>
 
       <div className="grid gap-4 p-4 sm:p-6 lg:grid-cols-[minmax(0,0.9fr)_minmax(0,1.1fr)]">
         <section className="flex flex-col items-center justify-center rounded-2xl border border-white/10 bg-[#14121C] px-6 py-8 text-center">
           <VegaMark className="size-32" mood={vegaMood} thinking={thinking} />
           <p className="sr-only">{agentFaceLabel(face)}</p>
           <p className="mt-4 max-w-sm text-sm leading-6 text-[#D6D1E4]" aria-live="polite">
-            {lastLog ?? "El agente espera la siguiente ventana. Cuando el keeper ejecuta, Vega lo muestra aquí."}
+            {lastLog ??
+              (status?.paused
+                ? "El agente está pausado. Actívalo para que vuelva a intercambiar."
+                : "El agente espera un spread real. Cuando el intercambio ocurre, Vega lo muestra aquí.")}
           </p>
         </section>
 
@@ -301,7 +339,7 @@ export function AutonomousProtocol() {
           {tradeError && trades.length === 0 ? (
             <p className="mt-3 text-sm text-[#B7B1C8]">No se pudo leer la red. Revisa la dirección y el RPC.</p>
           ) : trades.length === 0 ? (
-            <p className="mt-3 text-sm text-[#B7B1C8]">Todavía no hay trades. Cuando el keeper ejecute la estrategia, aparecen aquí.</p>
+            <p className="mt-3 text-sm text-[#B7B1C8]">Todavía no hay trades. Cuando el intercambio mueve USDC, aparecen aquí.</p>
           ) : (
             <ul className="mt-2">
               {trades.map((trade) => (

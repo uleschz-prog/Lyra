@@ -8,9 +8,17 @@ export function formatUsdc(amount: bigint) {
   }).format(value)} USDC`;
 }
 
-/** El evento trae `profit`: la ganancia simulada del 0.1 %. No mueve el saldo USDC. */
+/** `profit` es el USDC que el intercambio dejó por encima de Chainlink. */
 export function tradeExecutedMessage(profit: bigint) {
   return `Trade ejecutado: Ganancia de ${formatUsdc(profit)}`;
+}
+
+export function formatWeth(amount: bigint) {
+  const value = Number(formatUnits(amount, 18));
+  return `${new Intl.NumberFormat("es-MX", {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 4,
+  }).format(value)} WETH`;
 }
 
 export function formatEthUsd(price: bigint, decimals: number) {

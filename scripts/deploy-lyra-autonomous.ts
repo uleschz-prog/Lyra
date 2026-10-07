@@ -49,13 +49,24 @@ if (isLocalNetwork(networkName)) {
   }
 }
 
-const agent = await ethers.deployContract("LyraAutonomousAgent", [usdcAddress, priceFeedAddress, cooldown]);
+const pauserAddress = isLocalNetwork(networkName)
+  ? deployer.address
+  : ethers.getAddress(process.env.LYRA_KEEPER_ADDRESS?.trim() || "");
+
+const agent = await ethers.deployContract("LyraAutonomousAgent", [
+  usdcAddress,
+  priceFeedAddress,
+  pauserAddress,
+  cooldown,
+  0n,
+]);
 await agent.waitForDeployment();
 const agentAddress = await agent.getAddress();
 
 console.log(`LyraAutonomousAgent: ${agentAddress}`);
 console.log(`USDC: ${usdcAddress}`);
 console.log(`ETH/USD: ${priceFeedAddress}`);
+console.log(`Pauser: ${pauserAddress}`);
 console.log(`Cooldown: ${cooldown.toString()} s`);
 if (networkName === "polygonAmoy") {
   console.log(`Explorer: ${AMOY_EXPLORER_URL}/address/${agentAddress}`);

@@ -25,11 +25,14 @@ export type TradeRow = {
 export type ProtocolStatus = {
   owner: Address;
   usdc: Address;
+  weth: Address;
   balance: bigint;
+  wethBalance: bigint;
   lastExecutionTime: bigint;
   cooldown: bigint;
   blockTimestamp: bigint;
   canExec: boolean;
+  paused: boolean;
   ethPrice: bigint | null;
   feedDecimals: number;
 };
@@ -87,7 +90,7 @@ export function useLyraAgent() {
   const [tradeError, setTradeError] = useState<string | null>(null);
   const [depositAmount, setDepositAmount] = useState("");
   const [withdrawAmount, setWithdrawAmount] = useState("");
-  const [busy, setBusy] = useState<"deposit" | "withdraw" | null>(null);
+  const [busy, setBusy] = useState<"deposit" | "withdraw" | "control" | null>(null);
   const [formMessage, setFormMessage] = useState<string | null>(null);
   const [formError, setFormError] = useState<string | null>(null);
   const [happy, setHappy] = useState(false);
@@ -213,31 +216,45 @@ export function useLyraAgent() {
   const refreshStatus = useCallback(async () => {
     if (!address) return;
     try {
-      const [owner, usdc, lastExecutionTime, cooldown, checkerResult, feedDecimals, latestPrice, block] = await Promise.all([
+      const [owner, usdc, weth, lastExecutionTime, cooldown, checkerResult, feedDecimals, latestPrice, isPaused, block] =
+        await Promise.all([
         client.readContract({ address, abi: lyraAutonomousAgentAbi, functionName: "owner" }),
         client.readContract({ address, abi: lyraAutonomousAgentAbi, functionName: "usdcToken" }),
+        client.readContract({ address, abi: lyraAutonomousAgentAbi, functionName: "wethToken" }),
         client.readContract({ address, abi: lyraAutonomousAgentAbi, functionName: "lastExecutionTime" }),
         client.readContract({ address, abi: lyraAutonomousAgentAbi, functionName: "executionCooldown" }),
         client.readContract({ address, abi: lyraAutonomousAgentAbi, functionName: "checker" }),
         client.readContract({ address, abi: lyraAutonomousAgentAbi, functionName: "feedDecimals" }),
         client.readContract({ address, abi: lyraAutonomousAgentAbi, functionName: "getLatestPrice" }),
+        client.readContract({ address, abi: lyraAutonomousAgentAbi, functionName: "paused" }),
         client.getBlock(),
       ]);
-      const balance = await client.readContract({
-        address: usdc,
-        abi: erc20Abi,
-        functionName: "balanceOf",
-        args: [address],
-      });
+      const [balance, wethBalance] = await Promise.all([
+        client.readContract({
+          address: usdc,
+          abi: erc20Abi,
+          functionName: "balanceOf",
+          args: [address],
+        }),
+        client.readContract({
+          address: weth,
+          abi: erc20Abi,
+          functionName: "balanceOf",
+          args: [address],
+        }),
+      ]);
       const price = latestPrice > BigInt(0) ? latestPrice : null;
       setStatus({
         owner,
         usdc,
+        weth,
         balance,
+        wethBalance,
         lastExecutionTime,
         cooldown,
         blockTimestamp: block.timestamp,
         canExec: checkerResult[0],
+        paused: isPaused,
         ethPrice: price,
         feedDecimals: Number(feedDecimals),
       });
@@ -462,6 +479,29 @@ export function useLyraAgent() {
     });
   }
 
+  async function setAgentPaused(nextPaused: boolean) {
+    setBusy("control");
+    setFormError(null);
+    setFormMessage(null);
+    try {
+      const response = await fetch("/api/protocol/agent", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ action: nextPaused ? "pause" : "resume" }),
+      });
+      const body = (await response.json()) as { error?: string; paused?: boolean };
+      if (!response.ok) {
+        throw new Error(body.error || "No se pudo cambiar el agente.");
+      }
+      setFormMessage(body.paused ? "Agente pausado." : "Agente activo.");
+      await refreshStatus();
+    } catch (error) {
+      setFormError(error instanceof Error ? error.message : "No se pudo cambiar el agente.");
+    } finally {
+      setBusy(null);
+    }
+  }
+
   async function withdraw() {
     if (!address) return;
     const agent = address;
@@ -511,6 +551,7 @@ export function useLyraAgent() {
     thinking: vegaThinking(face),
     deposit,
     withdraw,
+    setAgentPaused,
     walletPhase,
     account,
     chainId,

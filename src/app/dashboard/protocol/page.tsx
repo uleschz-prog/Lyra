@@ -19,10 +19,10 @@ export default async function ProtocolPage() {
       <PageHeader
         eyebrow="Protocolo"
         title="Lyra Autonomous Protocol"
-        description="Conecta tu MetaMask, mira el agente en Polygon Amoy y el historial de trades en vivo."
+        description="El agente intercambia en Polygon Amoy. Puedes pausarlo o activarlo cuando quieras."
         section="protocol"
       />
-      <AutonomousProtocol />
+      <AutonomousProtocol canControl={user.role === "ADMIN"} />
     </>
   );
 }

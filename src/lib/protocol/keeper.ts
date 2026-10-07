@@ -3,7 +3,9 @@ export type KeeperSkipReason =
   | "es_owner"
   | "cooldown"
   | "sin_saldo"
-  | "precio";
+  | "precio"
+  | "pausado"
+  | "sin_spread";
 
 export type KeeperDecision = { action: "execute" } | { action: "skip"; reason: KeeperSkipReason };
 
@@ -11,7 +13,11 @@ export type KeeperSnapshot = {
   hasExecutor: boolean;
   executorIsOwner: boolean;
   canExec: boolean;
+  paused: boolean;
+  priceFresh: boolean;
+  edge: bigint;
   usdcBalance: bigint;
+  wethBalance: bigint;
   lastExecutionTime: bigint;
   executionCooldown: bigint;
   now: bigint;
@@ -36,11 +42,16 @@ export function cronAuthorized(authorization: string | null, secret: string | un
 export function decideKeeper(snapshot: KeeperSnapshot): KeeperDecision {
   if (!snapshot.hasExecutor) return { action: "skip", reason: "sin_ejecutor" };
   if (snapshot.executorIsOwner) return { action: "skip", reason: "es_owner" };
+  if (snapshot.paused) return { action: "skip", reason: "pausado" };
   if (snapshot.canExec) return { action: "execute" };
   if (snapshot.now < snapshot.lastExecutionTime + snapshot.executionCooldown) {
     return { action: "skip", reason: "cooldown" };
   }
-  if (snapshot.usdcBalance <= BigInt(0)) return { action: "skip", reason: "sin_saldo" };
+  if (snapshot.usdcBalance <= BigInt(0) && snapshot.wethBalance <= BigInt(0)) {
+    return { action: "skip", reason: "sin_saldo" };
+  }
+  if (!snapshot.priceFresh) return { action: "skip", reason: "precio" };
+  if (snapshot.edge <= BigInt(0)) return { action: "skip", reason: "sin_spread" };
   return { action: "skip", reason: "precio" };
 }
 
@@ -58,6 +69,12 @@ export function keeperCallError(error: unknown): {
   }
   if (/bad price|stale price/i.test(message)) {
     return { status: 200, body: { ok: true, skipped: "precio" } };
+  }
+  if (/EnforcedPause|not operator|paused/i.test(message)) {
+    return { status: 200, body: { ok: true, skipped: "pausado" } };
+  }
+  if (/no spread/i.test(message)) {
+    return { status: 200, body: { ok: true, skipped: "sin_spread" } };
   }
   if (/insufficient funds/i.test(message)) {
     return {

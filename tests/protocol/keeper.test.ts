@@ -6,7 +6,11 @@ const ready = {
   hasExecutor: true,
   executorIsOwner: false,
   canExec: true,
+  paused: false,
+  priceFresh: true,
+  edge: BigInt(1_000_000),
   usdcBalance: BigInt(1_000_000_000),
+  wethBalance: BigInt(0),
   lastExecutionTime: BigInt(1_000),
   executionCooldown: BigInt(300),
   now: BigInt(2_000),
@@ -46,9 +50,23 @@ describe("decideKeeper", () => {
   });
 
   it("salta cuando el precio no está fresco", () => {
-    expect(decideKeeper({ ...ready, canExec: false })).toEqual({
+    expect(decideKeeper({ ...ready, canExec: false, priceFresh: false })).toEqual({
       action: "skip",
       reason: "precio",
+    });
+  });
+
+  it("no llama mientras el agente está pausado", () => {
+    expect(decideKeeper({ ...ready, canExec: false, paused: true })).toEqual({
+      action: "skip",
+      reason: "pausado",
+    });
+  });
+
+  it("espera un spread real y no inventa la ganancia", () => {
+    expect(decideKeeper({ ...ready, canExec: false, edge: BigInt(0) })).toEqual({
+      action: "skip",
+      reason: "sin_spread",
     });
   });
 });
@@ -77,6 +95,8 @@ describe("keeperCallError", () => {
     expect(keeperCallError(new Error("Cooldown active")).status).toBe(200);
     expect(keeperCallError(new Error("No funds to operate")).body.skipped).toBe("sin_saldo");
     expect(keeperCallError(new Error("LyraAutonomousAgent: stale price")).body.skipped).toBe("precio");
+    expect(keeperCallError(new Error("EnforcedPause()")).body.skipped).toBe("pausado");
+    expect(keeperCallError(new Error("LyraAutonomousAgent: no spread")).body.skipped).toBe("sin_spread");
   });
 
   it("avisa si no hay POL y no filtra el error crudo", () => {
