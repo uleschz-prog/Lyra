@@ -242,24 +242,19 @@ export function galaxyPoolShare(members: CompensationMember[], userId: string) {
   return monthlyClose(members).payouts.find((payout) => payout.userId === userId)?.poolPayout ?? 0;
 }
 
-export function rebuyMessage(packageId: PackageId | null, directs = 0) {
+export function rebuyMessage(packageId: PackageId | null) {
   if (!packageId) return "Elige Inicio, Negocio o Pro.";
   const planPackage = getPackage(packageId);
-  const status = rebuyStatus(packageId, directs);
   if (packageId === "CORPORATE") {
     return "Tu cuenta Corporate conserva Órbita en los 6 niveles. Ese paquete ya no se ofrece.";
   }
-  if (status.exempt) {
-    return `Tienes ${compensationPlan.minActiveDirectsForBonus} directos activos: ganas créditos bonus cada mes mientras se mantengan activos.`;
-  }
-  const pending = `Te faltan ${status.remaining} ${status.remaining === 1 ? "directo activo" : "directos activos"} para tus créditos bonus.`;
   if (packageId === "FOUNDER") {
-    return `Pro recarga desde $99 al mes siguiente. ${pending}`;
+    return "Pro recarga desde $99 al mes siguiente.";
   }
   if (packageId === "PRO") {
-    return `Negocio recarga desde $49 al mes siguiente. ${pending}`;
+    return "Negocio recarga desde $49 al mes siguiente.";
   }
-  return `${planPackage.label} recarga desde $${planPackage.rebuy} al mes siguiente de la inscripción. ${pending}`;
+  return `${planPackage.label} recarga desde $${planPackage.rebuy} al mes siguiente de la inscripción.`;
 }
 
 function upline(index: Index, userId: string, limit: number = compensationPlan.unilevel.length) {
@@ -334,12 +329,14 @@ export function estimateInvitationEarnings(input: {
     const level = index + 1;
     const active = depth >= level;
     const rate = active ? listedRate : 0;
-    const people = level === 1 ? input.directs : level === 2 ? input.directs * input.invitesEach : 0;
+    const people =
+      level === 1 ? input.directs : input.invitesEach > 0 ? input.directs * input.invitesEach ** (level - 1) : 0;
     return {
       level,
       rate,
       listedRate,
       active,
+      people,
       packageUsd: active ? roundMoney(sale.price * listedRate) : 0,
       rebuyUsd: active ? roundMoney(sale.rebuy * listedRate) : 0,
       networkUsd: active && people > 0 ? roundMoney(people * sale.price * listedRate) : 0,
@@ -347,8 +344,9 @@ export function estimateInvitationEarnings(input: {
   });
   const level1 = levels[0]?.networkUsd ?? 0;
   const level2 = levels[1]?.networkUsd ?? 0;
-  const people = input.directs + input.directs * input.invitesEach;
-  const networkSales = roundMoney(people * (sale.price + sale.rebuy));
+  const networkSales = roundMoney(
+    levels.reduce((total, level) => total + level.people * (sale.price + sale.rebuy), 0),
+  );
   const earnerPackage = getPackage(input.earnerPackageId);
   const globalBonusUsd =
     earnerPackage.price === compensationPlan.globalPoolPrice
@@ -362,7 +360,7 @@ export function estimateInvitationEarnings(input: {
     total: roundMoney(level1 + level2),
     packageTotal: roundMoney(levels.reduce((sum, level) => sum + level.packageUsd, 0)),
     rebuyTotal: roundMoney(levels.reduce((sum, level) => sum + level.rebuyUsd, 0)),
-    networkTotal: roundMoney(level1 + level2),
+    networkTotal: roundMoney(levels.reduce((total, level) => total + level.networkUsd, 0)),
     networkSales,
     globalBonusUsd,
     level1Rate: levels[0]?.rate ?? 0,
@@ -393,7 +391,7 @@ export function memberPlan(members: CompensationMember[], userId: string) {
     exempt: status.exempt,
     exemptLabel: status.label,
     rebuyUsd: planPackage?.rebuy ?? 0,
-    message: rebuyMessage(member.packageId, directs.length),
+    message: rebuyMessage(member.packageId),
     rank: evaluateRank(members, userId),
   };
 }

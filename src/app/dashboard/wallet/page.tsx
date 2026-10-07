@@ -74,8 +74,8 @@ export default async function WalletPage({
         title="Saldos"
         description={
           isFounderPackage(user.package)
-            ? "Tus comisiones quedan en dólares. La mensualidad de Pro es de $99; con 3 directos activos quedas exento."
-            : "Las comisiones quedan en dólares. Paga tu recompra para seguir activo: con 3 directos activos quedas exento."
+            ? "Tus comisiones quedan en dólares. La mensualidad de Pro es de $99."
+            : "Las comisiones quedan en dólares. Paga tu recompra para seguir activo."
         }
       />
       <div className="space-y-6">
@@ -107,7 +107,6 @@ export default async function WalletPage({
           exempt={status.exempt}
           exemptLabel={status.label}
           paid={user.rebuyPaidThisMonth}
-          remaining={status.remaining}
           quotes={quotes}
         />
         <UsdtWallet address={user.usdtTrc20} />

@@ -1,7 +1,5 @@
-import { compensationPlan, rebuyStatus } from "@/config/compensation-plan";
 import { monthStart } from "@/lib/compensation/activity";
-import { evaluateRank, roundMoney } from "@/lib/compensation/engine";
-import { loadNetwork } from "@/lib/compensation/members";
+import { roundMoney } from "@/lib/compensation/engine";
 import { getPrisma } from "@/lib/prisma";
 import type { AuthProfile } from "@/lib/types";
 import { canUseVega } from "@/lib/vega/access";
@@ -28,16 +26,6 @@ export type HomeSummary = {
   commissionsTotal: number;
   directs: number;
   joinedThisMonth: number;
-  activeDirects: number;
-  exemptTarget: number;
-  exempt: boolean;
-  rebuyLabel: string;
-  rank: {
-    achieved: string | null;
-    next: { label: string; volume: number; counted: number; progress: number; payout: number } | null;
-    legs: number;
-    minLegs: number;
-  };
   steps: HomeStep[];
   activity: HomeActivity[];
 };
@@ -65,7 +53,7 @@ export async function homeSummary(user: AuthProfile): Promise<HomeSummary> {
   const month = monthStart();
   const vega = canUseVega(user);
 
-  const [monthAgg, totalAgg, directs, joined, transactions, recentReferrals, network, vegaChats] = await Promise.all([
+  const [monthAgg, totalAgg, directs, joined, transactions, recentReferrals, vegaChats] = await Promise.all([
     safe(prisma.transaction.aggregate({ where: { userId: user.id, kind: "COMMISSION", createdAt: { gte: month } }, _sum: { amount: true } }), null),
     safe(prisma.transaction.aggregate({ where: { userId: user.id, kind: "COMMISSION" }, _sum: { amount: true } }), null),
     safe(prisma.user.count({ where: { sponsorId: user.id } }), 0),
@@ -88,15 +76,8 @@ export async function homeSummary(user: AuthProfile): Promise<HomeSummary> {
       }),
       [],
     ),
-    safe(loadNetwork(user.id), null),
     vega ? safe(prisma.vegaConversation.count({ where: { userId: user.id } }), 0) : Promise.resolve(0),
   ]);
-
-  const evaluation = network ? evaluateRank(network.members, user.id) : null;
-  const achieved = evaluation?.ranks.find((rank) => rank.id === evaluation.achievedRankId) ?? null;
-  const next = evaluation?.ranks.find((rank) => !rank.reached && !rank.locked) ?? null;
-  const rebuy = rebuyStatus(user.package, user.activeDirects);
-  const exemptTarget = compensationPlan.minActiveDirectsForBonus;
 
   const steps: HomeStep[] = [
     {
@@ -109,13 +90,6 @@ export async function homeSummary(user: AuthProfile): Promise<HomeSummary> {
     ...(vega
       ? [{ id: "vega", title: "Habla con Vega", hint: "Tu super agente redacta, agenda y da seguimiento.", href: "/dashboard/super-agent", done: vegaChats > 0 }]
       : []),
-    {
-      id: "exempt",
-      title: `Llega a ${exemptTarget} directos activos`,
-      hint: "Ganas créditos bonus cada mes y sigues con tu recarga activa.",
-      href: "/dashboard/network",
-      done: user.isSubscriptionExempt || rebuy.bonusCredits > 0,
-    },
   ];
 
   const activity: HomeActivity[] = [
@@ -144,16 +118,6 @@ export async function homeSummary(user: AuthProfile): Promise<HomeSummary> {
     commissionsTotal: roundMoney(Math.max(Number(totalAgg?._sum.amount ?? 0), user.walletBalance)),
     directs,
     joinedThisMonth: joined,
-    activeDirects: user.activeDirects,
-    exemptTarget,
-    exempt: user.isSubscriptionExempt || rebuy.bonusCredits > 0,
-    rebuyLabel: rebuy.label,
-    rank: {
-      achieved: achieved?.label ?? null,
-      next: next ? { label: next.label, volume: next.volume, counted: next.counted, progress: next.progress, payout: next.payout } : null,
-      legs: evaluation?.legCount ?? 0,
-      minLegs: evaluation?.minLegsRequired ?? 3,
-    },
     steps,
     activity,
   };

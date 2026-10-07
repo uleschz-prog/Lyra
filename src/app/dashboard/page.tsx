@@ -26,22 +26,24 @@ export default async function DashboardPage() {
 
   return (
     <>
-      <div className="mt-4">
+      <div className="mt-2 sm:mt-4">
         <HomeStats summary={summary} />
       </div>
 
-      <div className="mt-6 grid gap-6 lg:grid-cols-5">
-        <div className="space-y-6 lg:col-span-3">
+      <div className="mt-4 grid w-full min-w-0 grid-cols-1 items-start gap-4 lg:mt-6 lg:grid-cols-5 lg:gap-6">
+        <div className="order-1 min-w-0 lg:col-span-3">
           <ReferralCard
             link={referralLink}
             packageId={user.package}
             directs={summary.directs}
             joinedThisMonth={summary.joinedThisMonth}
           />
-          <NextSteps steps={summary.steps} />
         </div>
-        <div className="lg:col-span-2">
+        <div className="order-2 min-w-0 lg:col-span-2 lg:row-span-2">
           <RecentActivity items={summary.activity} />
+        </div>
+        <div className="order-3 min-w-0 lg:col-span-3">
+          <NextSteps steps={summary.steps} />
         </div>
       </div>
 

@@ -274,7 +274,7 @@ export function VegaChat({
   }
 
   return (
-    <div className="fixed inset-0 z-30 flex h-dvh overflow-hidden bg-white md:relative md:inset-auto md:z-auto md:h-[calc(100dvh-7rem)] md:min-h-[520px] md:rounded-3xl md:border md:border-[#E7E2DA] dark:bg-[#14121C] dark:md:border-white/12">
+    <div className="fixed inset-x-0 top-0 bottom-[var(--lyra-tab)] z-20 flex min-h-0 flex-col overflow-hidden bg-white md:relative md:inset-auto md:bottom-auto md:z-auto md:h-[calc(100dvh-7rem)] md:min-h-[520px] md:rounded-3xl md:border md:border-[#E7E2DA] dark:bg-[#14121C] dark:md:border-white/12">
       {listOpen || menuOpen || panel ? (
         <button
           type="button"
@@ -290,7 +290,7 @@ export function VegaChat({
 
       <aside
         className={cn(
-          "fixed inset-y-0 left-0 z-50 flex w-[min(85vw,320px)] flex-col border-r border-[#F0ECE6] bg-[#FCFBF9] pt-[env(safe-area-inset-top)] pb-[env(safe-area-inset-bottom)] transition-transform duration-200 md:static md:z-auto md:w-72 md:translate-x-0 md:pt-0 md:pb-0 dark:border-white/10 dark:bg-[#181625]",
+          "fixed top-0 bottom-[var(--lyra-tab)] left-0 z-50 flex w-[min(85vw,320px)] flex-col border-r border-[#F0ECE6] bg-[#FCFBF9] pt-[env(safe-area-inset-top)] transition-transform duration-200 md:static md:inset-y-auto md:bottom-auto md:z-auto md:w-72 md:translate-x-0 md:pt-0 dark:border-white/10 dark:bg-[#181625]",
           listOpen ? "translate-x-0 shadow-2xl md:shadow-none" : "-translate-x-full",
         )}
       >
@@ -342,7 +342,7 @@ export function VegaChat({
         </Link>
       </aside>
 
-      <section className="flex min-w-0 flex-1 flex-col">
+      <section className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
         <header className="flex items-center gap-2 border-b border-[#F0ECE6] bg-white/95 px-2 pt-[max(0.5rem,env(safe-area-inset-top))] pb-2 backdrop-blur md:hidden dark:border-white/10 dark:bg-[#14121C]/95">
           <Link href="/dashboard" className="grid size-10 place-items-center rounded-full text-[#1E1E24] active:bg-[#F3F0EB] dark:text-[#F2F0F7] dark:active:bg-[#221F30]" aria-label="Volver a LYRA">
             <ChevronLeft className="size-6" />
@@ -395,7 +395,7 @@ export function VegaChat({
         </header>
 
         {menuOpen ? (
-          <div className="fixed inset-x-0 bottom-0 z-50 rounded-t-3xl bg-white px-3 pt-2 pb-[max(1rem,env(safe-area-inset-bottom))] shadow-2xl md:hidden dark:bg-[#181625]">
+          <div className="fixed inset-x-0 bottom-[var(--lyra-tab)] z-50 max-h-[70dvh] overflow-y-auto rounded-t-3xl bg-white px-3 pt-2 pb-4 shadow-2xl md:hidden dark:bg-[#181625]">
             <span className="mx-auto mb-2 block h-1 w-10 rounded-full bg-[#E7E2DA] dark:bg-white/15" aria-hidden />
             <button
               type="button"
@@ -436,7 +436,7 @@ export function VegaChat({
         {panel === "memory" ? <MemoryPanel onClose={() => setPanel(null)} /> : null}
         {panel === "tasks" ? <TasksPanel onClose={() => setPanel(null)} /> : null}
 
-        <div className="flex-1 overscroll-contain overflow-y-auto px-3 py-5 sm:px-8 sm:py-6">
+        <div className="min-h-0 flex-1 overscroll-contain overflow-y-auto px-3 py-5 sm:px-8 sm:py-6">
           {loadingChat ? <p className="text-center text-sm text-[#8A8680]">Abriendo conversación…</p> : null}
           {empty && !loadingChat ? (
             <div className="mx-auto flex max-w-2xl flex-col items-center pt-6 text-center sm:pt-8">
@@ -530,7 +530,7 @@ export function VegaChat({
         </div>
 
         <form
-          className="border-t border-[#F0ECE6] bg-white px-2 pt-2 pb-[max(0.5rem,env(safe-area-inset-bottom))] sm:p-4 dark:border-white/10 dark:bg-[#14121C]"
+          className="shrink-0 border-t border-[#F0ECE6] bg-white px-3 pt-2 pb-3 sm:p-4 dark:border-white/10 dark:bg-[#14121C]"
           onSubmit={(event) => {
             event.preventDefault();
             void send();

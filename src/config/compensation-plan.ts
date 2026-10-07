@@ -243,12 +243,7 @@ export function rebuyStatus(packageId: string | null | undefined, activeDirects:
     exempt: amount === 0,
     remaining: Math.max(required - activeDirects, 0),
     bonusCredits: bonus,
-    label:
-      amount > 0
-        ? bonus > 0
-          ? `Recarga de $${amount} al mes · +${bonus} créditos por directos activos`
-          : `Recarga de $${amount} al mes`
-        : "Sin recarga",
+    label: amount > 0 ? `Recarga de $${amount} al mes` : "Sin recarga",
   };
 }
 
