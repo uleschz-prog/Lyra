@@ -19,9 +19,12 @@ import { useState } from "react";
 import { toast } from "sonner";
 
 import { decideVegaAction } from "@/app/dashboard/super-agent/actions";
+import { MediaCard } from "@/components/vega/media-card";
+import { ProjectCard } from "@/components/vega/project-card";
 import type { AppOp } from "@/lib/vega/app-tools";
+import type { ProjectDraft } from "@/lib/vega/build-project";
 import type { VegaActionView } from "@/lib/vega/events";
-import type { AppDraft, CommandDraft, EmailDraft, EventDraft, ImageDraft, WhatsappDraft } from "@/lib/vega/tools";
+import type { AppDraft, CommandDraft, EmailDraft, EventDraft, ImageDraft, VideoDraft, WhatsappDraft } from "@/lib/vega/tools";
 
 const appIcons: Record<AppOp, LucideIcon> = {
   sheet_append: Sheet,
@@ -117,11 +120,20 @@ function WhatsappCard({
 export function ActionCard({
   action,
   onChange,
+  onSuggest,
 }: {
   action: VegaActionView;
   onChange: (action: VegaActionView, message: string) => void;
+  onSuggest?: (text: string) => void;
 }) {
   if (action.kind === "whatsapp_message") return <WhatsappCard action={action} onChange={onChange} />;
+  if (action.kind === "deliver_project") {
+    return <ProjectCard project={action.payload as ProjectDraft} onSuggest={onSuggest} />;
+  }
+  if (action.kind === "create_video") return <MediaCard video={action.payload as VideoDraft} />;
+  if (action.kind === "create_image" && (action.payload as ImageDraft).dataUrl) {
+    return <MediaCard image={action.payload as ImageDraft} />;
+  }
   return <ConfirmCard action={action} onChange={onChange} />;
 }
 

@@ -13,21 +13,21 @@ const creations = [
   {
     id: "apps",
     title: "Apps",
-    copy: "Convierte cualquier idea en una app totalmente funcional, con backend, autenticación, pagos y hosting ya incluidos. Sin configuración, sin ingenieros, sin esperas.",
+    copy: "Pide una app en el chat de Vega, por ejemplo para agendar citas. La ves al momento y descargas el código para abrirla o subirla a tu hosting.",
     action: "Crea una app",
     idea: "Una app para mi negocio",
   },
   {
     id: "sitios",
     title: "Sitios web",
-    copy: "Crea un sitio web para cualquier necesidad. Diseño generado por IA, dominio personalizado y listo para publicarse desde el primer día.",
+    copy: "Un sitio con tu oferta, servicios y formulario. La vista previa queda en el chat y el archivo se abre en cualquier navegador.",
     action: "Crea un sitio web",
     idea: "Un sitio web para mi estudio",
   },
   {
     id: "agentes",
     title: "Agentes de IA",
-    copy: "Crea un agente 24/7 que se conecta a tus herramientas, toma acción real y trabaja mientras duermes. Sin dolores de cabeza con las integraciones.",
+    copy: "Vega escribe el guion, las reglas y un simulador que puedes probar y descargar. Correo y WhatsApp siguen saliendo desde tu cuenta, cuando tú confirmas.",
     action: "Crea un agente de IA",
     idea: "Un agente que atienda a mis clientes",
   },
@@ -50,8 +50,8 @@ export default function HomePage() {
               Construye aplicaciones, agentes e ideas sin programar
             </h1>
             <p className="mx-auto mt-6 max-w-3xl text-lg leading-relaxed text-[#252525] sm:text-3xl sm:leading-snug dark:text-[#C7C3D4]">
-              Describe en lenguaje natural lo que necesitas. LYRA autogenera la interfaz, las bases de datos, los
-              agentes y los flujos de trabajo en un instante.
+              Describe en lenguaje natural lo que necesitas. Vega arma la interfaz en el chat, te muestra la vista
+              previa y te deja descargar el código para publicarlo donde quieras.
             </p>
           </div>
           <BuilderConsole />

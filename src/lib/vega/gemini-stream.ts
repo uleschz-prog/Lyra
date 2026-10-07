@@ -37,7 +37,7 @@ export async function openGeminiStream(system: string, contents: GeminiContent[]
         systemInstruction: { parts: [{ text: system }] },
         contents,
         ...(tools.length > 0 ? { tools: [{ functionDeclarations: tools }] } : {}),
-        generationConfig: { temperature: 0.6, maxOutputTokens: 2048 },
+        generationConfig: { temperature: 0.6, maxOutputTokens: 4096 },
       }),
     },
   );

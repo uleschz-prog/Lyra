@@ -46,25 +46,27 @@ import { cn } from "@/lib/utils";
 type ChatItem = VegaChatMessage & { status?: string };
 
 const suggestions = [
-  "Escríbeme un mensaje de WhatsApp para invitar a un amigo a conocer LYRA",
-  "Organiza mi semana para prospectar 10 personas nuevas",
-  "Dame 5 ideas de publicaciones para Instagram sobre emprender con IA",
-  "Ayúdame a responder a alguien que dice que no tiene tiempo",
+  "Quiero una app para agendar citas en mi clínica",
+  "Hazme un sitio web para mi estudio de diseño",
+  "Crea un agente que confirme citas y responda dudas",
+  "Hazme el logo de mi clínica y un video corto para anunciarla",
 ];
 
 export function VegaChat({
   firstName,
   initialChats,
   justConnected,
+  initialMessages = [],
 }: {
   firstName: string;
   initialChats: VegaChatSummary[];
   justConnected?: string | null;
+  initialMessages?: ChatItem[];
 }) {
   const { balance, syncBalance } = useCredits();
   const [chats, setChats] = useState(initialChats);
   const [activeId, setActiveId] = useState<string | null>(null);
-  const [messages, setMessages] = useState<ChatItem[]>([]);
+  const [messages, setMessages] = useState<ChatItem[]>(initialMessages);
   const [panel, setPanel] = useState<"connections" | "memory" | "tasks" | "profile" | "autonomy" | null>(justConnected ? "connections" : null);
   const [draft, setDraft] = useState("");
   const [streaming, setStreaming] = useState(false);
@@ -376,7 +378,7 @@ export function VegaChat({
           <VegaMark className="size-8" mood={mood} thinking={streaming} />
           <div className="min-w-0 flex-1">
             <p className="text-sm font-semibold text-[#1E1E24]">Vega Bot</p>
-            <p className="text-xs text-[#8A8680]">1 crédito por mensaje · 3 si busca en la web o usa tu correo o agenda</p>
+            <p className="text-xs text-[#8A8680]">1 crédito por mensaje · 3 si crea una pieza, busca en la web o usa tus apps</p>
           </div>
           {panelButtons.map(({ id, label, icon: Icon }) => (
             <button
@@ -425,7 +427,7 @@ export function VegaChat({
               </button>
             ))}
             <p className="px-3 pt-2 text-center text-[11px] text-[#A8A29E]">
-              1 crédito por mensaje · 3 si busca en la web o usa tu correo o agenda
+              1 crédito por mensaje · 3 si crea una pieza, busca en la web o usa tus apps
             </p>
           </div>
         ) : null}
@@ -442,7 +444,7 @@ export function VegaChat({
             <div className="mx-auto flex max-w-2xl flex-col items-center pt-6 text-center sm:pt-8">
               <VegaGreeting className="size-14 sm:size-16" />
               <h2 className="mt-4 text-xl font-semibold tracking-tight text-[#1E1E24] sm:text-2xl">Hola, {firstName}. ¿En qué te ayudo hoy?</h2>
-              <p className="mt-2 text-sm text-[#5C5854]">Vega Bot te ayuda a vender, prospectar y organizar tu día.</p>
+              <p className="mt-2 text-sm text-[#5C5854]">Pídele una app, un sitio, un agente, una imagen o un video. Lo ves aquí y te llevas el código.</p>
               <div className="mt-6 grid w-full gap-2 sm:mt-8 sm:grid-cols-2">
                 {suggestions.map((suggestion) => (
                   <button
@@ -501,6 +503,7 @@ export function VegaChat({
                         key={action.id}
                         action={action}
                         onChange={(next, result) => actionChanged(message.id, next, result)}
+                        onSuggest={(text) => void send(text)}
                       />
                     ))}
                     {message.sources?.length ? (

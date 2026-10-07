@@ -11,6 +11,9 @@ import {
   searchWorkspace,
   writeWorkspaceFile,
 } from "@/lib/vega/assistant-tools";
+import { buildProject, buildStoryboard, type ProjectDraft } from "@/lib/vega/build-project";
+import { scenesFromScript } from "@/lib/studio/video-plan";
+import { renderStudioVideo } from "@/lib/studio/render-video";
 import type { VegaConnections } from "@/lib/vega/apps";
 import type { FunctionDeclaration } from "@/lib/vega/gemini-stream";
 import { forgetMemory, MEMORY_MAX_LENGTH, saveMemory } from "@/lib/vega/memory";
@@ -28,13 +31,22 @@ import {
 export type { VegaConnections } from "@/lib/vega/apps";
 export type { AppDraft } from "@/lib/vega/app-tools";
 
-export type ActionKind = "send_email" | "create_event" | "whatsapp_message" | "app_action" | "run_command" | "create_image";
-export type ActionPayload = EmailDraft | EventDraft | WhatsappDraft | AppDraft | CommandDraft | ImageDraft;
+export type ActionKind = "send_email" | "create_event" | "whatsapp_message" | "app_action" | "run_command" | "create_image" | "create_video" | "deliver_project";
+export type ActionPayload = EmailDraft | EventDraft | WhatsappDraft | AppDraft | CommandDraft | ImageDraft | VideoDraft | ProjectDraft;
 
 export type EmailDraft = { to: string; cc?: string[]; subject: string; body: string };
 export type WhatsappDraft = { phone?: string; name?: string; text: string };
 export type CommandDraft = { commandId: string; label: string };
-export type ImageDraft = { prompt: string; size?: string };
+export type ImageDraft = { prompt: string; size?: string; dataUrl?: string };
+export type VideoDraft = {
+  title: string;
+  script: string;
+  scenes: string[];
+  html: string;
+  videoUrl?: string;
+  files: { path: string; content: string }[];
+};
+export type { ProjectDraft };
 export type EventDraft = {
   title: string;
   start: string;
@@ -184,7 +196,7 @@ export function vegaTools(connections: VegaConnections, webSearch: boolean): Fun
     {
       name: "crear_imagen",
       description:
-        "Prepara la generación de una imagen a partir de una descripción. NO la crea: el socio revisa y confirma con un botón. Escribe la descripción en español, concreta y visual.",
+        "Crea ya una imagen, logo o foto a partir de una descripción y la muestra en el chat. Úsala en el mismo turno en que el socio la pide. No pidas confirmación. Escribe la descripción en español, concreta y visual.",
       parameters: {
         type: "object",
         properties: {
@@ -192,6 +204,45 @@ export function vegaTools(connections: VegaConnections, webSearch: boolean): Fun
           tamano: { type: "string", enum: ["cuadrada", "horizontal", "vertical"], description: "Formato de la imagen (opcional)." },
         },
         required: ["descripcion"],
+      },
+    },
+    {
+      name: "crear_video",
+      description:
+        "Crea ya un video corto o un anuncio a partir de un guion y lo muestra en el chat. Úsala en el mismo turno en que el socio lo pide. El guion son 2 a 4 frases en español.",
+      parameters: {
+        type: "object",
+        properties: {
+          titulo: { type: "string" },
+          guion: { type: "string", description: "Texto que se lee en el video, en 2 a 4 frases." },
+          formato: { type: "string", enum: ["9:16", "1:1", "16:9"], description: "9:16 para teléfono, 16:9 para escritorio." },
+        },
+        required: ["titulo", "guion"],
+      },
+    },
+    {
+      name: "entregar_proyecto",
+      description:
+        "Entrega ya una app, un sitio web o un agente que el socio pidió. La persona ve la vista previa y descarga el código. Úsala en el mismo turno, sin pedir confirmación. Rellena secciones con lo que dijo; si falta el nombre del negocio o los servicios, usa un ejemplo concreto y dilo. Una app de citas lleva una sección agenda. Un sitio lleva portada, servicios y contacto. Un agente lleva una sección agente con reglas y ejemplos de respuesta.",
+      parameters: {
+        type: "object",
+        properties: {
+          titulo: { type: "string" },
+          tipo: { type: "string", enum: ["app", "sitio", "agente"] },
+          resumen: { type: "string", description: "Una frase de qué hace." },
+          color: { type: "string", description: "Color hexadecimal, por ejemplo #0F766E." },
+          secciones: {
+            type: "array",
+            description: "Bloques de la pieza. portada, servicios, agenda, contacto, texto o agente.",
+            items: { type: "object" },
+          },
+          sugerencias: {
+            type: "array",
+            items: { type: "string" },
+            description: "Dos o tres siguientes pasos concretos, por ejemplo un logo, un video o un mensaje de WhatsApp.",
+          },
+        },
+        required: ["titulo", "tipo", "resumen", "secciones"],
       },
     },
     {
@@ -327,6 +378,7 @@ function limited(data: unknown) {
 export type ToolOutcome =
   | { kind: "result"; response: Record<string, unknown>; status: string; sources?: WebResult[] }
   | { kind: "action"; action: ActionKind; payload: ActionPayload; summary: string }
+  | { kind: "delivery"; action: ActionKind; payload: ActionPayload; summary: string; modelNote: string }
   | { kind: "invalid"; response: Record<string, unknown> };
 
 export async function runVegaTool(userId: string, name: string, args: Record<string, unknown>): Promise<ToolOutcome> {
@@ -587,11 +639,66 @@ export async function runVegaTool(userId: string, name: string, args: Record<str
     const prompt = text(args.descripcion, 1000);
     if (prompt.length < 4) return { kind: "invalid", response: { error: "Describe la imagen con un poco más de detalle." } };
     const size = text(args.tamano, 20);
+    const orientation = size === "horizontal" ? "Una imagen panorámica, " : size === "vertical" ? "Una imagen vertical, " : "";
+    const generated = await generateImage(`${orientation}${prompt}`).catch(() => ({
+      ok: false as const,
+      error: "El proveedor de imagen no respondió.",
+    }));
+    if (!generated.ok) return { kind: "invalid", response: { error: generated.error } };
     return {
-      kind: "action",
+      kind: "delivery",
       action: "create_image",
-      payload: { prompt, ...(size ? { size } : {}) },
-      summary: `Imagen: ${prompt.slice(0, 60)}`,
+      payload: { prompt, ...(size ? { size } : {}), dataUrl: generated.dataUrl },
+      summary: "Imagen lista",
+      modelNote: "La imagen ya se ve en el chat y se puede descargar. No pidas confirmación ni describas el archivo. Ofrece un siguiente paso útil, como usarla en un sitio o en un video.",
+    };
+  }
+
+  if (name === "crear_video") {
+    const title = text(args.titulo, 80);
+    const script = text(args.guion, 800);
+    if (title.length < 3 || script.length < 12) return { kind: "invalid", response: { error: "El video necesita título y un guion de al menos una frase." } };
+    const format = text(args.formato, 8);
+    const scenes = scenesFromScript(script).map((scene) => scene.line);
+    const html = buildStoryboard(title || "Video", scenes);
+    let videoUrl: string | undefined;
+    try {
+      const video = await renderStudioVideo({
+        title,
+        script,
+        format: format === "16:9" || format === "1:1" ? format : "9:16",
+        duration: "15 s",
+        styleId: "cine",
+      });
+      videoUrl = `data:video/mp4;base64,${video.toString("base64")}`;
+    } catch {
+      videoUrl = undefined;
+    }
+    const files = [
+      { path: "guion.txt", content: `${title}\n\n${script}\n` },
+      { path: "pieza.html", content: html },
+    ];
+    return {
+      kind: "delivery",
+      action: "create_video",
+      payload: { title, script, scenes, html, ...(videoUrl ? { videoUrl } : {}), files },
+      summary: videoUrl ? "Video listo" : "Pieza de video lista para ver",
+      modelNote: videoUrl
+        ? "El video ya se reproduce en el chat y se puede descargar. No pidas confirmación."
+        : "La pieza ya se ve en el chat como secuencia de escenas y se puede descargar. El archivo mp4 no salió en este servidor; no digas que el mp4 está listo.",
+    };
+  }
+
+  if (name === "entregar_proyecto") {
+    const built = buildProject(args);
+    if (!built.ok) return { kind: "invalid", response: { error: built.error } };
+    return {
+      kind: "delivery",
+      action: "deliver_project",
+      payload: built.project,
+      summary: `${built.project.kind === "agente" ? "Agente" : built.project.kind === "sitio" ? "Sitio" : "App"} listo: ${built.project.title}`,
+      modelNote:
+        "El socio ya ve la vista previa y puede descargar el código. No pegues el HTML. Di en una frase qué incluye y menciona dos sugerencias concretas. Las citas y los mensajes se guardan en el navegador de quien abre el archivo; no digas que hay base de datos, cobros ni hosting incluidos.",
     };
   }
 

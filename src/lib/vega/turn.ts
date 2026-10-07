@@ -67,7 +67,9 @@ export function statusLabel(name: string) {
   if (name === "escribir_archivo") return "Guardando el archivo…";
   if (name === "ver_comandos") return "Revisando los comandos…";
   if (name === "preparar_comando") return "Preparando el comando…";
-  if (name === "crear_imagen") return "Preparando la imagen…";
+  if (name === "crear_imagen") return "Creando la imagen…";
+  if (name === "crear_video") return "Creando el video…";
+  if (name === "entregar_proyecto") return "Armando la vista previa…";
   return "Trabajando…";
 }
 
@@ -239,6 +241,23 @@ export async function runVegaTurn(turn: VegaTurn, emit: (event: VegaEvent) => vo
               ? { ...outcome.response, instruccion: `Estas fuentes continúan la numeración: la primera es [${offset + 1}].` }
               : outcome.response;
           } else response = outcome.response;
+        } else if (outcome.kind === "delivery") {
+          const action = await prisma.vegaAction.create({
+            data: {
+              userId,
+              conversationId: chatId,
+              kind: outcome.action,
+              payload: outcome.payload as unknown as Prisma.InputJsonValue,
+              status: "done",
+              result: outcome.summary,
+            },
+            select: { id: true, kind: true, payload: true, status: true, result: true },
+          });
+          actionIds.push(action.id);
+          emit({ t: "action", v: actionView(action) });
+          statuses.push(outcome.summary);
+          emit({ t: "status", v: outcome.summary });
+          response = { estado: "listo", nota: outcome.modelNote };
         } else if (outcome.kind === "action") {
           const action = await prisma.vegaAction.create({
             data: {
