@@ -12,6 +12,7 @@ import {
   rebuyExemptionRule,
   signupPlans,
   type PackageId,
+  type SignupPlanId,
 } from "@/config/compensation-plan";
 import { estimateInvitationEarnings, type MemberPlanView } from "@/lib/compensation/engine";
 import { formatCredits, formatUsd } from "@/lib/format";
@@ -25,13 +26,21 @@ const planVoice = {
 
 const percent = (value: number) => `${Math.round(value * 100)}%`;
 
+function simulatedSignupPlan(packageId: string | null | undefined): SignupPlanId {
+  if (packageId === "PRO" || packageId === "POLARIS") return "PRO";
+  if (packageId === "FOUNDER" || packageId === "LYRA_MASTER" || packageId === "CORPORATE") return "FOUNDER";
+  return "STARTED";
+}
+
 export function PlanWorkspace({ plan }: { plan: MemberPlanView }) {
   const [directs, setDirects] = useState(4);
   const [invitesEach, setInvitesEach] = useState(2);
-  const [salePackageId, setSalePackageId] = useState<PackageId>("STARTED");
-  const earnerPackageId = (plan.packageId ?? "STARTED") as PackageId;
+  const [salePackageId, setSalePackageId] = useState<SignupPlanId>("STARTED");
+  const [simulatedPackageId, setSimulatedPackageId] = useState<SignupPlanId>(() => simulatedSignupPlan(plan.packageId));
+  const earnerPackageId = simulatedPackageId;
   const yours = plan.packageId ? getPackage(plan.packageId) : null;
   const earner = bonusProfile(plan.packageId);
+  const simulated = getPackage(simulatedPackageId);
   const estimate = useMemo(
     () =>
       estimateInvitationEarnings({
@@ -232,23 +241,21 @@ export function PlanWorkspace({ plan }: { plan: MemberPlanView }) {
       <section className="rounded-3xl border border-border bg-surface/80 backdrop-blur-md transition-colors hover:border-border-bright p-6 sm:p-8">
         <h2 className="text-lg font-bold tracking-tight text-[#1E1E24]">Calcula lo que ganas</h2>
         <p className="mt-2 max-w-2xl text-sm leading-6 text-[#5C5854]">
-          Elige el paquete de quien entra. Tu plan {plan.packageLabel} cobra hasta el nivel {estimate.earnerLevels}. Una venta y una recarga se calculan aparte. Los invitados del ejemplo solo multiplican los niveles 1 y 2.
+          Elige tu paquete y el de quien entra. Con {simulated.label} cobras Órbita hasta el nivel {estimate.earnerLevels}. Una venta y una recarga se calculan aparte. Los invitados del ejemplo solo multiplican los niveles 1 y 2.
         </p>
-        <div className="mt-6 flex flex-wrap gap-2">
-          {signupPlans.map((planPackage) => (
-            <button
-              key={planPackage.id}
-              type="button"
-              onClick={() => setSalePackageId(planPackage.id)}
-              className={`rounded-full border px-3 py-1.5 text-xs tracking-wide ${
-                salePackageId === planPackage.id
-                  ? "border-accent-purple bg-accent-purple/15 text-[#1E1E24]"
-                  : "border-border text-[#5C5854]"
-              }`}
-            >
-              {planPackage.label} · {planPackage.rebuy > 0 ? `${formatUsd(planPackage.rebuy)} al mes` : "libre de recompra"}
-            </button>
-          ))}
+        <div className="mt-6 space-y-4">
+          <PlanChoices
+            label="Tu paquete"
+            value={simulatedPackageId}
+            onChange={setSimulatedPackageId}
+            detail={(planPackage) => `$${planPackage.price}`}
+          />
+          <PlanChoices
+            label="Paquete de quien entra"
+            value={salePackageId}
+            onChange={setSalePackageId}
+            detail={(planPackage) => (planPackage.rebuy > 0 ? `${formatUsd(planPackage.rebuy)} al mes` : "libre de recompra")}
+          />
         </div>
         <div className="mt-6 grid gap-6 md:grid-cols-2">
           <label className="block text-sm text-[#5C5854]">
@@ -300,12 +307,54 @@ export function PlanWorkspace({ plan }: { plan: MemberPlanView }) {
             </tbody>
           </table>
         </div>
-        <div className="mt-4 grid gap-3 sm:grid-cols-3">
+        <div className={`mt-4 grid gap-3 ${estimate.globalBonusUsd > 0 ? "sm:grid-cols-2 xl:grid-cols-4" : "sm:grid-cols-3"}`}>
           <Metric label="Una venta, en tus niveles" value={formatUsd(estimate.packageTotal)} />
           <Metric label="Una recarga, en tus niveles" value={formatUsd(estimate.rebuyTotal)} />
-          <Metric label="Niveles 1 y 2 del ejemplo" value={formatUsd(estimate.networkTotal)} emphasis />
+          <Metric label="Niveles 1 y 2 del ejemplo" value={formatUsd(estimate.networkTotal)} />
+          {estimate.globalBonusUsd > 0 ? (
+            <Metric label="10% de las ventas de tu red" value={formatUsd(estimate.globalBonusUsd)} emphasis />
+          ) : null}
         </div>
+        {estimate.globalBonusUsd > 0 ? (
+          <p className="mt-3 max-w-2xl text-sm leading-6 text-[#5C5854]">
+            Con el paquete de ${compensationPlan.globalPoolPrice}, la simulación suma el {percent(compensationPlan.globalPoolRate)} de las ventas de tu red: el paquete y la renovación de cada persona en los niveles 1 y 2.
+          </p>
+        ) : null}
       </section>
+    </div>
+  );
+}
+
+function PlanChoices({
+  label,
+  value,
+  onChange,
+  detail,
+}: {
+  label: string;
+  value: SignupPlanId;
+  onChange: (id: SignupPlanId) => void;
+  detail: (planPackage: PlanSpec) => string;
+}) {
+  return (
+    <div>
+      <p className="text-[11px] uppercase tracking-[0.16em] text-[#8A8680]">{label}</p>
+      <div className="mt-2 flex flex-wrap gap-2">
+        {signupPlans.map((planPackage) => (
+          <button
+            key={planPackage.id}
+            type="button"
+            onClick={() => onChange(planPackage.id as SignupPlanId)}
+            className={`rounded-full border px-3 py-1.5 text-xs tracking-wide ${
+              value === planPackage.id
+                ? "border-accent-purple bg-accent-purple/15 text-[#1E1E24]"
+                : "border-border text-[#5C5854]"
+            }`}
+          >
+            {planPackage.label} · {detail(planPackage)}
+          </button>
+        ))}
+      </div>
     </div>
   );
 }
