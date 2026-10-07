@@ -17,7 +17,7 @@ export function CreationHistory({
     <section className="rounded-2xl border border-[#E7E2DA] bg-white p-4">
       <h2 className="text-[11px] uppercase tracking-[0.22em] text-[#8A8680]">Historial</h2>
       {pieces.length === 0 ? (
-        <p className="mt-3 text-sm text-[#5C5854]">Lo que crees queda guardado en tu cuenta.</p>
+        <p className="mt-3 text-sm text-[#5C5854]">Guarda una pieza y aparecerá aquí.</p>
       ) : (
         <ul className="mt-3 space-y-2">
           {pieces.map((piece) => (

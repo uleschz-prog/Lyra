@@ -6,7 +6,8 @@ export type ConstellationSection =
   | "agents"
   | "notebook"
   | "creative"
-  | "wallet";
+  | "wallet"
+  | "protocol";
 
 export const sectionDesks: Record<
   ConstellationSection,
@@ -24,13 +25,13 @@ export const sectionDesks: Record<
   },
   compensation: {
     star: "Sulafat",
-    squad: "Planes",
-    line: "Inicio $29, Negocio $99 y Pro $299. Un crédito equivale a $1.",
+    squad: "Partners",
+    line: "Órbita paga 20%, 10% y 5% hasta el nivel 6. El 10% de las ventas del mes se reparte entre los Pro de $249 que renovaron con $99.",
   },
   academy: {
     star: "Epsilon",
     squad: "Academia",
-    line: "Lecciones por rango. Lo que aún no brilla permanece visible y cerrado.",
+    line: "Todos los cursos están abiertos con cualquier membresía.",
   },
   agents: {
     star: "Vega",
@@ -51,5 +52,10 @@ export const sectionDesks: Record<
     star: "Zeta",
     squad: "Billetera",
     line: "Dólares de comisión y créditos que alimentan la constelación.",
+  },
+  protocol: {
+    star: "Vega",
+    squad: "Protocolo",
+    line: "El agente opera USDC en Polygon Amoy y deja el rastro de cada trade.",
   },
 };

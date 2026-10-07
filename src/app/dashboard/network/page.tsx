@@ -23,7 +23,7 @@ export default async function NetworkPage() {
       <PageHeader
         eyebrow="Genealogía"
         title="Mi red"
-        description="Tu comunidad. Abre un nodo para ver patrocinador y rango."
+        description="Tu comunidad. Abre un nodo para ver a su patrocinador."
         section="genealogy"
       />
       {root ? <GenealogyTree root={root} /> : null}

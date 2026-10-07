@@ -32,7 +32,7 @@ export function CloseMonth() {
       toast.error(result.error);
       return;
     }
-    const text = `${result.active} de ${result.members} socios activos · ${result.points.toLocaleString("es-MX")} puntos · ${result.payouts} pagos por ${formatUsd(result.paid)}`;
+    const text = `${result.shares} paquetes Pro con renovación de $99 · fondo ${formatUsd(result.pool)} · ${result.payouts} pagos por ${formatUsd(result.paid)}`;
     setSummary(text);
     toast.success(`Mes ${result.month} cerrado`);
   }
@@ -42,8 +42,7 @@ export function CloseMonth() {
       <p className="text-[11px] font-medium tracking-[0.22em] text-[#7C3AED] uppercase">Administración</p>
       <h2 className="mt-2 text-lg font-bold tracking-tight text-[#1E1E24]">Cierre mensual</h2>
       <p className="mt-2 max-w-2xl text-sm leading-6 text-[#5C5854]">
-        Paga el Bono Constelación y el Fondo Galaxia sobre la red real. Cada mes se cierra una sola vez. El día 1 corre
-        solo con el cierre programado.
+        Órbita se paga al momento de cada paquete o recarga. Este cierre reparte el 10% de las ventas del mes entre los paquetes Pro de $249 que renovaron con $99. Quien no pagó esa renovación queda fuera de ese mes.
       </p>
       <div className="mt-4 flex flex-wrap items-center gap-2">
         {options.map((option) => (

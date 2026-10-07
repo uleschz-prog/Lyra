@@ -305,7 +305,7 @@ export async function createActivationCode(packageId: string) {
   const prisma = getPrisma();
 
   const code = await prisma.$transaction(async (tx) => {
-    // 1) Pool dedicado de créditos de activación (Corporate).
+    // 1) Pool dedicado de créditos de activación (Pro).
     const spent = await tx.user.updateMany({
       where: { id: user.id, activationCredits: { gte: price } },
       data: { activationCredits: { decrement: price } },

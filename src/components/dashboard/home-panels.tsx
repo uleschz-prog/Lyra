@@ -11,7 +11,6 @@ import {
   Sparkles,
   TrendingUp,
   UserPlus,
-  Users,
   Wallet,
   type LucideIcon,
 } from "lucide-react";
@@ -35,45 +34,14 @@ function Bar({ value, tone = "violet" }: { value: number; tone?: "violet" | "eme
 }
 
 export function HomeStats({ summary }: { summary: HomeSummary }) {
-  const { rank } = summary;
-  const directsProgress = (Math.min(summary.activeDirects, summary.exemptTarget) / summary.exemptTarget) * 100;
-
   return (
-    <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4" aria-label="Tu mes en LYRA">
+    <section className="grid grid-cols-2 gap-3 sm:gap-4" aria-label="Tu mes en LYRA">
       <StatLink href={brand.links.wallet} label="Comisiones del mes" icon={Wallet} tone="emerald">
         <p className="mt-2 text-2xl font-semibold text-[#1E1E24] tabular-nums">{formatUsd(summary.commissionsMonth)}</p>
         <p className="mt-1 text-xs text-[#5C5854]">Acumulado {formatUsd(summary.commissionsTotal)}</p>
       </StatLink>
 
       <CreditStat />
-
-      <StatLink href={brand.links.network} label="Directos activos" icon={Users}>
-        <p className="mt-2 text-2xl font-semibold text-[#1E1E24] tabular-nums">
-          {summary.activeDirects}
-          <span className="text-base font-normal text-[#8A8680]"> / {summary.exemptTarget}</span>
-        </p>
-        <Bar value={directsProgress} tone={summary.exempt ? "emerald" : "violet"} />
-        <p className="mt-2 text-xs text-[#5C5854]">
-          {summary.exempt
-            ? "Créditos bonus activos este mes"
-            : `${summary.exemptTarget - Math.min(summary.activeDirects, summary.exemptTarget)} más para créditos bonus`}
-        </p>
-      </StatLink>
-
-      <StatLink href={brand.links.plan} label="Rango" icon={Crown} tone="amber">
-        <p className="mt-2 text-2xl font-semibold text-[#1E1E24]">{rank.achieved ?? "En camino"}</p>
-        {rank.next ? (
-          <>
-            <Bar value={rank.next.progress} />
-            <p className="mt-2 text-xs text-[#5C5854]">
-              {formatCredits(Math.round(rank.next.counted))} de {formatCredits(rank.next.volume)} pts para {rank.next.label}
-              {rank.legs < rank.minLegs ? ` · ${rank.legs}/${rank.minLegs} líneas` : ""}
-            </p>
-          </>
-        ) : (
-          <p className="mt-1 text-xs text-[#5C5854]">Rango máximo de tu plan</p>
-        )}
-      </StatLink>
     </section>
   );
 }
@@ -156,8 +124,8 @@ function ago(iso: string) {
 
 export function RecentActivity({ items }: { items: HomeActivity[] }) {
   return (
-    <section className="rounded-2xl border border-[#E7E2DA] bg-white p-6">
-      <div className="flex items-end justify-between gap-4">
+    <section className="h-full w-full min-w-0 rounded-2xl border border-[#E7E2DA] bg-white p-4 sm:p-6">
+      <div className="flex items-end justify-between gap-3">
         <h2 className="text-lg font-semibold tracking-tight text-[#1E1E24]">Actividad reciente</h2>
         <Link href={brand.links.wallet} className="text-xs text-[#7C3AED]">
           Ver billetera

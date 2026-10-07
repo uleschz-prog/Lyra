@@ -9,7 +9,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { formatCredits, initials, packageLabel, rankLabel } from "@/lib/format";
+import { formatCredits, initials, packageLabel } from "@/lib/format";
 import type { AuthProfile } from "@/lib/types";
 
 export function UserNav({ user }: { user: AuthProfile }) {
@@ -33,7 +33,7 @@ export function UserNav({ user }: { user: AuthProfile }) {
           <p className="text-sm text-[#1E1E24]">{user.name}</p>
           <p className="text-xs text-[#8A8680]">@{user.username}</p>
           <p className="mt-2 text-[11px] uppercase tracking-[0.18em] text-[#7C3AED]">
-            {rankLabel[user.rank]}
+            {packageLabel[user.package]}
             {user.fastTrack ? " · fast-track" : ""}
           </p>
         </div>

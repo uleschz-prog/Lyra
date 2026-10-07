@@ -39,7 +39,7 @@ export default async function SuperAgentPage({ searchParams }: { searchParams: P
   return (
     <div className="mx-auto max-w-5xl space-y-8">
       <header className="text-center">
-        <p className="text-[11px] font-medium tracking-[0.22em] text-[#7C3AED] uppercase">Exclusivo Pro y Corporate</p>
+        <p className="text-[11px] font-medium tracking-[0.22em] text-[#7C3AED] uppercase">Incluido en tu membresía</p>
         <h1 className="mt-3 text-3xl font-semibold tracking-tight text-[#1E1E24] sm:text-4xl">Vega, tu superagente</h1>
         <p className="mx-auto mt-3 max-w-xl text-sm leading-relaxed text-[#5C5854]">
           Un agente que vende y cobra por ti mientras duermes, al mando de todos tus agentes.
@@ -61,7 +61,7 @@ export default async function SuperAgentPage({ searchParams }: { searchParams: P
 
       <div className="flex justify-center">
         <Link href="/dashboard/plan" className="inline-flex rounded-full bg-[#7C3AED] px-6 py-3 text-sm font-medium text-white">
-          Activar con Pro o Corporate
+          Activar una membresía
         </Link>
       </div>
     </div>

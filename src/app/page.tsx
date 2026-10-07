@@ -5,6 +5,7 @@ import { BuilderConsole } from "@/components/landing/builder-console";
 import { SiteFooter } from "@/components/landing/site-footer";
 import { SiteHeader } from "@/components/landing/site-header";
 import { PromoBadge, RebuyPromo } from "@/components/plan/rebuy-promo";
+import { VegaMascot } from "@/components/vega/vega-mark";
 import { brand } from "@/config/brand";
 import { signupPlans, type PlanSpec } from "@/config/compensation-plan";
 
@@ -35,8 +36,7 @@ const creations = [
 const planIdeas: Record<string, string> = {
   STARTED: "Quiero el plan Inicio de 29",
   PRO: "Quiero el plan Negocio de 99",
-  FOUNDER: "Quiero el plan Pro de 299",
-  CORPORATE: "Quiero una cotización para mi empresa",
+  FOUNDER: "Quiero el plan Pro de 249",
 };
 
 export default function HomePage() {
@@ -89,32 +89,32 @@ export default function HomePage() {
         </section>
 
         <section id="planes" className="mx-auto w-full max-w-7xl scroll-mt-24 px-4 py-16 sm:px-6 sm:py-24">
-          <div className="grid items-start gap-10 lg:grid-cols-[minmax(0,0.8fr)_minmax(0,1.2fr)] lg:gap-16">
-            <div className="lg:pt-4">
+          <div className="grid items-stretch gap-10 lg:grid-cols-[minmax(0,0.8fr)_minmax(0,1.2fr)] lg:gap-16">
+            <div className="flex flex-col lg:pt-4">
               <h2 className="text-5xl font-semibold tracking-tight text-[#1E1E24] sm:text-6xl lg:text-[4.5rem] lg:leading-[0.95] dark:text-[#F2F0F7]">
                 Elige
                 <br />
                 tu plan
               </h2>
               <p className="mt-8 max-w-sm text-xl leading-snug text-[#1E1E24] sm:text-2xl dark:text-[#C7C3D4]">
-                Inicio entra con $29, Negocio con $99 y Pro con $299. Corporate se cotiza según alcance. Un crédito equivale a $1. Con 3 directos activos ganas créditos bonus cada mes.
+                Inicio entra con $29 y 150 créditos, Negocio con $99 y 300, y Pro con $249 y 1,000. Todos incluyen los mismos servicios. Un crédito equivale a $1.
               </p>
+              <div className="mt-10 flex flex-1 items-center justify-center lg:mt-12">
+                <VegaMascot className="h-52 w-52 drop-shadow-[0_28px_48px_rgba(124,58,237,0.35)] sm:h-64 sm:w-64 lg:h-80 lg:w-80" />
+              </div>
             </div>
             <div className="space-y-4">
               {signupPlans.map((plan: PlanSpec) => {
                 const featured = plan.id === "PRO";
-                const corporate = plan.id === "CORPORATE";
                 const promo = "rebuyBefore" in plan;
-                const dark = featured || corporate;
+                const dark = featured;
                 return (
                   <article
                     key={plan.id}
                     className={
                       featured
                         ? "relative overflow-hidden bg-gradient-to-br from-[#7C3AED] via-[#6D28D9] to-[#2E1065] p-6 text-white shadow-[0_24px_70px_-24px_rgba(124,58,237,0.8)] ring-2 ring-[#C4B5FD]/60 sm:p-8"
-                        : corporate
-                          ? "bg-[#1E1E24] p-6 text-white sm:p-8"
-                          : "bg-white p-6 text-[#1E1E24] sm:p-8 dark:bg-[#181625] dark:text-[#F2F0F7]"
+                        : "bg-white p-6 text-[#1E1E24] sm:p-8 dark:bg-[#181625] dark:text-[#F2F0F7]"
                     }
                   >
                     {featured ? (
@@ -154,9 +154,7 @@ export default function HomePage() {
                           className={`mt-6 inline-flex rounded-md px-4 py-2.5 text-base font-medium ${
                             featured
                               ? "bg-white text-[#2E1065] shadow-[0_0_30px_rgba(233,213,255,0.5)]"
-                              : corporate
-                                ? "bg-white text-[#1E1E24]"
-                                : "bg-[#312F2F] text-white dark:bg-[#EDE9FE] dark:text-[#2E1065]"
+                              : "bg-[#312F2F] text-white dark:bg-[#EDE9FE] dark:text-[#2E1065]"
                           }`}
                         >
                           Empieza a crear

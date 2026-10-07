@@ -9,7 +9,7 @@ import { memberPlan } from "@/lib/compensation/engine";
 import { loadNetwork } from "@/lib/compensation/members";
 
 export const metadata: Metadata = {
-  title: "Partner",
+  title: "Partners",
 };
 
 export default async function PlanPage() {
@@ -23,8 +23,8 @@ export default async function PlanPage() {
     return (
       <PageHeader
         eyebrow="Compensación"
-        title="Partner"
-        description="Activa tu membresía Inicio, Negocio, Pro o Corporate para ver comisiones, rango y créditos."
+        title="Partners"
+        description="Activa Inicio, Negocio o Pro. El único bono es Órbita, sobre el paquete y sobre cada recarga de créditos."
         section="compensation"
       />
     );
@@ -34,8 +34,8 @@ export default async function PlanPage() {
     <>
       <PageHeader
         eyebrow="Compensación"
-        title="Partner"
-        description="Inicio, Negocio, Pro y Corporate. La recarga corre al mes siguiente; Corporate se cotiza y con 3 directos activos quedas exento."
+        title="Partners"
+        description="Inicio, Negocio y Pro ofrecen los mismos servicios. Cambia hasta qué nivel cobras Órbita y cuántos créditos recibes."
         section="compensation"
       />
       <PlanWorkspace plan={plan} />
