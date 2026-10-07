@@ -4,9 +4,9 @@ export const platformEntryUsd = 29;
 export const creditUsd = 1;
 
 /**
- * Planes de entrada de LYRA. Estructura simple y competitiva:
- * Inicio $29 · Negocio $99 · Pro $299 · Corporate por cotización.
- * Los créditos y beneficios son parámetros de producto; ajústalos al medir uso real.
+ * Planes de entrada de LYRA.
+ * Inicio $29 · Negocio $99 · Pro $249.
+ * Todos incluyen los mismos servicios. Cambian los créditos y hasta qué nivel de Órbita se cobra.
  */
 export type PlanSpec = {
   id: string;
@@ -23,68 +23,56 @@ export type PlanSpec = {
   quote?: boolean;
 };
 
+const sharedServices = [
+  "Todos los agentes, canales y servicios",
+  "Notebook, academia, imágenes y seguimiento",
+] as const;
+
 export const signupPlans: readonly PlanSpec[] = [
   {
     id: "STARTED",
     label: "Inicio",
-    subtitle: "Para empezar con un agente y ver resultados",
+    subtitle: "150 créditos y Órbita hasta el nivel 2",
     points: [
-      "300 créditos de entrada",
-      "1 agente activo y canales básicos",
-      "Notebook, academia y creación de imágenes",
+      "150 créditos de entrada",
+      "Cobras Órbita hasta el nivel 2 (20% y 10%)",
+      ...sharedServices,
       "Recarga desde $19 al mes siguiente",
     ],
     price: 29,
     rebuy: 19,
-    credits: 300,
+    credits: 150,
     levels: 2,
   },
   {
     id: "PRO",
     label: "Negocio",
-    subtitle: "El plan para vender y dar seguimiento en automático",
+    subtitle: "300 créditos y Órbita hasta el nivel 4",
     points: [
-      "1,500 créditos de entrada",
-      "Agentes autónomos y varios canales",
-      "Seguimiento de prospectos y analítica",
+      "300 créditos de entrada",
+      "Cobras Órbita hasta el nivel 4",
+      ...sharedServices,
       "Recarga desde $49 al mes siguiente",
     ],
     price: 99,
     rebuy: 49,
-    credits: 1500,
+    credits: 300,
     levels: 4,
   },
   {
     id: "FOUNDER",
     label: "Pro",
-    subtitle: "Más agentes, más volumen y soporte prioritario",
+    subtitle: "1,000 créditos y Órbita en los 6 niveles",
     points: [
-      "5,000 créditos de entrada",
-      "Todos los agentes y canales disponibles",
-      "Soporte prioritario y mayor límite de uso",
+      "1,000 créditos de entrada",
+      "Cobras Órbita en los 6 niveles, hasta el 50%",
+      ...sharedServices,
       "Recarga desde $99 al mes siguiente",
     ],
-    price: 299,
+    price: 249,
     rebuy: 99,
-    credits: 5000,
+    credits: 1000,
     levels: 6,
-  },
-  {
-    id: "CORPORATE",
-    label: "Corporate",
-    subtitle: "Para empresas: implementación a la medida, por cotización",
-    points: [
-      "Implementación e integraciones a la medida",
-      "Créditos y agentes según tu operación",
-      "Soporte y acuerdos de nivel de servicio (SLA)",
-      "Cotización según alcance y volumen",
-    ],
-    price: 0,
-    rebuy: 0,
-    credits: 0,
-    activationCredits: 0,
-    levels: 6,
-    quote: true,
   },
 ] as const;
 
@@ -104,16 +92,15 @@ export const activeDirectBonusCredits = 250;
 export const activeDirectBonusCap = 1500;
 
 export const compensationPlan = {
-  name: "Plan Constelación LYRA",
-  pointsPerUsd: 0.8,
-  unilevel: [0.05, 0.05, 0.04, 0.03, 0.02, 0.01],
-  galaxyPoolRate: 0.02,
+  name: "Bono Órbita",
+  pointsPerUsd: 1,
+  unilevel: [0.2, 0.1, 0.05, 0.05, 0.05, 0.05],
+  galaxyPoolRate: 0,
   /**
-   * Tope de pago sobre los puntos generados por producto (no sobre créditos
-   * regalados). Bajado de 0.55 a 0.45 para alinear el costo de red con un
-   * producto de software; la IA cuesta centavos, la red es el costo real.
+   * Los seis niveles suman el 50 % del dinero pagado (paquete o recarga).
+   * No hay un recorte extra: 20 + 10 + 5 + 5 + 5 + 5.
    */
-  payoutCap: 0.45,
+  payoutCap: 0.5,
   /**
    * Los directos activos ya NO exentan la recompra: dan créditos bonus.
    * La recurrencia queda siempre activa. Se conserva el valor por compatibilidad
@@ -138,6 +125,7 @@ export type PackageId =
   | SignupPlanId
   | (typeof legacyPlans)[number]["id"]
   | (typeof aliasPlans)[number]["id"]
+  | (typeof retiredPlans)[number]["id"]
   | "NONE";
 export type CompensationRankId = (typeof compensationPlan.ranks)[number]["id"];
 export type MemberStatus = "ACTIVE" | "INACTIVE";
@@ -147,18 +135,23 @@ export type MemberStatus = "ACTIVE" | "INACTIVE";
  * para cuentas existentes (compatibilidad). Mapean a la escalera nueva.
  */
 const legacyPlans = [
-  { id: "FREE" as const, label: "Inicio", subtitle: "Plan anterior", points: [] as string[], price: 29, rebuy: 19, credits: 100, levels: 1 },
+  { id: "FREE" as const, label: "Inicio", subtitle: "Plan anterior", points: [] as string[], price: 29, rebuy: 19, credits: 150, levels: 2 },
 ];
 
 /** Alias de IDs antiguos (VEGA, POLARIS, LYRA_MASTER, VEGA_PARTNER) a los planes actuales. */
 const aliasPlans = [
-  { id: "VEGA" as const, label: "Inicio", subtitle: "Plan anterior", points: [] as string[], price: 29, rebuy: 19, credits: 300, levels: 2 },
-  { id: "POLARIS" as const, label: "Negocio", subtitle: "Plan anterior", points: [] as string[], price: 99, rebuy: 49, credits: 1500, levels: 4 },
-  { id: "LYRA_MASTER" as const, label: "Pro", subtitle: "Plan anterior", points: [] as string[], price: 299, rebuy: 99, credits: 5000, levels: 6 },
-  { id: "VEGA_PARTNER" as const, label: "Inicio", subtitle: "Plan anterior", points: [] as string[], price: 29, rebuy: 19, credits: 300, levels: 2 },
+  { id: "VEGA" as const, label: "Inicio", subtitle: "Plan anterior", points: [] as string[], price: 29, rebuy: 19, credits: 150, levels: 2 },
+  { id: "POLARIS" as const, label: "Negocio", subtitle: "Plan anterior", points: [] as string[], price: 99, rebuy: 49, credits: 300, levels: 4 },
+  { id: "LYRA_MASTER" as const, label: "Pro", subtitle: "Plan anterior", points: [] as string[], price: 249, rebuy: 99, credits: 1000, levels: 6 },
+  { id: "VEGA_PARTNER" as const, label: "Inicio", subtitle: "Plan anterior", points: [] as string[], price: 29, rebuy: 19, credits: 150, levels: 2 },
 ];
 
-const catalog = [...signupPlans, ...legacyPlans, ...aliasPlans];
+/** Corporate ya no se vende. Las cuentas existentes siguen resolviéndose y cobran como Pro. */
+const retiredPlans = [
+  { id: "CORPORATE" as const, label: "Corporate", subtitle: "Ya no se ofrece", points: [] as string[], price: 0, rebuy: 0, credits: 0, levels: 6 },
+];
+
+const catalog = [...signupPlans, ...legacyPlans, ...aliasPlans, ...retiredPlans];
 
 export function getPackage(id: PackageId) {
   const planPackage = catalog.find((item) => item.id === id);
@@ -234,7 +227,7 @@ export function rebuyStatus(packageId: string | null | undefined, activeDirects:
   const required = compensationPlan.minActiveDirectsForBonus;
   const bonus = activeDirectBonusCreditsFor(activeDirects);
   if (packageId === "CORPORATE") {
-    return { amount: 0, exempt: true, remaining: 0, bonusCredits: bonus, label: "Corporate · por cotización" };
+    return { amount: 0, exempt: true, remaining: 0, bonusCredits: bonus, label: "Corporate ya no se ofrece" };
   }
   return {
     amount,
@@ -259,17 +252,17 @@ export type BonusProfile = {
   galaxyPool: boolean;
 };
 
-const bonusProfiles: Record<"STARTED" | "PRO" | "FOUNDER" | "CORPORATE", BonusProfile> = {
-  STARTED: { chispa: 0.1, orbitaLevels: 2, rankMultiplier: 0.25, maxRank: "NOVA", espejo: 0, galaxyPool: false },
-  PRO: { chispa: 0.2, orbitaLevels: 4, rankMultiplier: 0.5, maxRank: "QUASAR", espejo: 0, galaxyPool: false },
-  FOUNDER: { chispa: 0.3, orbitaLevels: 6, rankMultiplier: 1, maxRank: "SUPERNOVA", espejo: 0.1, galaxyPool: true },  CORPORATE: { chispa: 0.4, orbitaLevels: 6, rankMultiplier: 1.5, maxRank: "GALAXIA", espejo: 0.2, galaxyPool: true },
+const bonusProfiles: Record<"STARTED" | "PRO" | "FOUNDER", BonusProfile> = {
+  STARTED: { chispa: 0, orbitaLevels: 2, rankMultiplier: 0, maxRank: "NOVA", espejo: 0, galaxyPool: false },
+  PRO: { chispa: 0, orbitaLevels: 4, rankMultiplier: 0, maxRank: "NOVA", espejo: 0, galaxyPool: false },
+  FOUNDER: { chispa: 0, orbitaLevels: 6, rankMultiplier: 0, maxRank: "NOVA", espejo: 0, galaxyPool: false },
 };
 
 export function bonusProfile(packageId: string | null | undefined): BonusProfile | null {
   if (!packageId || packageId === "NONE") return null;
-  if (packageId === "STARTED" || packageId === "FREE" || packageId === "VEGA" || packageId === "POLARIS" || packageId === "VEGA_PARTNER") return bonusProfiles.STARTED;
-  if (packageId === "PRO" || packageId === "LYRA_MASTER") return bonusProfiles.PRO;
-  if (packageId === "FOUNDER" || packageId === "CORPORATE") return bonusProfiles[packageId];
+  if (packageId === "STARTED" || packageId === "FREE" || packageId === "VEGA" || packageId === "VEGA_PARTNER") return bonusProfiles.STARTED;
+  if (packageId === "PRO" || packageId === "POLARIS") return bonusProfiles.PRO;
+  if (packageId === "FOUNDER" || packageId === "LYRA_MASTER" || packageId === "CORPORATE") return bonusProfiles.FOUNDER;
   return null;
 }
 
@@ -295,6 +288,11 @@ export function isFounderPackage(packageId: string | null | undefined) {
   return packageId === "FOUNDER";
 }
 
+/** Cualquier membresía distinta de «sin plan» abre los mismos servicios. */
+export function hasActiveMembership(packageId: string | null | undefined) {
+  return Boolean(packageId && packageId !== "NONE");
+}
+
 export function rebuyCredits(packageId: string | null | undefined, amountUsd: number) {
   if (packageId && isSignupPlanId(packageId)) {
     const plan = getPackage(packageId);
@@ -304,8 +302,7 @@ export function rebuyCredits(packageId: string | null | undefined, amountUsd: nu
 }
 
 export function creditRechargeUsd(packageId: string | null | undefined) {
-  if (packageId === "CORPORATE") return 99;
-  if (packageId === "FOUNDER" || packageId === "LYRA_MASTER") return 99;
+  if (packageId === "FOUNDER" || packageId === "LYRA_MASTER" || packageId === "CORPORATE") return 99;
   if (packageId === "PRO" || packageId === "POLARIS") return 49;
   if (packageId === "STARTED" || packageId === "VEGA" || packageId === "FREE" || packageId === "VEGA_PARTNER") return 19;
   return null;

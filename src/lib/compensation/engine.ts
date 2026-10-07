@@ -2,6 +2,7 @@ import {
   bonusProfile,
   compensationPlan,
   getPackage,
+  isPackageId,
   rebuyStatus,
   toPoints,
   type CompensationRankId,
@@ -18,7 +19,7 @@ export type CompensationMember = {
   personalVolume: number;
 };
 
-export type BonusKind = "chispa" | "orbita" | "espejo";
+export type BonusKind = "orbita";
 
 export type UnilevelLine = {
   bonus: BonusKind;
@@ -93,9 +94,7 @@ type Index = {
 };
 
 export const bonusLabels: Record<BonusKind, string> = {
-  chispa: "Bono Chispa",
   orbita: "Bono Órbita",
-  espejo: "Bono Espejo",
 };
 
 export function roundMoney(value: number) {
@@ -192,51 +191,20 @@ export type MonthlyPayout = {
 };
 
 export function monthlyClose(members: CompensationMember[]): { payouts: MonthlyPayout[]; points: number; pool: number } {
-  const pulsarIndex = compensationPlan.ranks.findIndex((rank) => rank.id === "PULSAR");
-  const evaluated = members
-    .filter((member) => member.status === "ACTIVE" && bonusProfile(member.packageId))
-    .map((member) => ({ member, rank: evaluateRank(members, member.id) }));
-  const qualified = evaluated.filter(({ member, rank }) => {
-    if (!bonusProfile(member.packageId)?.galaxyPool || !rank.achievedRankId) return false;
-    return compensationPlan.ranks.findIndex((item) => item.id === rank.achievedRankId) >= pulsarIndex;
-  });
   const points = roundMoney(members.reduce((total, member) => total + toPoints(member.personalVolume), 0));
-  const pool = roundMoney(points * compensationPlan.galaxyPoolRate);
-  const share = qualified.length ? roundMoney(pool / qualified.length) : 0;
-  const pooled = new Set(qualified.map(({ member }) => member.id));
-
-  const payouts = evaluated
-    .map(({ member, rank }) => ({
-      userId: member.id,
-      name: member.name,
-      rankId: rank.achievedRankId,
-      rankLabel: compensationPlan.ranks.find((item) => item.id === rank.achievedRankId)?.label ?? null,
-      rankPayout: rank.payout,
-      poolPayout: pooled.has(member.id) ? share : 0,
-    }))
-    .filter((payout) => payout.rankPayout > 0 || payout.poolPayout > 0);
-
-  return { payouts, points, pool };
+  return { payouts: [], points, pool: 0 };
 }
 
-export function galaxyPoolShare(members: CompensationMember[], userId: string) {
-  const pulsarIndex = compensationPlan.ranks.findIndex((rank) => rank.id === "PULSAR");
-  const qualified = members.filter((member) => {
-    if (member.status !== "ACTIVE" || !bonusProfile(member.packageId)?.galaxyPool) return false;
-    const achieved = evaluateRank(members, member.id).achievedRankId;
-    return achieved !== null && compensationPlan.ranks.findIndex((rank) => rank.id === achieved) >= pulsarIndex;
-  });
-  if (!qualified.some((member) => member.id === userId)) return 0;
-  const points = members.reduce((total, member) => total + toPoints(member.personalVolume), 0);
-  return roundMoney((points * compensationPlan.galaxyPoolRate) / qualified.length);
+export function galaxyPoolShare(_members: CompensationMember[], _userId: string) {
+  return 0;
 }
 
 export function rebuyMessage(packageId: PackageId | null, directs = 0) {
-  if (!packageId) return "Elige Inicio, Negocio, Pro o Corporate.";
+  if (!packageId) return "Elige Inicio, Negocio o Pro.";
   const planPackage = getPackage(packageId);
   const status = rebuyStatus(packageId, directs);
   if (packageId === "CORPORATE") {
-    return "Corporate se cotiza según el alcance de tu operación.";
+    return "Tu cuenta Corporate conserva Órbita en los 6 niveles. Ese paquete ya no se ofrece.";
   }
   if (status.exempt) {
     return `Tienes ${compensationPlan.minActiveDirectsForBonus} directos activos: ganas créditos bonus cada mes mientras se mantengan activos.`;
@@ -273,76 +241,41 @@ function blockReason(sponsor: CompensationMember) {
   return null;
 }
 
+function sponsorLabel(packageId: PackageId | null) {
+  if (packageId && isPackageId(packageId)) return getPackage(packageId).label;
+  return "Este plan";
+}
+
 export function distributeSale(
   members: CompensationMember[],
   userId: string,
   amountUsd: number,
-  kind: "purchase" | "rebuy",
+  _kind: "purchase" | "rebuy",
 ): UnilevelLine[] {
-  const points = toPoints(amountUsd);
-  if (points <= 0) return [];
+  if (!(amountUsd > 0)) return [];
 
   const index = indexMembers(members);
-  const chain = upline(index, userId, compensationPlan.unilevel.length + 1);
-  const lines: UnilevelLine[] = [];
+  const chain = upline(index, userId, compensationPlan.unilevel.length);
 
-  const direct = chain[0];
-  if (kind === "purchase" && direct) {
-    const rate = bonusProfile(direct.packageId)?.chispa ?? 0;
-    const reason = blockReason(direct);
-    lines.push({
-      bonus: "chispa",
-      level: 1,
-      rate,
-      sponsorId: direct.id,
-      sponsorName: direct.name,
-      amount: reason ? 0 : points * rate,
-      paid: reason === null,
-      reason,
-    });
-  }
-
-  chain.slice(0, compensationPlan.unilevel.length).forEach((sponsor, position) => {
+  return chain.map((sponsor, position) => {
     const level = position + 1;
     const rate = compensationPlan.unilevel[position] ?? 0;
     const profile = bonusProfile(sponsor.packageId);
     let reason = blockReason(sponsor);
     if (!reason && profile && profile.orbitaLevels < level) {
-      reason = `${getPackage(sponsor.packageId as PackageId).label} cobra Órbita hasta el nivel ${profile.orbitaLevels}`;
+      reason = `${sponsorLabel(sponsor.packageId)} cobra Órbita hasta el nivel ${profile.orbitaLevels}`;
     }
-    const orbita = reason ? 0 : points * rate;
-    lines.push({
-      bonus: "orbita",
+    return {
+      bonus: "orbita" as const,
       level,
       rate,
       sponsorId: sponsor.id,
       sponsorName: sponsor.name,
-      amount: orbita,
+      amount: reason ? 0 : roundMoney(amountUsd * rate),
       paid: reason === null,
       reason,
-    });
-
-    const mentor = chain[position + 1];
-    const espejo = mentor ? (bonusProfile(mentor.packageId)?.espejo ?? 0) : 0;
-    if (orbita > 0 && mentor && espejo > 0 && !blockReason(mentor)) {
-      lines.push({
-        bonus: "espejo",
-        level: level + 1,
-        rate: espejo,
-        sponsorId: mentor.id,
-        sponsorName: mentor.name,
-        amount: orbita * espejo,
-        paid: true,
-        reason: null,
-      });
-    }
+    };
   });
-
-  const total = lines.reduce((sum, line) => sum + line.amount, 0);
-  const limit = points * compensationPlan.payoutCap;
-  const factor = total > limit ? limit / total : 1;
-
-  return lines.map((line) => ({ ...line, amount: roundMoney(line.amount * factor) }));
 }
 
 export function estimateInvitationEarnings(input: {
@@ -354,21 +287,17 @@ export function estimateInvitationEarnings(input: {
   const sale = getPackage(input.salePackageId);
   const profile = bonusProfile(input.earnerPackageId);
   const [orbita1 = 0, orbita2 = 0] = compensationPlan.unilevel;
-  const chispaRate = profile?.chispa ?? 0;
+  const level1Rate = profile && profile.orbitaLevels >= 1 ? orbita1 : 0;
   const level2Rate = profile && profile.orbitaLevels >= 2 ? orbita2 : 0;
-  const salePoints = toPoints(sale.price);
-  const rebuyPoints = toPoints(sale.rebuy);
-  const chispa = roundMoney(input.directs * salePoints * chispaRate);
-  const level1 = roundMoney(input.directs * (salePoints + rebuyPoints) * orbita1);
-  const level2 = roundMoney(input.directs * input.invitesEach * (salePoints + rebuyPoints) * level2Rate);
+  const paid = sale.price + sale.rebuy;
+  const level1 = roundMoney(input.directs * paid * level1Rate);
+  const level2 = roundMoney(input.directs * input.invitesEach * paid * level2Rate);
 
   return {
-    chispa,
     level1,
     level2,
-    total: roundMoney(chispa + level1 + level2),
-    chispaRate,
-    level1Rate: orbita1,
+    total: roundMoney(level1 + level2),
+    level1Rate,
     level2Rate,
     price: sale.price,
     earnerLevels: profile?.orbitaLevels ?? 0,
@@ -422,8 +351,8 @@ export function processCommission(
         charge: null,
         unilevel: [],
         rank,
-        rankPayout: member.status === "ACTIVE" ? rank.payout : 0,
-        poolPayout: member.status === "ACTIVE" ? galaxyPoolShare(members, member.id) : 0,
+        rankPayout: 0,
+        poolPayout: galaxyPoolShare(members, member.id),
       },
     };
   }

@@ -110,10 +110,10 @@ export function ReferralCard({
         <VegaMascot className="h-24 w-24 shrink-0 self-center sm:h-20 sm:w-20" />
         <p className="text-sm leading-6 text-[#5C5854]">
         {isFounderPackage(packageId)
-          ? "Tu cuenta Pro cobra el máximo de la red desde el día 0."
+          ? "Tu cuenta Pro cobra Órbita en los 6 niveles."
           : recharge
             ? `Tu recarga mínima es de $${recharge} al mes siguiente. Un crédito equivale a $1.`
-            : "Inicio entra con $29, Negocio con $99 y Pro con $299. Corporate se cotiza. Un crédito equivale a $1."}
+            : "Inicio entra con $29, Negocio con $99 y Pro con $249. Un crédito equivale a $1."}
         </p>
       </div>
     </section>

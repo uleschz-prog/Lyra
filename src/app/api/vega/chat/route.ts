@@ -13,7 +13,7 @@ export async function POST(request: Request) {
   if (!guard.ok) return guard.response;
   const user = guard.user;
   if (!canUseVega(user)) {
-    return NextResponse.json({ error: "Vega está incluida en Pro y Corporate." }, { status: 403 });
+    return NextResponse.json({ error: "Vega está incluida en cualquier membresía activa." }, { status: 403 });
   }
   if (!vegaConfigured()) {
     return NextResponse.json({ error: "Vega no está configurada en el servidor." }, { status: 503 });

@@ -5,12 +5,9 @@ import { useMemo, useState } from "react";
 
 import { Badge } from "@/components/ui/badge";
 import { PromoBadge, RebuyPromo } from "@/components/plan/rebuy-promo";
-import { Progress } from "@/components/ui/progress";
 import {
   bonusProfile,
   compensationPlan,
-  getPackage,
-  type BonusProfile,
   rebuyExemptionRule,
   signupPlans,
   type PackageId,
@@ -20,40 +17,18 @@ import { formatCredits, formatUsd } from "@/lib/format";
 import type { PlanSpec } from "@/config/compensation-plan";
 
 const planVoice = {
-  STARTED: "Para empezar: un agente, canales básicos y creación de contenido.",
-  PRO: "El plan para vender y dar seguimiento en automático.",
-  FOUNDER: "Más agentes, más volumen y soporte prioritario.",
-  CORPORATE: "Implementación a la medida, por cotización.",
+  STARTED: "Los mismos servicios. Cobras Órbita en 2 niveles y entras con 150 créditos.",
+  PRO: "Los mismos servicios. Cobras Órbita en 4 niveles y entras con 300 créditos.",
+  FOUNDER: "Los mismos servicios. Cobras Órbita en 6 niveles y entras con 1,000 créditos.",
 } as const;
 
 const percent = (value: number) => `${Math.round(value * 100)}%`;
-const rankLabel = (id: string) => compensationPlan.ranks.find((rank) => rank.id === id)?.label ?? id;
-
-const bonusRows: { label: string; hint: string; value: (profile: BonusProfile) => string }[] = [
-  { label: "Chispa", hint: "Inicio rápido sobre cada inscripción directa", value: (profile) => percent(profile.chispa) },
-  {
-    label: "Órbita",
-    hint: `Residual ${compensationPlan.unilevel.map(percent).join(" / ")} sobre inscripciones y recompras`,
-    value: (profile) => `${profile.orbitaLevels} niveles`,
-  },
-  {
-    label: "Constelación",
-    hint: "Cheque mensual por rango",
-    value: (profile) => `×${profile.rankMultiplier} hasta ${rankLabel(profile.maxRank)}`,
-  },
-  { label: "Espejo", hint: "Sobre la Órbita de tus directos", value: (profile) => (profile.espejo ? percent(profile.espejo) : "—") },
-  {
-    label: "Fondo Galaxia",
-    hint: `${percent(compensationPlan.galaxyPoolRate)} de los puntos globales desde rango Pulsar`,
-    value: (profile) => (profile.galaxyPool ? "Participa" : "—"),
-  },
-];
 
 export function PlanWorkspace({ plan }: { plan: MemberPlanView }) {
   const [directs, setDirects] = useState(4);
   const [invitesEach, setInvitesEach] = useState(2);
   const [salePackageId, setSalePackageId] = useState<PackageId>("STARTED");
-  const earnerPackageId = plan.packageId ?? "STARTED";
+  const earnerPackageId = (plan.packageId ?? "STARTED") as PackageId;
   const estimate = useMemo(
     () =>
       estimateInvitationEarnings({
@@ -64,8 +39,6 @@ export function PlanWorkspace({ plan }: { plan: MemberPlanView }) {
       }),
     [directs, invitesEach, salePackageId, earnerPackageId],
   );
-  const achieved = plan.rank.ranks.find((rank) => rank.id === plan.rank.achievedRankId);
-
   return (
     <div className="space-y-8">
       <section className="rounded-3xl border border-border bg-[#F4F1EC] p-6 backdrop-blur-xl sm:p-8 dark:border-white/12 dark:bg-[#181625]">
@@ -89,11 +62,10 @@ export function PlanWorkspace({ plan }: { plan: MemberPlanView }) {
       <section>
         <h2 className="text-lg font-bold tracking-tight text-[#1E1E24]">Poder de cómputo</h2>
         <p className="mt-2 max-w-2xl text-sm leading-6 text-[#5C5854]">
-          Inicio entra con $29, Negocio con $99 y Pro con $299. Corporate se cotiza según alcance. Un crédito equivale a $1. La recarga corre al mes siguiente. {rebuyExemptionRule}
+          Inicio entra con $29 y 150 créditos, Negocio con $99 y 300, y Pro con $249 y 1,000. Todos incluyen los mismos servicios. Cambia hasta qué nivel cobras Órbita y cuántos créditos recibes. {rebuyExemptionRule}
         </p>
-        <div className="mt-6 grid items-stretch gap-4 md:grid-cols-2 xl:grid-cols-4">
+        <div className="mt-6 grid items-stretch gap-4 md:grid-cols-2 xl:grid-cols-3">
           {signupPlans.map((planPackage: PlanSpec) => {
-            const corporate = planPackage.id === "CORPORATE";
             const founder = planPackage.id === "FOUNDER";
             const featured = founder;
             const promo = "rebuyBefore" in planPackage;
@@ -104,19 +76,15 @@ export function PlanWorkspace({ plan }: { plan: MemberPlanView }) {
               <article
                 key={planPackage.id}
                 className={`relative row-span-8 grid grid-rows-subgrid gap-0 overflow-hidden rounded-[28px] p-5 transition-transform duration-300 hover:-translate-y-1 ${
-                  corporate
-                    ? "bg-gradient-to-b from-[#2A2A33] to-[#111114] text-white shadow-[0_24px_60px_-28px_rgba(17,17,20,0.9)] ring-1 ring-white/10"
-                    : founder
-                      ? "bg-gradient-to-b from-[#8B5CF6] to-[#5B21B6] text-white shadow-[0_24px_60px_-24px_rgba(124,58,237,0.75)]"
-                      : "border border-[#E7E2DA] bg-white text-[#1E1E24] shadow-[0_18px_40px_-30px_rgba(30,30,36,0.35)] dark:border-white/12 dark:bg-[#181625] dark:text-[#F2F0F7]"
+                  founder
+                    ? "bg-gradient-to-b from-[#8B5CF6] to-[#5B21B6] text-white shadow-[0_24px_60px_-24px_rgba(124,58,237,0.75)]"
+                    : "border border-[#E7E2DA] bg-white text-[#1E1E24] shadow-[0_18px_40px_-30px_rgba(30,30,36,0.35)] dark:border-white/12 dark:bg-[#181625] dark:text-[#F2F0F7]"
                 }`}
               >
                 {featured ? (
                   <span
                     aria-hidden
-                    className={`pointer-events-none absolute -top-20 -right-16 h-48 w-48 rounded-full blur-3xl ${
-                      corporate ? "bg-[#7C3AED]/35" : "bg-white/25"
-                    }`}
+                    className="pointer-events-none absolute -top-20 -right-16 h-48 w-48 rounded-full bg-white/25 blur-3xl"
                   />
                 ) : null}
 
@@ -124,10 +92,6 @@ export function PlanWorkspace({ plan }: { plan: MemberPlanView }) {
                   {founder ? (
                     <span className="rounded-full bg-white/15 px-2.5 py-1 text-[11px] font-medium tracking-wide text-white ring-1 ring-white/20">
                       Mayor capacidad
-                    </span>
-                  ) : corporate ? (
-                    <span className="rounded-full bg-gradient-to-r from-[#E9D5FF] to-[#C4B5FD] px-2.5 py-1 text-[11px] font-semibold tracking-wide text-[#2E1065]">
-                      Recupera tu capital
                     </span>
                   ) : promo ? (
                     <PromoBadge />
@@ -162,11 +126,9 @@ export function PlanWorkspace({ plan }: { plan: MemberPlanView }) {
                     <RebuyPromo before={planPackage.rebuyBefore} now={planPackage.rebuy} className="mt-1.5 text-sm" />
                   ) : (
                     <p className={`mt-1.5 text-sm leading-6 ${featured ? "text-white/75" : "text-[#5C5854]"}`}>
-                      {corporate
-                        ? "Implementación a la medida, por cotización"
-                        : typeof planPackage.rebuyCredits === "number"
-                          ? `Mensualidad de ${formatUsd(planPackage.rebuy)} con ${planPackage.rebuyCredits} créditos desde el mes siguiente`
-                          : `Recarga mínima de ${formatUsd(planPackage.rebuy)} desde el mes siguiente`}
+                      {typeof planPackage.rebuyCredits === "number"
+                        ? `Mensualidad de ${formatUsd(planPackage.rebuy)} con ${planPackage.rebuyCredits} créditos desde el mes siguiente`
+                        : `Recarga mínima de ${formatUsd(planPackage.rebuy)} desde el mes siguiente`}
                     </p>
                   )}
                 </div>
@@ -196,8 +158,7 @@ export function PlanWorkspace({ plan }: { plan: MemberPlanView }) {
       <section>
         <h2 className="text-lg font-bold tracking-tight text-[#1E1E24]">{compensationPlan.name}</h2>
         <p className="mt-2 max-w-2xl text-sm leading-6 text-[#5C5854]">
-          Tu equipo es el mismo. Tu paquete decide cuánto te toca. El pago total nunca pasa de{" "}
-          {Math.round(compensationPlan.payoutCap * 100)}% de los puntos.
+          El único bono es Órbita: 20%, 10% y 5% del nivel 3 al 6 sobre el dinero del paquete o de la recarga de créditos. Los seis niveles suman 50%. Tu paquete define hasta qué nivel cobras.
         </p>
         <div className="mt-5 overflow-x-auto rounded-3xl border border-[#E7E2DA] bg-white dark:border-white/12 dark:bg-[#181625]">
           <table className="w-full min-w-[640px] text-left text-sm">
@@ -212,22 +173,22 @@ export function PlanWorkspace({ plan }: { plan: MemberPlanView }) {
               </tr>
             </thead>
             <tbody className="text-[#1E1E24]">
-              {bonusRows.map((row) => (
-                <tr key={row.label} className="border-b border-[#F0ECE6] last:border-0">
-                  <td className="px-5 py-3">
-                    <p className="font-medium">{row.label}</p>
-                    <p className="text-xs text-[#8A8680]">{row.hint}</p>
-                  </td>
-                  {signupPlans.map((planPackage) => {
-                    const profile = bonusProfile(planPackage.id);
-                    return (
-                      <td key={planPackage.id} className="px-5 py-3 tabular-nums">
-                        {profile ? row.value(profile) : "—"}
-                      </td>
-                    );
-                  })}
-                </tr>
-              ))}
+              <tr>
+                <td className="px-5 py-3">
+                  <p className="font-medium">Órbita</p>
+                  <p className="text-xs text-[#8A8680]">
+                    {compensationPlan.unilevel.map(percent).join(" / ")} del dinero pagado
+                  </p>
+                </td>
+                {signupPlans.map((planPackage) => {
+                  const profile = bonusProfile(planPackage.id);
+                  return (
+                    <td key={planPackage.id} className="px-5 py-3 tabular-nums">
+                      {profile ? `${profile.orbitaLevels} niveles` : "—"}
+                    </td>
+                  );
+                })}
+              </tr>
             </tbody>
           </table>
         </div>
@@ -236,7 +197,7 @@ export function PlanWorkspace({ plan }: { plan: MemberPlanView }) {
       <section className="rounded-3xl border border-border bg-surface/80 backdrop-blur-md transition-colors hover:border-border-bright p-6 sm:p-8">
         <h2 className="text-lg font-bold tracking-tight text-[#1E1E24]">Calcula lo que ganas</h2>
         <p className="mt-2 max-w-2xl text-sm leading-6 text-[#5C5854]">
-          Elige el paquete de tus invitados. Tu plan {getPackage(earnerPackageId).label} define tu Chispa y hasta qué nivel cobras Órbita. Cada dólar genera 0.8 puntos.
+          Elige el paquete de tus invitados. Tu plan {plan.packageLabel} cobra Órbita hasta el nivel {estimate.earnerLevels}, sobre el precio de entrada y la recarga.
         </p>
         <div className="mt-6 flex flex-wrap gap-2">
           {signupPlans.map((planPackage) => (
@@ -278,54 +239,10 @@ export function PlanWorkspace({ plan }: { plan: MemberPlanView }) {
             />
           </label>
         </div>
-        <div className="mt-6 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-          <Metric label={`Chispa · ${Math.round(estimate.chispaRate * 100)}%`} value={formatUsd(estimate.chispa)} />
+        <div className="mt-6 grid gap-3 sm:grid-cols-3">
           <Metric label={`Órbita nivel 1 · ${Math.round(estimate.level1Rate * 100)}%`} value={formatUsd(estimate.level1)} />
           <Metric label={`Órbita nivel 2 · ${Math.round(estimate.level2Rate * 100)}%`} value={formatUsd(estimate.level2)} />
           <Metric label="Primer mes" value={formatUsd(estimate.total)} emphasis />
-        </div>
-      </section>
-
-      <section>
-        <div className="flex flex-wrap items-end justify-between gap-3">
-          <div>
-            <h2 className="text-lg font-bold tracking-tight text-[#1E1E24]">Bono Constelación</h2>
-            <p className="mt-2 max-w-2xl text-sm leading-6 text-[#5C5854]">
-              Cheque mensual por rango. El volumen viene de al menos {plan.rank.minLegsRequired} líneas y cada línea
-              cuenta hasta {Math.round(compensationPlan.maxLegVolumePercentage * 100)}% del rango. Tu paquete multiplica
-              el cheque ×{plan.rank.multiplier}.
-            </p>
-          </div>
-          {achieved ? (
-            <Badge variant="violet">
-              Rango {achieved.label} · cheque {formatUsd(achieved.payout)}
-            </Badge>
-          ) : null}
-        </div>
-        <div className="mt-4 grid gap-4 md:grid-cols-2 xl:grid-cols-5">
-          {plan.rank.ranks.map((rank, index) => (
-            <article
-              key={rank.id}
-              className={`rounded-3xl border p-4 ${
-                rank.id === plan.rank.achievedRankId
-                  ? "border-accent-purple bg-accent-purple/10"
-                  : "border-border bg-surface/80 backdrop-blur-md transition-colors hover:border-border-bright"
-              }`}
-            >
-              <p className="text-[11px] tracking-[0.22em] text-[#7C3AED]">{"✦".repeat(index + 1)}</p>
-              <h3 className="mt-3 text-base font-medium text-[#1E1E24]">{rank.label}</h3>
-              <p className="mt-2 text-xl tabular-nums text-[#7C3AED]">
-                {rank.locked ? "Bloqueado" : formatUsd(rank.payout)}
-              </p>
-              <p className="text-xs text-[#5C5854]">{formatCredits(rank.volume)} puntos al mes</p>
-              <Progress className="mt-4" value={rank.locked ? 0 : rank.progress} />
-              {rank.locked ? (
-                <p className="mt-2 text-xs text-[#8A8680]">Sube de paquete para desbloquearlo</p>
-              ) : (
-                <p className="mt-2 text-xs text-[#7C3AED]">{rank.reached ? "Alcanzado" : `${Math.round(rank.progress)}%`}</p>
-              )}
-            </article>
-          ))}
         </div>
       </section>
     </div>

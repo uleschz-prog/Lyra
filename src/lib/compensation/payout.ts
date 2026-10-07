@@ -78,7 +78,7 @@ export async function payCommissions(
         amount: roundMoney(line.amount),
         creditDelta: 0,
         kind: "COMMISSION",
-        description: `${bonusLabels[line.bonus]}${line.bonus === "chispa" ? "" : ` nivel ${line.level}`} · ${buyer.name}`,
+        description: `${bonusLabels[line.bonus]} nivel ${line.level} · ${buyer.name}`,
       },
     });
   }

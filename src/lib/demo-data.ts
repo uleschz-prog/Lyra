@@ -21,9 +21,9 @@ export const demoTransactions: WalletTransaction[] = [
   },
   {
     id: "txn_credit_pack",
-    description: "Plan Negocio · 1,500 créditos",
+    description: "Plan Negocio · 300 créditos",
     amountUsd: 99,
-    creditDelta: 1500,
+    creditDelta: 300,
     kind: "CREDIT_PURCHASE",
     createdAt: "2026-09-12T18:30:00.000Z",
   },

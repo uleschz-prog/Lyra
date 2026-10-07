@@ -56,7 +56,7 @@ export default async function ReferralLandingPage({
         <ul className="mt-10 space-y-3 text-base text-[#1E1E24]">
           <li>Describes tu idea en una frase.</li>
           <li>LYRA arma la herramienta.</li>
-          <li>Eliges Inicio, Negocio, Pro o Corporate.</li>
+          <li>Eliges Inicio, Negocio o Pro.</li>
         </ul>
 
         <Link

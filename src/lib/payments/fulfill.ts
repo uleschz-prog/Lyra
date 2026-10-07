@@ -90,7 +90,7 @@ export async function fulfillMercadoPago(paymentId: string): Promise<FulfillResu
           externalRef,
         },
       });
-      if (firstRebuy) await payCommissions(tx, user, usd, "rebuy");
+      if (firstRebuy || purpose === "credits") await payCommissions(tx, user, usd, "rebuy");
     });
     return { ok: true, purpose, credits, already: false };
   } catch (error) {

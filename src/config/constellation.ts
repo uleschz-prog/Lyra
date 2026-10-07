@@ -25,12 +25,12 @@ export const sectionDesks: Record<
   compensation: {
     star: "Sulafat",
     squad: "Planes",
-    line: "Inicio $29, Negocio $99 y Pro $299. Un crédito equivale a $1.",
+    line: "Inicio $29, Negocio $99 y Pro $249. Un crédito equivale a $1.",
   },
   academy: {
     star: "Epsilon",
     squad: "Academia",
-    line: "Lecciones por rango. Lo que aún no brilla permanece visible y cerrado.",
+    line: "Todos los cursos están abiertos con cualquier membresía.",
   },
   agents: {
     star: "Vega",

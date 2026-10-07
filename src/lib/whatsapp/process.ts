@@ -68,7 +68,7 @@ function actionSummary(kind: string, payload: unknown) {
 async function handleOwner(connection: WhatsappConnection, inbound: WhatsappInbound): Promise<string> {
   const user = connection.user;
   if (!canUseVega(user)) {
-    await sendWhatsappText(connection.phoneNumberId, inbound.from, "Para platicar con Vega desde WhatsApp activa Founder, Corporate o Vega Partner.");
+    await sendWhatsappText(connection.phoneNumberId, inbound.from, "Para platicar con Vega desde WhatsApp activa una membresía.");
     return "owner-no-vega";
   }
   const ownerChat = await getPrisma().whatsappChat.findUnique({

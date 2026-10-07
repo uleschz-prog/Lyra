@@ -1,11 +1,9 @@
+import { hasActiveMembership } from "@/config/compensation-plan";
 import type { AuthProfile } from "@/lib/types";
-
-/** Membresías con acceso al agente que responde prospectos por WhatsApp. */
-export const prospectPlans = ["PRO", "FOUNDER", "CORPORATE"] as const;
 
 export function canUseProspectAgent(user: Pick<AuthProfile, "role" | "package"> | null) {
   if (!user) return false;
-  return user.role === "ADMIN" || (prospectPlans as readonly string[]).includes(user.package);
+  return user.role === "ADMIN" || hasActiveMembership(user.package);
 }
 
 export const TIMEZONE_OFFSET_HOURS = -6;

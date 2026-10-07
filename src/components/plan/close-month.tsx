@@ -42,8 +42,7 @@ export function CloseMonth() {
       <p className="text-[11px] font-medium tracking-[0.22em] text-[#7C3AED] uppercase">Administración</p>
       <h2 className="mt-2 text-lg font-bold tracking-tight text-[#1E1E24]">Cierre mensual</h2>
       <p className="mt-2 max-w-2xl text-sm leading-6 text-[#5C5854]">
-        Paga el Bono Constelación y el Fondo Galaxia sobre la red real. Cada mes se cierra una sola vez. El día 1 corre
-        solo con el cierre programado.
+        Órbita se paga al momento de cada paquete o recarga. Este cierre ya no genera rangos ni Fondo Galaxia.
       </p>
       <div className="mt-4 flex flex-wrap items-center gap-2">
         {options.map((option) => (

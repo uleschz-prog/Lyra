@@ -21,7 +21,7 @@ export default async function AcademyPage() {
       <PageHeader
         eyebrow="Academia"
         title="Formación"
-        description={`Tu rango es ${rankLabel[user.rank]}. Los cursos de un rango superior permanecen visibles y bloqueados.`}
+        description={`Tu rango es ${rankLabel[user.rank]}. Todos los cursos están abiertos con cualquier membresía.`}
         section="academy"
       />
       <CourseCatalog courses={courses} userRank={user.rank} />
