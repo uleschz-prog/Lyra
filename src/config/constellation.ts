@@ -25,7 +25,7 @@ export const sectionDesks: Record<
   compensation: {
     star: "Sulafat",
     squad: "Partners",
-    line: "Órbita paga 20%, 10% y 5% hasta el nivel 6. Inicio cobra 2 niveles, Negocio 4 y Pro 6.",
+    line: "Órbita paga 20%, 10% y 5% hasta el nivel 6. El 10% de las ventas del mes se reparte entre los Pro de $249 que renovaron con $99.",
   },
   academy: {
     star: "Epsilon",

@@ -43,6 +43,8 @@ export async function payCommissions(
       status: (await isActive(tx, ancestor.id, now)) ? "ACTIVE" : "INACTIVE",
       packageId: ancestor.package === "NONE" ? null : (ancestor.package as PackageId),
       personalVolume: 0,
+      renewalUsd: 0,
+      creditPurchaseUsd: 0,
     });
     cursor = ancestor.sponsorId;
   }
@@ -55,6 +57,8 @@ export async function payCommissions(
       status: "ACTIVE",
       packageId: buyer.package === "NONE" ? null : (buyer.package as PackageId),
       personalVolume: 0,
+      renewalUsd: 0,
+      creditPurchaseUsd: 0,
     },
     ...chain,
   ];
