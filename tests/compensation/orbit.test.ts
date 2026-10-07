@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import { getPackage, signupPlans } from "@/config/compensation-plan";
-import { distributeSale, monthlyClose, type CompensationMember } from "@/lib/compensation/engine";
+import { distributeSale, estimateInvitationEarnings, monthlyClose, type CompensationMember } from "@/lib/compensation/engine";
 
 function member(
   id: string,
@@ -62,6 +62,30 @@ describe("bono órbita", () => {
     const lines = distributeSale(chain("FOUNDER", "INACTIVE"), "buyer", 100, "purchase");
     expect(lines.every((line) => line.amount === 0 && line.paid === false)).toBe(true);
     expect(distributeSale(chain("FOUNDER"), "buyer", 0, "rebuy")).toEqual([]);
+  });
+
+  it("estima la venta y la recarga según la profundidad del paquete", () => {
+    const inicio = estimateInvitationEarnings({
+      directs: 1,
+      invitesEach: 1,
+      salePackageId: "STARTED",
+      earnerPackageId: "STARTED",
+    });
+    expect(inicio.levels.map((level) => level.packageUsd)).toEqual([5.8, 2.9, 0, 0, 0, 0]);
+    expect(inicio.earnerShare).toBe(0.3);
+
+    const pro = estimateInvitationEarnings({
+      directs: 2,
+      invitesEach: 3,
+      salePackageId: "STARTED",
+      earnerPackageId: "FOUNDER",
+    });
+    expect(pro.levels.every((level) => level.active)).toBe(true);
+    expect(pro.level1).toBe(11.6);
+    expect(pro.level2).toBe(17.4);
+    expect(pro.levels[2]?.packageUsd).toBe(1.45);
+    expect(pro.packageTotal).toBe(14.5);
+    expect(pro.rebuyTotal).toBe(9.5);
   });
 
   it("el cierre mensual ya no paga rangos ni fondo", () => {
