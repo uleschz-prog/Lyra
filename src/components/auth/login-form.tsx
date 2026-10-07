@@ -43,7 +43,7 @@ export function LoginForm() {
   }
 
   return (
-    <form onSubmit={(event) => void onSubmit(event)} className="space-y-4">
+    <form method="post" action="/login" onSubmit={(event) => void onSubmit(event)} className="space-y-4">
       <label className="block text-sm text-[#1E1E24]">
         Correo / Usuario
         <input name="identifier" autoComplete="username" required className={fieldClass} />
