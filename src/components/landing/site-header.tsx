@@ -39,12 +39,15 @@ export function SiteHeader() {
         </nav>
         <div className="flex items-center gap-2 sm:gap-3">
           <ThemeToggle className="hidden h-10 w-10 place-items-center rounded-[6px] text-[#1E1E24] transition-colors hover:bg-black/5 dark:text-[#F2F0F7] dark:hover:bg-white/10 sm:grid" />
-          <Link href={brand.links.login} className="hidden text-base text-[#1E1E24] hover:text-black sm:inline">
-            Inicia Sesión
+          <Link
+            href={brand.links.login}
+            className="inline-flex min-h-10 shrink-0 items-center text-sm font-medium text-[#1E1E24] hover:text-black sm:text-base"
+          >
+            Iniciar sesión
           </Link>
           <Link
             href={brand.links.register}
-            className="inline-flex items-center rounded-[6px] bg-[#312F2F] px-4 py-2.5 text-base font-medium text-white transition-colors hover:bg-[#1E1E24]"
+            className="inline-flex shrink-0 items-center rounded-[6px] bg-[#312F2F] px-3 py-2 text-sm font-medium whitespace-nowrap text-white transition-colors hover:bg-[#1E1E24] sm:px-4 sm:py-2.5 sm:text-base"
           >
             Empieza a Construir
           </Link>
@@ -72,7 +75,7 @@ export function SiteHeader() {
             </Link>
           ))}
           <Link href={brand.links.login} className="block min-h-11 rounded-lg px-3 py-3 text-base text-[#1E1E24]" onClick={() => setOpen(false)}>
-            Inicia Sesión
+            Iniciar sesión
           </Link>
         </nav>
       ) : null}

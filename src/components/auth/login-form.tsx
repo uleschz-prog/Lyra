@@ -54,7 +54,7 @@ export function LoginForm() {
       </label>
       {error ? <p className="text-sm text-[#9F1239]">{error}</p> : null}
       <Button type="submit" className="w-full" disabled={pending}>
-        {pending ? "Entrando…" : "Entrar al backoffice"}
+        {pending ? "Entrando…" : "Iniciar sesión"}
       </Button>
       <p className="text-center text-sm text-[#8A8680]">
         ¿Aún no tienes cuenta?{" "}

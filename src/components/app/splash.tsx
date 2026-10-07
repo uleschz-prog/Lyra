@@ -11,30 +11,25 @@ const VISIBLE_MS = 900;
 type Phase = "hidden" | "visible" | "fading";
 
 export function Splash() {
-  // Arranca visible salvo que ya se haya mostrado en esta sesión.
-  // Así el splash no depende de un setState dentro del efecto.
-  const [phase, setPhase] = useState<Phase>(() => {
-    try {
-      return sessionStorage.getItem(STORAGE_KEY) === "1" ? "hidden" : "visible";
-    } catch {
-      // sessionStorage no disponible (modo privado, PWA, WebView):
-      // no mostramos el splash para no arriesgar una capa que bloquee el contenido.
-      return "hidden";
-    }
-  });
+  // El primer render es igual en servidor y navegador. Leer sessionStorage
+  // aquí deshacía la página y el primer clic (por ejemplo Iniciar sesión) se perdía.
+  const [phase, setPhase] = useState<Phase>("visible");
 
   useEffect(() => {
-    if (phase === "hidden") return;
-
     try {
+      if (sessionStorage.getItem(STORAGE_KEY) === "1") {
+        setPhase("hidden");
+        return;
+      }
       sessionStorage.setItem(STORAGE_KEY, "1");
     } catch {
-      // Ignorar: la marca de sesión es solo una optimización.
+      // sessionStorage no disponible: no dejamos una capa encima del contenido.
+      setPhase("hidden");
+      return;
     }
 
     const fadingTimer = setTimeout(() => setPhase("fading"), VISIBLE_MS);
     const hiddenTimer = setTimeout(() => setPhase("hidden"), VISIBLE_MS + 350);
-    // Red de seguridad: el splash nunca puede quedarse visible.
     const failSafe = setTimeout(() => setPhase("hidden"), VISIBLE_MS + 1500);
 
     return () => {
@@ -42,7 +37,7 @@ export function Splash() {
       clearTimeout(hiddenTimer);
       clearTimeout(failSafe);
     };
-  }, [phase]);
+  }, []);
 
   if (phase === "hidden") return null;
 

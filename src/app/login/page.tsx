@@ -7,7 +7,7 @@ import { getCurrentUser } from "@/lib/auth/profile";
 import { brand } from "@/config/brand";
 
 export const metadata: Metadata = {
-  title: "Entrar",
+  title: "Iniciar sesión",
 };
 
 export default async function LoginPage() {
@@ -16,8 +16,8 @@ export default async function LoginPage() {
 
   return (
     <AuthFrame
-      title="Entrar a LYRA"
-      description="Usa tu correo o tu usuario. La sesión queda en una cookie cifrada."
+      title="Iniciar sesión"
+      description="Usa tu correo o tu usuario y tu contraseña."
     >
       <LoginForm />
     </AuthFrame>

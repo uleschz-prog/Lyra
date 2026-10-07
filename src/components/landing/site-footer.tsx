@@ -33,7 +33,7 @@ const columns = [
   {
     title: "Empresa",
     links: [
-      { href: brand.links.login, label: "Inicia Sesión" },
+      { href: brand.links.login, label: "Iniciar sesión" },
       { href: brand.links.register, label: "Empieza a Construir" },
       { href: brand.links.plan, label: "Planes" },
     ],
