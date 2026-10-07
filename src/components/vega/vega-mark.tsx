@@ -137,3 +137,40 @@ export function VegaMascot({
 
   return <VegaMark className={className} mood={moods[step]} />;
 }
+
+/**
+ * VegaMarket: la mascota completa para la landing. Misma cara que el super agente,
+ * con antena, brazos y núcleo, para llenar el espacio junto a los planes.
+ */
+export function VegaMarket({
+  className = "h-64 w-64",
+  mood = "happy",
+}: {
+  className?: string;
+  mood?: VegaMood;
+}) {
+  const moods: VegaMood[] = [mood, "neutral", "happy", "surprised", "doubt"];
+  const [step, setStep] = useState(0);
+
+  useEffect(() => {
+    const timer = window.setInterval(() => setStep((current) => (current + 1) % moods.length), 4200);
+    return () => window.clearInterval(timer);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  return (
+    <span className={cn("vega-mascot relative block shrink-0", className)} aria-hidden>
+      <svg viewBox="0 0 64 72" className="vega-mascot-float size-full">
+        <line x1="32" y1="8" x2="32" y2="17" stroke="#E9D5FF" strokeWidth="2.4" strokeLinecap="round" />
+        <circle cx="32" cy="6" r="3.2" fill="#E9D5FF" className="vega-mascot-core" />
+        <rect x="6" y="44" width="11" height="5" rx="2.5" fill="#7C3AED" className="vega-mascot-arm-left" />
+        <rect x="47" y="44" width="11" height="5" rx="2.5" fill="#7C3AED" className="vega-mascot-arm-right" />
+        <rect x="19" y="42" width="26" height="20" rx="8" fill="#5B21B6" />
+        <circle cx="32" cy="52" r="4" fill="#E9D5FF" className="vega-mascot-core" />
+      </svg>
+      <span className="absolute top-0 left-1/2 h-[54%] w-[84%] -translate-x-1/2">
+        <VegaMark className="size-full" mood={moods[step]} />
+      </span>
+    </span>
+  );
+}

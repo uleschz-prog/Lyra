@@ -5,6 +5,7 @@ import { BuilderConsole } from "@/components/landing/builder-console";
 import { SiteFooter } from "@/components/landing/site-footer";
 import { SiteHeader } from "@/components/landing/site-header";
 import { PromoBadge, RebuyPromo } from "@/components/plan/rebuy-promo";
+import { VegaMarket } from "@/components/vega/vega-mark";
 import { brand } from "@/config/brand";
 import { signupPlans, type PlanSpec } from "@/config/compensation-plan";
 
@@ -88,8 +89,8 @@ export default function HomePage() {
         </section>
 
         <section id="planes" className="mx-auto w-full max-w-7xl scroll-mt-24 px-4 py-16 sm:px-6 sm:py-24">
-          <div className="grid items-start gap-10 lg:grid-cols-[minmax(0,0.8fr)_minmax(0,1.2fr)] lg:gap-16">
-            <div className="lg:pt-4">
+          <div className="grid items-stretch gap-10 lg:grid-cols-[minmax(0,0.8fr)_minmax(0,1.2fr)] lg:gap-16">
+            <div className="flex flex-col lg:pt-4">
               <h2 className="text-5xl font-semibold tracking-tight text-[#1E1E24] sm:text-6xl lg:text-[4.5rem] lg:leading-[0.95] dark:text-[#F2F0F7]">
                 Elige
                 <br />
@@ -98,6 +99,9 @@ export default function HomePage() {
               <p className="mt-8 max-w-sm text-xl leading-snug text-[#1E1E24] sm:text-2xl dark:text-[#C7C3D4]">
                 Inicio entra con $29 y 150 créditos, Negocio con $99 y 300, y Pro con $249 y 1,000. Todos incluyen los mismos servicios. Un crédito equivale a $1.
               </p>
+              <div className="mt-10 flex flex-1 items-center justify-center lg:mt-12">
+                <VegaMarket className="h-64 w-56 drop-shadow-[0_28px_48px_rgba(124,58,237,0.35)] sm:h-80 sm:w-72 lg:h-[28rem] lg:w-96" />
+              </div>
             </div>
             <div className="space-y-4">
               {signupPlans.map((plan: PlanSpec) => {
