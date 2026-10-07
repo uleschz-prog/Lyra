@@ -12,7 +12,9 @@ const prepare = spawnSync(
   ["prisma", "db", "execute", "--stdin", "--schema", "prisma/schema.prisma"],
   {
     input: `ALTER TABLE "Transaction" ADD COLUMN IF NOT EXISTS "externalRef" TEXT;
-CREATE UNIQUE INDEX IF NOT EXISTS "Transaction_externalRef_key" ON "Transaction"("externalRef");`,
+CREATE UNIQUE INDEX IF NOT EXISTS "Transaction_externalRef_key" ON "Transaction"("externalRef");
+ALTER TABLE "User" ADD COLUMN IF NOT EXISTS "polygonWallet" TEXT;
+CREATE UNIQUE INDEX IF NOT EXISTS "User_polygonWallet_key" ON "User"("polygonWallet");`,
     stdio: ["pipe", "inherit", "inherit"],
   },
 );
