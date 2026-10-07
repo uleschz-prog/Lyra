@@ -18,8 +18,11 @@ export const memberSelect = (month: Date) =>
     isSubscriptionExempt: true,
     activatedWithCode: true,
     transactions: {
-      where: { kind: "REBUY", createdAt: { gte: monthStart(month), lt: nextMonthStart(month) } },
-      select: { amount: true },
+      where: {
+        kind: { in: ["REBUY", "CREDIT_PURCHASE"] },
+        createdAt: { gte: monthStart(month), lt: nextMonthStart(month) },
+      },
+      select: { amount: true, kind: true },
     },
   }) satisfies Prisma.UserSelect;
 
@@ -28,8 +31,22 @@ export type MemberRow = Prisma.UserGetPayload<{ select: ReturnType<typeof member
 export function personalVolume(user: MemberRow, month: Date) {
   const joined = user.createdAt >= monthStart(month) && user.createdAt < nextMonthStart(month);
   const entry = joined && !user.activatedWithCode && isPackageId(user.package) ? getPackage(user.package).price : 0;
-  const rebuys = user.transactions.reduce((total, row) => total + Number(row.amount), 0);
-  return roundMoney(entry + rebuys);
+  return roundMoney(entry + renewalVolume(user));
+}
+
+export function renewalVolume(user: MemberRow) {
+  return roundMoney(
+    user.transactions.reduce((total, row) => total + (row.kind === "REBUY" ? Number(row.amount) : 0), 0),
+  );
+}
+
+export function creditPurchaseVolume(user: MemberRow) {
+  return roundMoney(
+    user.transactions.reduce(
+      (total, row) => total + (row.kind === "CREDIT_PURCHASE" ? Number(row.amount) : 0),
+      0,
+    ),
+  );
 }
 
 export function toMembers(users: MemberRow[], month: Date): CompensationMember[] {
@@ -41,7 +58,7 @@ export function toMembers(users: MemberRow[], month: Date): CompensationMember[]
           package: user.package,
           createdAt: user.createdAt,
           isSubscriptionExempt: user.isSubscriptionExempt,
-          paidRebuy: user.transactions.length > 0,
+          paidRebuy: user.transactions.some((row) => row.kind === "REBUY"),
         },
         month,
       ),
@@ -65,6 +82,8 @@ export function toMembers(users: MemberRow[], month: Date): CompensationMember[]
       status: active ? "ACTIVE" : "INACTIVE",
       packageId: user.package === "NONE" ? null : (user.package as PackageId),
       personalVolume: personalVolume(user, month),
+      renewalUsd: renewalVolume(user),
+      creditPurchaseUsd: creditPurchaseVolume(user),
     };
   });
 }

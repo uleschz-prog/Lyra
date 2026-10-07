@@ -17,6 +17,10 @@ export type CompensationMember = {
   status: MemberStatus;
   packageId: PackageId | null;
   personalVolume: number;
+  /** Suma de recargas de membresía pagadas en el mes. La de $99 habilita el bono mundial. */
+  renewalUsd: number;
+  /** Compras de créditos del mes. Entran en las ventas y no sustituyen la renovación. */
+  creditPurchaseUsd: number;
 };
 
 export type BonusKind = "orbita";
@@ -190,13 +194,52 @@ export type MonthlyPayout = {
   poolPayout: number;
 };
 
-export function monthlyClose(members: CompensationMember[]): { payouts: MonthlyPayout[]; points: number; pool: number } {
-  const points = roundMoney(members.reduce((total, member) => total + toPoints(member.personalVolume), 0));
-  return { payouts: [], points, pool: 0 };
+function isGlobalPoolPackage(packageId: PackageId | null) {
+  if (!packageId || !isPackageId(packageId)) return false;
+  return getPackage(packageId).price === compensationPlan.globalPoolPrice;
 }
 
-export function galaxyPoolShare(_members: CompensationMember[], _userId: string) {
-  return 0;
+export function monthlyClose(members: CompensationMember[]): {
+  payouts: MonthlyPayout[];
+  points: number;
+  pool: number;
+  sales: number;
+  shares: number;
+} {
+  const sales = roundMoney(
+    members.reduce((total, member) => total + member.personalVolume + member.creditPurchaseUsd, 0),
+  );
+  const points = roundMoney(members.reduce((total, member) => total + toPoints(member.personalVolume), 0));
+  const pool = roundMoney(sales * compensationPlan.globalPoolRate);
+  const qualifiers = members
+    .filter(
+      (member) =>
+        isGlobalPoolPackage(member.packageId) && member.renewalUsd >= compensationPlan.globalPoolRenewal,
+    )
+    .sort((left, right) => left.id.localeCompare(right.id));
+  const cents = Math.round(pool * 100);
+  const base = qualifiers.length > 0 ? Math.floor(cents / qualifiers.length) : 0;
+  const extra = qualifiers.length > 0 ? cents % qualifiers.length : 0;
+  const payouts = qualifiers.flatMap((member, index) => {
+    const poolPayout = (base + (index < extra ? 1 : 0)) / 100;
+    if (poolPayout <= 0) return [];
+    return [
+      {
+        userId: member.id,
+        name: member.name,
+        rankId: null,
+        rankLabel: null,
+        rankPayout: 0,
+        poolPayout,
+      },
+    ];
+  });
+
+  return { payouts, points, pool, sales, shares: qualifiers.length };
+}
+
+export function galaxyPoolShare(members: CompensationMember[], userId: string) {
+  return monthlyClose(members).payouts.find((payout) => payout.userId === userId)?.poolPayout ?? 0;
 }
 
 export function rebuyMessage(packageId: PackageId | null, directs = 0) {

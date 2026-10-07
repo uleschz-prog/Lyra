@@ -23,7 +23,7 @@ export async function closeMonth(month: Date) {
   });
   const members = toMembers(users, month);
 
-  const { payouts, points, pool } = monthlyClose(members);
+  const { payouts, points, pool, sales, shares } = monthlyClose(members);
   let paid = 0;
 
   await prisma.$transaction(async (tx) => {
@@ -37,7 +37,7 @@ export async function closeMonth(month: Date) {
         payout.rankPayout > 0
           ? { amount: payout.rankPayout, description: `Bono Constelación · rango ${payout.rankLabel} · ${closeTag(key)}` }
           : null,
-        payout.poolPayout > 0 ? { amount: payout.poolPayout, description: `Fondo Galaxia · ${closeTag(key)}` } : null,
+        payout.poolPayout > 0 ? { amount: payout.poolPayout, description: `Bono mundial · ${closeTag(key)}` } : null,
       ].filter((row) => row !== null);
 
       for (const row of rows) {
@@ -67,7 +67,9 @@ export async function closeMonth(month: Date) {
     members: members.length,
     active: members.filter((member) => member.status === "ACTIVE").length,
     points,
+    sales,
     pool,
+    shares,
     paid: roundMoney(paid),
     payouts: payouts.length,
   };

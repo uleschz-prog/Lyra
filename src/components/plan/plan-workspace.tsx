@@ -217,6 +217,18 @@ export function PlanWorkspace({ plan }: { plan: MemberPlanView }) {
         </div>
       </section>
 
+      <section className="rounded-3xl border border-[#E7E2DA] bg-white p-6 sm:p-8 dark:border-white/12 dark:bg-[#181625]">
+        <h2 className="text-lg font-bold tracking-tight text-[#1E1E24]">Bono mundial</h2>
+        <p className="mt-2 max-w-2xl text-sm leading-6 text-[#5C5854]">
+          Cada mes se aparta el {percent(compensationPlan.globalPoolRate)} de las ventas mundiales: paquetes y recargas de créditos. Ese fondo se reparte en partes iguales entre los paquetes Pro de ${compensationPlan.globalPoolPrice} que pagaron la renovación de ${compensationPlan.globalPoolRenewal} en ese mismo mes.
+        </p>
+        <div className="mt-5 grid gap-3 sm:grid-cols-3">
+          <Metric label="Del mes" value={`${percent(compensationPlan.globalPoolRate)} de las ventas`} />
+          <Metric label="Quién entra" value={`Pro $${compensationPlan.globalPoolPrice}`} />
+          <Metric label="Renovación del mes" value={`$${compensationPlan.globalPoolRenewal}`} emphasis />
+        </div>
+      </section>
+
       <section className="rounded-3xl border border-border bg-surface/80 backdrop-blur-md transition-colors hover:border-border-bright p-6 sm:p-8">
         <h2 className="text-lg font-bold tracking-tight text-[#1E1E24]">Calcula lo que ganas</h2>
         <p className="mt-2 max-w-2xl text-sm leading-6 text-[#5C5854]">

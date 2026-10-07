@@ -66,6 +66,7 @@ export const signupPlans: readonly PlanSpec[] = [
     points: [
       "1,000 créditos de entrada",
       "Cobras Órbita en los 6 niveles, hasta el 50%",
+      "Con la renovación de $99 participas del 10% de las ventas del mes",
       ...sharedServices,
       "Recarga desde $99 al mes siguiente",
     ],
@@ -96,6 +97,14 @@ export const compensationPlan = {
   pointsPerUsd: 1,
   unilevel: [0.2, 0.1, 0.05, 0.05, 0.05, 0.05],
   galaxyPoolRate: 0,
+  /**
+   * Bono mundial: el 10 % de las ventas del mes (paquetes y recargas)
+   * se reparte en partes iguales entre los Pro de $249 que pagaron
+   * la renovación de $99 en ese mismo mes.
+   */
+  globalPoolRate: 0.1,
+  globalPoolPrice: 249,
+  globalPoolRenewal: 99,
   /**
    * Los seis niveles suman el 50 % del dinero pagado (paquete o recarga).
    * No hay un recorte extra: 20 + 10 + 5 + 5 + 5 + 5.

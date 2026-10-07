@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import { getPackage, signupPlans } from "@/config/compensation-plan";
-import { distributeSale, estimateInvitationEarnings, monthlyClose, type CompensationMember } from "@/lib/compensation/engine";
+import { distributeSale, estimateInvitationEarnings, monthlyClose, roundMoney, type CompensationMember } from "@/lib/compensation/engine";
 
 function member(
   id: string,
@@ -9,7 +9,7 @@ function member(
   packageId: CompensationMember["packageId"],
   status: CompensationMember["status"] = "ACTIVE",
 ): CompensationMember {
-  return { id, name: id, sponsorId, status, packageId, personalVolume: 0 };
+  return { id, name: id, sponsorId, status, packageId, personalVolume: 0, renewalUsd: 0, creditPurchaseUsd: 0 };
 }
 
 function chain(packageId: CompensationMember["packageId"], status: CompensationMember["status"] = "ACTIVE") {
@@ -88,8 +88,47 @@ describe("bono órbita", () => {
     expect(pro.rebuyTotal).toBe(9.5);
   });
 
-  it("el cierre mensual ya no paga rangos ni fondo", () => {
-    const members = chain("FOUNDER").map((item) => ({ ...item, personalVolume: 5000, status: "ACTIVE" as const }));
-    expect(monthlyClose(members)).toEqual({ payouts: [], points: 35000, pool: 0 });
+  it("el cierre mensual reparte el 10% entre los Pro que renovaron con 99", () => {
+    const members: CompensationMember[] = [
+      { ...member("ana", null, "FOUNDER"), personalVolume: 249, renewalUsd: 99 },
+      { ...member("beto", null, "FOUNDER"), personalVolume: 249, renewalUsd: 0 },
+      { ...member("cata", null, "LYRA_MASTER"), personalVolume: 99, renewalUsd: 99 },
+      { ...member("dani", null, "PRO"), personalVolume: 99, renewalUsd: 99 },
+      { ...member("eva", null, "CORPORATE"), personalVolume: 99, renewalUsd: 99 },
+      { ...member("fran", null, "STARTED"), personalVolume: 29, renewalUsd: 19, creditPurchaseUsd: 19 },
+    ];
+    const closed = monthlyClose(members);
+    expect(closed.sales).toBe(843);
+    expect(closed.pool).toBe(84.3);
+    expect(closed.shares).toBe(2);
+    expect(closed.payouts.map((payout) => payout.userId)).toEqual(["ana", "cata"]);
+    expect(closed.payouts.map((payout) => payout.poolPayout)).toEqual([42.15, 42.15]);
+    expect(closed.payouts.every((payout) => payout.rankPayout === 0)).toBe(true);
+  });
+
+  it("un Pro activo sin la renovación de 99 no cobra el bono mundial", () => {
+    const members = [
+      { ...member("pro", null, "FOUNDER", "ACTIVE"), personalVolume: 1000, renewalUsd: 98 },
+      { ...member("otro", null, "STARTED"), personalVolume: 0, renewalUsd: 0 },
+    ];
+    const closed = monthlyClose(members);
+    expect(closed.pool).toBe(100);
+    expect(closed.payouts).toEqual([]);
+    expect(closed.shares).toBe(0);
+  });
+
+  it("reparte los centavos del fondo sin dejar un resto", () => {
+    const members = ["a", "b", "c"].map((id) => ({
+      ...member(id, null, "FOUNDER"),
+      personalVolume: 10 / 3,
+      renewalUsd: 99,
+    }));
+    const closed = monthlyClose(members);
+    const paid = closed.payouts.reduce((sum, payout) => sum + payout.poolPayout, 0);
+    expect(closed.pool).toBe(1);
+    expect(roundMoney(paid)).toBe(1);
+    expect(closed.payouts.map((payout) => payout.poolPayout).sort((left, right) => right - left)).toEqual([
+      0.34, 0.33, 0.33,
+    ]);
   });
 });
