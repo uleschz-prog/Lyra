@@ -22,28 +22,37 @@ export const memberSelect = (month: Date) =>
         kind: { in: ["REBUY", "CREDIT_PURCHASE"] },
         createdAt: { gte: monthStart(month), lt: nextMonthStart(month) },
       },
-      select: { amount: true, kind: true },
+      select: { amount: true, kind: true, externalRef: true },
     },
   }) satisfies Prisma.UserSelect;
 
 export type MemberRow = Prisma.UserGetPayload<{ select: ReturnType<typeof memberSelect> }>;
 
+function settledOnChain(row: { externalRef: string | null }) {
+  return row.externalRef?.startsWith("usdc:") ?? false;
+}
+
 export function personalVolume(user: MemberRow, month: Date) {
   const joined = user.createdAt >= monthStart(month) && user.createdAt < nextMonthStart(month);
-  const entry = joined && !user.activatedWithCode && isPackageId(user.package) ? getPackage(user.package).price : 0;
+  const onChainEntry = user.transactions.some((row) => row.kind === "CREDIT_PURCHASE" && settledOnChain(row));
+  const entry =
+    joined && !user.activatedWithCode && !onChainEntry && isPackageId(user.package) ? getPackage(user.package).price : 0;
   return roundMoney(entry + renewalVolume(user));
 }
 
 export function renewalVolume(user: MemberRow) {
   return roundMoney(
-    user.transactions.reduce((total, row) => total + (row.kind === "REBUY" ? Number(row.amount) : 0), 0),
+    user.transactions.reduce(
+      (total, row) => total + (row.kind === "REBUY" && !settledOnChain(row) ? Number(row.amount) : 0),
+      0,
+    ),
   );
 }
 
 export function creditPurchaseVolume(user: MemberRow) {
   return roundMoney(
     user.transactions.reduce(
-      (total, row) => total + (row.kind === "CREDIT_PURCHASE" ? Number(row.amount) : 0),
+      (total, row) => total + (row.kind === "CREDIT_PURCHASE" && !settledOnChain(row) ? Number(row.amount) : 0),
       0,
     ),
   );

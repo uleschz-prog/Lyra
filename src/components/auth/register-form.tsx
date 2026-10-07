@@ -1,8 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useRouter } from "next/navigation";
-import { useState, type FormEvent, type ReactNode } from "react";
+import { useEffect, useRef, useState, type FormEvent, type ReactNode } from "react";
 
 import { PasswordField } from "@/components/auth/password-field";
 import { Logo } from "@/components/brand/logo";
@@ -44,8 +43,6 @@ export function RegisterForm({
   activation?: { code: string; packageId: SignupPlanId } | null;
   activationError?: string;
 }) {
-  const router = useRouter();
-  const [step, setStep] = useState<1 | 2>(social ? 2 : 1);
   const [packageId, setPackageId] = useState<SignupPlanId | null>(activation?.packageId ?? null);
   const [error, setError] = useState(activationError || notices[aviso] || "");
   const prepaid = activation ? signupPlans.find((plan) => plan.id === activation.packageId) : null;
@@ -54,23 +51,14 @@ export function RegisterForm({
   const [manualCode, setManualCode] = useState("");
   const [email, setEmail] = useState(social?.email ?? "");
   const [password, setPassword] = useState("");
+  const startedSocial = useRef(false);
   const ready = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) && password.length >= 8;
 
-  function continueToPackage(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    if (!ready) return;
-    setError("");
-    if (activation) {
-      void submitRegistration();
-      return;
-    }
-    setStep(2);
-  }
-
-  async function submitRegistration() {
+  async function submitRegistration(packageOverride?: SignupPlanId | null) {
     const code = activation?.code ?? (codeMode ? manualCode.trim().toUpperCase().slice(0, 24) : "");
-    if (!packageId && !code) {
-      setError("Elige un plan o ingresa un código de activación.");
+    const chosen = packageOverride === undefined ? packageId : packageOverride;
+    if (codeMode && !code) {
+      setError("Escribe el código de activación.");
       return;
     }
     setPending(true);
@@ -80,20 +68,20 @@ export function RegisterForm({
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(
         social
-          ? { packageId }
+          ? { packageId: chosen ?? "" }
           : {
               name: nameFromEmail(email),
               email,
               username: usernameFromEmail(email),
               password,
               confirmPassword: password,
-              packageId: packageId ?? "",
+              packageId: code ? (chosen ?? "") : "",
               ref: refCode,
               code,
             },
       ),
     });
-    const payload = (await response.json().catch(() => null)) as { error?: string; checkout?: string | null } | null;
+    const payload = (await response.json().catch(() => null)) as { error?: string; next?: string; checkout?: string | null } | null;
     if (!response.ok) {
       setPending(false);
       setError(payload?.error ?? "No se pudo crear la cuenta.");
@@ -103,9 +91,21 @@ export function RegisterForm({
       window.location.href = payload.checkout;
       return;
     }
-    setPending(false);
-    router.push(brand.links.dashboard);
-    router.refresh();
+    window.location.href = payload?.next ?? "/vincular";
+  }
+
+  useEffect(() => {
+    if (!social || startedSocial.current) return;
+    startedSocial.current = true;
+    void submitRegistration(null);
+    // El alta social no vuelve a pedir el plan: el paquete se elige después de MetaMask.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [social]);
+
+  function continueToAccount(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!ready && !activation) return;
+    void submitRegistration();
   }
 
   const socialHref = (provider: string) => {
@@ -119,11 +119,9 @@ export function RegisterForm({
         <Logo compact ink />
       </div>
       <h1 className="mt-6 text-center text-[2rem] font-semibold tracking-tight text-[#1E1E24]">
-        {step === 1 ? "Crea tu cuenta" : "Elige tu plan"}
+        {social ? "Creando tu cuenta" : "Crea tu cuenta"}
       </h1>
-      {social && step === 2 ? (
-        <p className="mt-3 text-center text-sm text-[#252525]">{social.email}</p>
-      ) : null}
+      {social ? <p className="mt-3 text-center text-sm text-[#252525]">{social.email}</p> : null}
 
       {prepaid ? (
         <p className="mt-4 rounded-md border border-[#7C3AED]/30 bg-[#F5F3FF] px-4 py-3 text-center text-sm text-[#1E1E24]">
@@ -131,7 +129,9 @@ export function RegisterForm({
         </p>
       ) : null}
 
-      {step === 1 ? (
+      {social ? (
+        <p className="mt-8 text-center text-sm text-[#5C5854]">{pending ? "Preparando tu cuenta…" : error || "Un momento."}</p>
+      ) : (
         <>
           {prepaid ? (
             <div className="mt-8" />
@@ -140,9 +140,6 @@ export function RegisterForm({
               <div className="mt-8 space-y-3">
                 <SocialLink href={socialHref("google")} label="Registrarse con Google">
                   <GoogleMark />
-                </SocialLink>
-                <SocialLink href={socialHref("github")} label="Registrarse con GitHub">
-                  <GithubMark />
                 </SocialLink>
                 <SocialLink href={socialHref("apple")} label="Registrarse con Apple">
                   <AppleMark />
@@ -159,7 +156,7 @@ export function RegisterForm({
             </>
           )}
 
-          <form onSubmit={continueToPackage} className="space-y-4">
+          <form onSubmit={continueToAccount} className="space-y-4">
             <label className="block text-sm font-medium text-[#1E1E24]">
               Correo electrónico
               <input
@@ -186,109 +183,60 @@ export function RegisterForm({
                 className="h-12 w-full rounded-md border border-[#D9D5CE] px-3 text-sm font-normal text-[#0F0F0F] outline-none placeholder:text-[#B0B0B0] focus:border-[#312F2F]"
               />
             </label>
+            {codeMode ? (
+              <>
+                <label className="block text-sm font-medium text-[#1E1E24]">
+                  Código de activación
+                  <input
+                    type="text"
+                    required
+                    value={manualCode}
+                    onChange={(event) => setManualCode(event.target.value.toUpperCase())}
+                    placeholder="LYRA-XXXXXXXX"
+                    autoComplete="off"
+                    className="mt-2 h-12 w-full rounded-md border border-[#D9D5CE] px-3 text-sm font-normal uppercase tracking-wide text-[#0F0F0F] outline-none placeholder:normal-case placeholder:tracking-normal placeholder:text-[#B0B0B0] focus:border-[#312F2F]"
+                  />
+                </label>
+                <div className="grid grid-cols-3 gap-2">
+                  {signupPlans.map((plan) => (
+                    <button
+                      key={plan.id}
+                      type="button"
+                      onClick={() => setPackageId(plan.id)}
+                      className={`rounded-md border px-2 py-2 text-xs ${packageId === plan.id ? "border-[#312F2F] bg-[#F7F4EF]" : "border-[#D9D5CE]"}`}
+                    >
+                      {plan.label}
+                      <span className="mt-1 block text-[#8A8680]">${plan.price}</span>
+                    </button>
+                  ))}
+                </div>
+              </>
+            ) : null}
             {error ? <p className="text-sm text-[#9A3B2F]">{error}</p> : null}
             <button
               type="submit"
-              disabled={!ready}
+              disabled={!ready || pending || (codeMode && manualCode.trim().length < 4)}
               className={`h-12 w-full rounded-md text-sm font-medium ${
-                ready ? "bg-[#312F2F] text-white" : "cursor-default bg-[#E7E7E7] text-[#A3A3A3]"
+                ready && !pending ? "bg-[#312F2F] text-white" : "cursor-default bg-[#E7E7E7] text-[#A3A3A3]"
               }`}
             >
-              Registrarse
+              {pending ? "Creando tu cuenta…" : "Registrarse"}
             </button>
           </form>
-        </>
-      ) : (
-        <>
-        <p className="mt-6 text-center text-sm leading-relaxed text-[#5C5854]">
-          {codeMode
-            ? "Ingresa el código de activación que te compartió tu patrocinador. Tu membresía se activa al crear la cuenta, sin pagar."
-            : "Elige la membresía de entrada. Pagas con Mercado Pago (tarjeta, OXXO o saldo) y tu cuenta se activa al acreditarse. La recarga de créditos, si aplica, empieza al mes siguiente."}
-        </p>
-        {!codeMode ? (
-        <div className="mt-6 space-y-3">
-          {signupPlans.map((planPackage) => {
-            const selected = packageId === planPackage.id;
-            const featured = planPackage.id === "PRO";
-            return (
+          {prepaid ? null : (
+            <p className="mt-4 text-center">
               <button
-                key={planPackage.id}
                 type="button"
-                onClick={() => setPackageId(planPackage.id)}
-                className={`w-full rounded-md border px-4 py-4 text-left ${
-                  selected
-                    ? featured
-                      ? "border-[#7C3AED] bg-[#F5F3FF]"
-                      : "border-[#312F2F] bg-[#F7F4EF]"
-                    : "border-[#D9D5CE] bg-white"
-                }`}
+                onClick={() => {
+                  setCodeMode((mode) => !mode);
+                  setError("");
+                }}
+                className="text-sm font-medium text-[#7C3AED] underline"
               >
-                <span className="flex items-end justify-between gap-3">
-                  <span>
-                    <span className="block text-sm font-medium text-[#1E1E24]">{planPackage.label}</span>
-                    <span className="mt-1 block text-xs text-[#8A8680]">{planPackage.subtitle}</span>
-                  </span>
-                  <span className="text-sm text-[#252525]">
-                    ${planPackage.price}
-                  </span>
-                </span>
-                <ul className="mt-3 space-y-1">
-                  {planPackage.points.map((point) => (
-                    <li key={point} className="text-xs leading-relaxed text-[#5C5854]">
-                      {point}
-                    </li>
-                  ))}
-                </ul>
+                {codeMode ? "Crear la cuenta sin código" : "Tengo un código de activación"}
               </button>
-            );
-          })}
-          </div>
-          ) : (
-            <div className="mt-6 space-y-3">
-              <label className="block text-sm font-medium text-[#1E1E24]">
-                Código de activación
-                <input
-                  type="text"
-                  required
-                  value={manualCode}
-                  onChange={(event) => setManualCode(event.target.value.toUpperCase())}
-                  placeholder="LYRA-XXXXXXXX"
-                  autoComplete="off"
-                  className="mt-2 h-12 w-full rounded-md border border-[#D9D5CE] px-3 text-sm font-normal uppercase tracking-wide text-[#0F0F0F] outline-none placeholder:normal-case placeholder:tracking-normal placeholder:text-[#B0B0B0] focus:border-[#312F2F]"
-                />
-              </label>
-            </div>
+            </p>
           )}
-          <p className="mt-4 text-center">
-            <button
-              type="button"
-              onClick={() => {
-                setCodeMode((mode) => !mode);
-                setError("");
-              }}
-              className="text-sm font-medium text-[#7C3AED] underline"
-            >
-              {codeMode ? "Ver planes y pagar con Mercado Pago" : "Tengo un código de activación"}
-            </button>
-          </p>
-          {error ? <p className="text-sm text-[#9A3B2F]">{error}</p> : null}
-          <div className="flex gap-2 pt-2">
-            <button
-              type="button"
-              onClick={() => setStep(1)}
-              className="h-12 rounded-md border border-[#D9D5CE] px-4 text-sm text-[#1E1E24]"
-            >
-              Volver
-            </button>
-            <button
-              type="button"
-              disabled={pending || (!packageId && !(codeMode && manualCode.trim()))}
-              onClick={() => void submitRegistration()}
-              className="h-12 flex-1 rounded-md bg-[#312F2F] text-sm font-medium text-white disabled:bg-[#E7E7E7] disabled:text-[#A3A3A3]"
-            >
-              {pending ? "Preparando tu cuenta…" : codeMode ? "Crear cuenta con código" : "Crear cuenta y pagar"}
-            </button>
-          </div>
         </>
       )}
 
@@ -321,14 +269,6 @@ function GoogleMark() {
         fill="#1E1E24"
         d="M12 11.2v2.9h6.6c-.3 1.6-1.9 4.6-6.6 4.6-4 0-7.2-3.3-7.2-7.3S8 4.1 12 4.1c2.3 0 3.8 1 4.7 1.8l2-1.9C17 2.3 14.7 1.2 12 1.2 6.2 1.2 1.5 6 1.5 11.8S6.2 22.4 12 22.4c6.1 0 10.1-4.3 10.1-10.3 0-.7-.1-1.2-.2-1.8H12z"
       />
-    </svg>
-  );
-}
-
-function GithubMark() {
-  return (
-    <svg viewBox="0 0 24 24" className="h-4 w-4 fill-[#1E1E24]" aria-hidden>
-      <path d="M12 2C6.5 2 2 6.6 2 12.2c0 4.5 2.9 8.3 6.9 9.6.5.1.7-.2.7-.5v-1.7c-2.8.6-3.4-1.2-3.4-1.2-.4-1.1-1.1-1.4-1.1-1.4-.9-.6.1-.6.1-.6 1 .1 1.5 1 1.5 1 .9 1.6 2.4 1.1 3 .9.1-.7.4-1.1.6-1.4-2.2-.3-4.6-1.1-4.6-5 0-1.1.4-2 1-2.7-.1-.3-.4-1.3.1-2.7 0 0 .8-.3 2.8 1a9.4 9.4 0 0 1 5 0c2-1.3 2.8-1 2.8-1 .5 1.4.2 2.4.1 2.7.6.7 1 1.6 1 2.7 0 3.9-2.3 4.7-4.6 5 .4.3.7 1 .7 2v3c0 .3.2.6.7.5 4-1.3 6.9-5.1 6.9-9.6C22 6.6 17.5 2 12 2z" />
     </svg>
   );
 }

@@ -23,6 +23,7 @@ export async function payCommissions(
   buyer: { id: string; name: string; sponsorId: string | null; package: string },
   amountUsd: number,
   kind: "purchase" | "rebuy",
+  options?: { skipBalanceFor?: Set<string> },
 ) {
   const now = new Date();
   const chain: CompensationMember[] = [];
@@ -66,10 +67,13 @@ export async function payCommissions(
   const lines = distributeSale(members, buyer.id, amountUsd, kind);
   for (const line of lines) {
     if (!line.paid || line.amount <= 0) continue;
-    await tx.user.update({
-      where: { id: line.sponsorId },
-      data: { walletBalance: { increment: line.amount } },
-    });
+    const paidOnChain = options?.skipBalanceFor?.has(line.sponsorId) ?? false;
+    if (!paidOnChain) {
+      await tx.user.update({
+        where: { id: line.sponsorId },
+        data: { walletBalance: { increment: line.amount } },
+      });
+    }
     const wallet = await tx.creditWallet.upsert({
       where: { userId: line.sponsorId },
       create: { userId: line.sponsorId, balance: 0, totalEarnedCommissions: line.amount },
@@ -82,7 +86,7 @@ export async function payCommissions(
         amount: roundMoney(line.amount),
         creditDelta: 0,
         kind: "COMMISSION",
-        description: `${bonusLabels[line.bonus]} nivel ${line.level} · ${buyer.name}`,
+        description: `${bonusLabels[line.bonus]} nivel ${line.level} · ${buyer.name}${paidOnChain ? " · pagado en USDC" : ""}`,
       },
     });
   }

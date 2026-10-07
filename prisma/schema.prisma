@@ -125,6 +125,7 @@ model User {
   vegaWhatsappBlocks VegaWhatsappBlock[]
   vegaWhatsapp       String?
   usdtTrc20          String?
+  polygonWallet        String?      @unique
   activationCodes    ActivationCode[]    @relation("ActivationOwner")
   activation         ActivationCode?     @relation("ActivationUsedBy")
   vegaProfile        UserProfile?

@@ -23,6 +23,7 @@ const profileSelect = {
   alphaFastTrackUntil: true,
   avatar: true,
   usdtTrc20: true,
+  polygonWallet: true,
 } as const;
 
 export async function getCurrentUser(): Promise<AuthProfile | null> {

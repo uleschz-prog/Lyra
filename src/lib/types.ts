@@ -23,6 +23,7 @@ export type AuthProfile = {
   pendingPackage: string | null;
   avatar: string | null;
   usdtTrc20: string | null;
+  polygonWallet: string | null;
 };
 export type TransactionKind =
   | "COMMISSION"

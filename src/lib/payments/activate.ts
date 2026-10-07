@@ -7,7 +7,7 @@ export async function activateMembership(
   tx: Prisma.TransactionClient,
   user: { id: string; name: string; sponsorId: string | null },
   packageId: SignupPlanId,
-  record: { description: string; externalRef?: string },
+  record: { description: string; externalRef?: string; skipCommissions?: boolean },
 ) {
   const plan = getPackage(packageId);
   const claimed = await tx.user.updateMany({
@@ -38,6 +38,8 @@ export async function activateMembership(
       externalRef: record.externalRef,
     },
   });
-  await payCommissions(tx, { ...user, package: packageId }, plan.price, "purchase");
+  if (!record.skipCommissions) {
+    await payCommissions(tx, { ...user, package: packageId }, plan.price, "purchase");
+  }
   return true;
 }

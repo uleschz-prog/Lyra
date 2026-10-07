@@ -52,7 +52,7 @@ function clean(input: RegisterInput) {
   if (input.password !== input.confirmPassword) {
     throw new AuthError(400, "La confirmación no coincide con la contraseña.");
   }
-  if (!code && !isSignupPlanId(packageId)) {
+  if (!code && packageId && !isSignupPlanId(packageId)) {
     throw new AuthError(400, "Elige Inicio, Negocio o Pro.");
   }
 
@@ -111,8 +111,15 @@ export async function registerMember(input: RegisterInput) {
 
   // El código promocional universal exige que la cuenta elija un paquete de entrada
   // (no trae el paquete incrustado como el código de activación).
-  const packageId = (activation?.packageId ?? data.packageId) as SignupPlanId;
-  if (!isSignupPlanId(packageId)) {
+  const selected = isSignupPlanId(data.packageId) ? data.packageId : null;
+  const packageId = (activation?.packageId ?? selected) as SignupPlanId | null;
+  if (isPromo && !selected) {
+    throw new AuthError(400, "Elige Inicio, Negocio o Pro para usar ese código.");
+  }
+  if ((activation || selected) && !packageId) {
+    throw new AuthError(400, "Ese código no corresponde a una membresía vigente.");
+  }
+  if (activation && !isSignupPlanId(activation.packageId)) {
     throw new AuthError(400, "Ese código no corresponde a una membresía vigente.");
   }
 
@@ -138,12 +145,12 @@ export async function registerMember(input: RegisterInput) {
     cursor = ancestor.sponsorId;
   }
 
-  const planPackage = getPackage(packageId);
+  const planPackage = packageId ? getPackage(packageId) : null;
   const password = await bcrypt.hash(data.password, 12);
   // Un código de activación O un código promocional cubren la membresía de entrada.
   const covered = Boolean(activation) || isPromo;
-  const pending = !covered && paymentsRequired();
-  const credits = pending ? 0 : planPackage.credits;
+  const pending = Boolean(selected) && !covered && paymentsRequired();
+  const credits = !planPackage || pending ? 0 : planPackage.credits;
 
   try {
     const user = await prisma.$transaction(async (tx) => {
@@ -154,10 +161,10 @@ export async function registerMember(input: RegisterInput) {
           username: data.username,
           password,
           role: "MEMBER",
-          package: pending ? "NONE" : toPackageType(packageId),
-          pendingPackage: pending ? toPackageType(packageId) : null,
+          package: !packageId || pending ? "NONE" : toPackageType(packageId),
+          pendingPackage: pending && packageId ? toPackageType(packageId) : null,
           activatedWithCode: Boolean(activation) || isPromo,
-          activationCredits: !pending && typeof planPackage.activationCredits === "number" ? planPackage.activationCredits : 0,
+          activationCredits: !pending && planPackage && typeof planPackage.activationCredits === "number" ? planPackage.activationCredits : 0,
           rank: "ASTRA",
           sponsorId: sponsor.id,
           referralCode: data.username.toUpperCase(),
@@ -191,6 +198,9 @@ export async function registerMember(input: RegisterInput) {
           throw new AuthError(409, "Ese código de activación ya se usó.");
         }
       } else if (isPromo) {
+        if (!planPackage) {
+          throw new AuthError(400, "Elige Inicio, Negocio o Pro para usar ese código.");
+        }
         const redeemed = await redeemPromoCode({
           rawCode: data.code,
           userId: created.id,
@@ -200,7 +210,7 @@ export async function registerMember(input: RegisterInput) {
         if (!redeemed.ok) {
           throw new AuthError(402, redeemed.error);
         }
-      } else if (!pending) {
+      } else if (!pending && planPackage && packageId) {
         await payCommissions(
           tx,
           { id: created.id, name: created.name, sponsorId: sponsor.id, package: packageId },
