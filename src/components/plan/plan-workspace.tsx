@@ -9,7 +9,6 @@ import {
   bonusProfile,
   compensationPlan,
   getPackage,
-  rebuyExemptionRule,
   signupPlans,
   type PackageId,
   type SignupPlanId,
@@ -70,7 +69,7 @@ export function PlanWorkspace({ plan }: { plan: MemberPlanView }) {
         </div>
         <p className="mt-4 text-sm leading-6 text-[#1E1E24]">
           {plan.rebuyUsd > 0
-            ? `La recarga es de ${formatUsd(plan.rebuyUsd)} al mes siguiente y también genera Órbita. ${rebuyExemptionRule}`
+            ? `La recarga es de ${formatUsd(plan.rebuyUsd)} al mes siguiente y también genera Órbita.`
             : plan.message}
         </p>
       </section>
@@ -241,7 +240,7 @@ export function PlanWorkspace({ plan }: { plan: MemberPlanView }) {
       <section className="rounded-3xl border border-border bg-surface/80 backdrop-blur-md transition-colors hover:border-border-bright p-6 sm:p-8">
         <h2 className="text-lg font-bold tracking-tight text-[#1E1E24]">Calcula lo que ganas</h2>
         <p className="mt-2 max-w-2xl text-sm leading-6 text-[#5C5854]">
-          Elige tu paquete y el de quien entra. Con {simulated.label} cobras Órbita hasta el nivel {estimate.earnerLevels}. Una venta y una recarga se calculan aparte. Los invitados del ejemplo solo multiplican los niveles 1 y 2.
+          Elige tu paquete y el de quien entra. Con {simulated.label} cobras Órbita hasta el nivel {estimate.earnerLevels}. Una venta y una recarga se calculan aparte. Cada persona invita a la misma cantidad hasta el nivel 6.
         </p>
         <div className="mt-6 space-y-4">
           <PlanChoices
@@ -300,7 +299,7 @@ export function PlanWorkspace({ plan }: { plan: MemberPlanView }) {
                   <td className="px-4 py-3 tabular-nums text-[#1E1E24]">{level.active ? formatUsd(level.packageUsd) : "—"}</td>
                   <td className="px-4 py-3 tabular-nums text-[#1E1E24]">{level.active ? formatUsd(level.rebuyUsd) : "—"}</td>
                   <td className="px-4 py-3 tabular-nums text-[#5C5854]">
-                    {level.level <= 2 && level.active ? formatUsd(level.networkUsd) : level.active ? "Si la línea sigue" : "Fuera de tu paquete"}
+                    {level.active ? formatUsd(level.networkUsd) : "Fuera de tu paquete"}
                   </td>
                 </tr>
               ))}
@@ -310,14 +309,14 @@ export function PlanWorkspace({ plan }: { plan: MemberPlanView }) {
         <div className={`mt-4 grid gap-3 ${estimate.globalBonusUsd > 0 ? "sm:grid-cols-2 xl:grid-cols-4" : "sm:grid-cols-3"}`}>
           <Metric label="Una venta, en tus niveles" value={formatUsd(estimate.packageTotal)} />
           <Metric label="Una recarga, en tus niveles" value={formatUsd(estimate.rebuyTotal)} />
-          <Metric label="Niveles 1 y 2 del ejemplo" value={formatUsd(estimate.networkTotal)} />
+          <Metric label="Órbita del ejemplo" value={formatUsd(estimate.networkTotal)} />
           {estimate.globalBonusUsd > 0 ? (
             <Metric label="10% de las ventas de tu red" value={formatUsd(estimate.globalBonusUsd)} emphasis />
           ) : null}
         </div>
         {estimate.globalBonusUsd > 0 ? (
           <p className="mt-3 max-w-2xl text-sm leading-6 text-[#5C5854]">
-            Con el paquete de ${compensationPlan.globalPoolPrice}, la simulación suma el {percent(compensationPlan.globalPoolRate)} de las ventas de tu red: el paquete y la renovación de cada persona en los niveles 1 y 2.
+            Con el paquete de ${compensationPlan.globalPoolPrice}, la simulación suma el {percent(compensationPlan.globalPoolRate)} de las ventas de los 6 niveles: el paquete y la renovación de cada persona.
           </p>
         ) : null}
       </section>

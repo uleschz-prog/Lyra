@@ -86,8 +86,8 @@ describe("bono órbita", () => {
     expect(pro.levels[2]?.packageUsd).toBe(1.45);
     expect(pro.packageTotal).toBe(14.5);
     expect(pro.rebuyTotal).toBe(9.5);
-    expect(pro.networkSales).toBe(384);
-    expect(pro.globalBonusUsd).toBe(38.4);
+    expect(pro.networkSales).toBe(34944);
+    expect(pro.globalBonusUsd).toBe(3494.4);
     expect(inicio.globalBonusUsd).toBe(0);
   });
 
@@ -98,8 +98,8 @@ describe("bono órbita", () => {
       salePackageId: "FOUNDER",
       earnerPackageId: "FOUNDER",
     });
-    expect(pro.networkSales).toBe(4176);
-    expect(pro.globalBonusUsd).toBe(417.6);
+    expect(pro.networkSales).toBe(380016);
+    expect(pro.globalBonusUsd).toBe(38001.6);
 
     const negocio = estimateInvitationEarnings({
       directs: 3,

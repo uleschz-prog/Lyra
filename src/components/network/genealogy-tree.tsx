@@ -3,8 +3,7 @@
 import { ChevronDown } from "lucide-react";
 import { useMemo, useState } from "react";
 
-import { Badge } from "@/components/ui/badge";
-import { formatUsd, initials, rankBadge, rankLabel } from "@/lib/format";
+import { formatUsd, initials } from "@/lib/format";
 import type { NetworkNode } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
@@ -57,7 +56,6 @@ function NodeCard({
             ) : null}
           </span>
           <span className="mt-1 flex items-center gap-2">
-            <Badge variant={rankBadge(node.rank)}>{rankLabel[node.rank]}</Badge>
             <span className="text-xs text-[#8A8680]">
               {node.children.length === 1
                 ? "1 directo"
@@ -169,9 +167,6 @@ export function GenealogyTree({ root }: { root: NetworkNode }) {
       <aside className="h-fit rounded-2xl border border-border bg-surface/80 backdrop-blur-md transition-colors hover:border-border-bright p-5">
         <p className="text-[10px] uppercase tracking-[0.22em] text-lyra-cyan">Ficha</p>
         <h2 className="mt-3 text-xl tracking-wide text-[#1E1E24]">{selected.name}</h2>
-        <div className="mt-3">
-          <Badge variant={rankBadge(selected.rank)}>{rankLabel[selected.rank]}</Badge>
-        </div>
         <dl className="mt-6 space-y-4 text-sm">
           <div>
             <dt className="text-[#8A8680]">Correo</dt>

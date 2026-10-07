@@ -18,7 +18,6 @@ export function CreditRecharge({
   exempt,
   exemptLabel,
   paid,
-  remaining,
   quotes,
 }: {
   packageId: string;
@@ -26,7 +25,6 @@ export function CreditRecharge({
   exempt: boolean;
   exemptLabel: string;
   paid: boolean;
-  remaining: number;
   quotes: { rebuy: MpQuote | null; credits: MpQuote | null } | null;
 }) {
   const founder = isFounderPackage(packageId);
@@ -40,9 +38,7 @@ export function CreditRecharge({
     ? exemptLabel
     : paid
       ? "Pagada este mes. Tus comisiones siguen activas."
-      : `${formatUsd(amount)} para mantenerte activo y cobrar tus bonos.${
-          remaining > 0 ? ` Con ${remaining} ${remaining === 1 ? "directo activo más" : "directos activos más"} quedas exento.` : ""
-        }`;
+      : `${formatUsd(amount)} para mantenerte activo y cobrar tus bonos.`;
   const quote = purpose ? quotes?.[purpose] : null;
 
   async function pay() {
