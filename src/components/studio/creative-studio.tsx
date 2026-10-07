@@ -55,26 +55,31 @@ async function persistPiece(input: {
     toast.error("La pieza es demasiado grande para guardarla. Prueba 15 segundos.");
     return null;
   }
-  if (input.id) {
-    const revised = await reviseCreation({ id: input.id, title: input.title, body: input.body, media: input.media });
-    if (!revised) {
-      toast.error("No se pudo actualizar la pieza.");
+  try {
+    if (input.id) {
+      const revised = await reviseCreation({ id: input.id, title: input.title, body: input.body, media: input.media });
+      if (!revised) {
+        toast.error("No se pudo actualizar la pieza.");
+        return null;
+      }
+      return revised;
+    }
+    const saved = await storeCreation({
+      area: "studio",
+      kind: input.kind,
+      title: input.title,
+      body: input.body,
+      media: input.media,
+    });
+    if (!saved) {
+      toast.error("No se pudo guardar la pieza.");
       return null;
     }
-    return revised;
-  }
-  const saved = await storeCreation({
-    area: "studio",
-    kind: input.kind,
-    title: input.title,
-    body: input.body,
-    media: input.media,
-  });
-  if (!saved) {
+    return saved;
+  } catch {
     toast.error("No se pudo guardar la pieza.");
     return null;
   }
-  return saved;
 }
 
 const tabs: { id: StudioTab; label: string; hint: string }[] = [
@@ -639,7 +644,7 @@ function ImagePanel({
     context.fillStyle = cine ? "rgba(255,255,255,0.85)" : "rgba(124,58,237,0.9)";
     context.font = "600 26px sans-serif";
     context.fillText("LYRA", 72, canvas.height - 64);
-    const url = canvas.toDataURL("image/png");
+    const url = canvas.toDataURL("image/jpeg", 0.82);
     setImageUrl(url);
     setEditing(false);
     toast.success("Imagen lista. Guárdala si quieres conservarla.");
@@ -685,7 +690,8 @@ function ImagePanel({
     if (!imageUrl) return;
     const link = document.createElement("a");
     link.href = imageUrl;
-    link.download = `${(title || "imagen-lyra").slice(0, 40)}.png`;
+    const extension = imageUrl.startsWith("data:image/jpeg") ? "jpg" : "png";
+    link.download = `${(title || "imagen-lyra").slice(0, 40)}.${extension}`;
     link.click();
   }
 
