@@ -1,6 +1,6 @@
 "use client";
 
-import { Copy, Download, KeyRound, Search, ShieldCheck, Trash2, UserCheck, UserX, Wallet } from "lucide-react";
+import { Copy, Download, GitBranch, KeyRound, Search, ShieldCheck, Trash2, UserCheck, UserX, Wallet } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useMemo, useState, useTransition } from "react";
 import { toast } from "sonner";
@@ -8,6 +8,7 @@ import { toast } from "sonner";
 import {
   adjustCredits,
   changePackage,
+  changeSponsor,
   deleteAccount,
   getCommissionHistory,
   resetPassword,
@@ -42,6 +43,7 @@ export type AdminUserRow = {
   walletBalance: number;
   usdtTrc20: string | null;
   sponsorName: string | null;
+  sponsorUsername: string | null;
   referrals: number;
   createdAt: string;
   suspendedUntil: string | null;
@@ -88,7 +90,9 @@ export function AdminUsers({ users }: { users: AdminUserRow[] }) {
       if (filter === "pending" && !user.pendingPackage) return false;
       if (filter === "suspended" && !user.suspendedUntil) return false;
       if (!needle) return true;
-      return [user.name, user.username, user.email].some((value) => value.toLowerCase().includes(needle));
+      return [user.name, user.username, user.email, user.sponsorName ?? "", user.sponsorUsername ?? ""].some((value) =>
+        value.toLowerCase().includes(needle),
+      );
     });
   }, [users, query, filter]);
 
@@ -191,6 +195,7 @@ function UserEditor({ user, onClose }: { user: AdminUserRow; onClose: () => void
   const [days, setDays] = useState("7");
   const [packageId, setPackageId] = useState(user.packageId ?? "STARTED");
   const [usdt, setUsdt] = useState(user.usdtTrc20 ?? "");
+  const [sponsorUser, setSponsorUser] = useState("");
   const [commissionHistory, setCommissionHistory] = useState<CommissionRow[] | null>(null);
   const [loadingHistory, setLoadingHistory] = useState(false);
 
@@ -247,6 +252,22 @@ function UserEditor({ user, onClose }: { user: AdminUserRow; onClose: () => void
     });
   }
 
+  function moveSponsor() {
+    const handle = sponsorUser.trim().replace(/^@/, "");
+    if (!handle) {
+      toast.error("Escribe el usuario del nuevo patrocinador.");
+      return;
+    }
+    if (
+      !window.confirm(
+        `¿Mover a ${user.name} bajo @${handle}? Su equipo se mueve con esta cuenta. Las comisiones ya pagadas no cambian.`,
+      )
+    ) {
+      return;
+    }
+    run(() => changeSponsor(user.id, handle), "Patrocinio actualizado", () => setSponsorUser(""));
+  }
+
   function remove() {
     const typed = window.prompt(
       `Para borrar a ${user.name} de forma definitiva escribe su usuario: ${user.username}\nSu equipo pasa a su patrocinador.`,
@@ -269,7 +290,9 @@ function UserEditor({ user, onClose }: { user: AdminUserRow; onClose: () => void
     <div className="space-y-4 border-t border-[#F0ECE6] bg-[#FAF8F5] px-5 py-5">
       <div className="flex flex-wrap gap-x-6 gap-y-1 text-xs text-[#5C5854]">
         <span>Alta: {shortDate(user.createdAt)}</span>
-        <span>Patrocinador: {user.sponsorName ?? "—"}</span>
+        <span>
+          Patrocinador: {user.sponsorName ? `${user.sponsorName}${user.sponsorUsername ? ` (@${user.sponsorUsername})` : ""}` : "—"}
+        </span>
         <span>Directos: {user.referrals}</span>
         <span>Comisiones acumuladas: {formatUsd(user.walletBalance)}</span>
         <span>Wallet USDT: {user.usdtTrc20 ?? "—"}</span>
@@ -336,6 +359,33 @@ function UserEditor({ user, onClose }: { user: AdminUserRow; onClose: () => void
           </button>
         </div>
       ) : null}
+
+      <div className={panel}>
+        <p className={title}>Patrocinio</p>
+        <p className="mt-2 text-xs leading-5 text-[#5C5854]">
+          Escribe el usuario de quien ahora patrocina a esta cuenta. El equipo que ya tiene se mueve con ella. Las comisiones
+          que ya se pagaron se quedan como están; las siguientes siguen al nuevo patrocinador.
+        </p>
+        <div className="mt-3 flex flex-wrap gap-2">
+          <input
+            value={sponsorUser}
+            onChange={(event) => setSponsorUser(event.target.value)}
+            className={`${field} min-w-[220px] flex-1`}
+            placeholder="Usuario del nuevo patrocinador"
+            autoComplete="off"
+            spellCheck={false}
+          />
+          <button
+            type="button"
+            disabled={busy || !sponsorUser.trim()}
+            onClick={moveSponsor}
+            className={`${primary} inline-flex items-center gap-2`}
+          >
+            <GitBranch className="size-4" />
+            Cambiar patrocinador
+          </button>
+        </div>
+      </div>
 
       <div className="grid gap-4 lg:grid-cols-2">
         <div className={panel}>

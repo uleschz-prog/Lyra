@@ -38,7 +38,7 @@ export default async function AdminPage() {
       usdtTrc20: true,
       createdAt: true,
       suspendedUntil: true,
-      sponsor: { select: { name: true } },
+      sponsor: { select: { name: true, username: true } },
       _count: { select: { referrals: true } },
     },
   });
@@ -94,6 +94,7 @@ export default async function AdminPage() {
     walletBalance: user.walletBalance,
     usdtTrc20: user.usdtTrc20,
     sponsorName: user.sponsor?.name ?? null,
+    sponsorUsername: user.sponsor?.username ?? null,
     referrals: user._count.referrals,
     createdAt: user.createdAt.toISOString(),
     suspendedUntil: isSuspended(user.suspendedUntil) ? user.suspendedUntil!.toISOString() : null,
@@ -104,7 +105,7 @@ export default async function AdminPage() {
       <PageHeader
         eyebrow="Administración"
         title="Panel admin"
-        description="Cierra el mes, valida inscripciones, ajusta créditos, cambia paquetes, administra wallets USDT, corta comisiones, edita datos de acceso, suspende o borra cuentas y descarga el respaldo de socios."
+        description="Cierra el mes, valida inscripciones, cambia patrocinios, ajusta créditos, cambia paquetes, administra wallets USDT, corta comisiones, edita datos de acceso, suspende o borra cuentas y descarga el respaldo de socios."
       />
       <CloseMonth />
       <div className="mt-5">

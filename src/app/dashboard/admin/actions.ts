@@ -7,13 +7,13 @@ import bcrypt from "bcryptjs";
 import { revalidatePath } from "next/cache";
 
 import {
-  compensationPlan,
   creditRechargeUsd,
   getPackage,
   isSignupPlanId,
   toPackageType,
   type SignupPlanId,
 } from "@/config/compensation-plan";
+import { applySponsorChange, rebuildUpline } from "@/lib/admin/sponsor-move";
 import { getCurrentUser } from "@/lib/auth/profile";
 import { INDEFINITE_YEAR } from "@/lib/auth/suspension";
 import { payCommissions } from "@/lib/compensation/payout";
@@ -40,6 +40,7 @@ async function target(id: string) {
 
 function done() {
   revalidatePath("/dashboard/admin");
+  revalidatePath("/dashboard/network");
 }
 
 export async function validateRegistration(id: string): Promise<Result> {
@@ -142,17 +143,24 @@ export async function suspendAccount(id: string, days: number | "indefinite" | "
   return { ok: true };
 }
 
-async function rebuildUpline(tx: Prisma.TransactionClient, userId: string) {
-  const links: { userId: string; ancestorId: string; depth: number }[] = [];
-  const seen = new Set([userId]);
-  let cursor = (await tx.user.findUnique({ where: { id: userId }, select: { sponsorId: true } }))?.sponsorId ?? null;
-  while (cursor && links.length < compensationPlan.unilevel.length && !seen.has(cursor)) {
-    seen.add(cursor);
-    links.push({ userId, ancestorId: cursor, depth: links.length + 1 });
-    cursor = (await tx.user.findUnique({ where: { id: cursor }, select: { sponsorId: true } }))?.sponsorId ?? null;
-  }
-  await tx.networkRelation.deleteMany({ where: { userId } });
-  if (links.length > 0) await tx.networkRelation.createMany({ data: links });
+export async function changeSponsor(id: string, username: string): Promise<Result<{ sponsorName: string; sponsorUsername: string }>> {
+  if (!(await requireAdmin())) return denied;
+  const handle = username.trim().replace(/^@/, "").toLowerCase();
+  if (!handle) return { ok: false, error: "Escribe el usuario del nuevo patrocinador." };
+  const user = await target(id);
+  if (!user) return { ok: false, error: "Esa cuenta ya no existe." };
+
+  const prisma = getPrisma();
+  const sponsor = await prisma.user.findFirst({
+    where: { OR: [{ username: handle }, { referralCode: handle.toUpperCase() }] },
+    select: { id: true, name: true, username: true },
+  });
+  if (!sponsor) return { ok: false, error: "No encontramos esa cuenta." };
+
+  const error = await prisma.$transaction(async (tx) => applySponsorChange(tx, user.id, sponsor.id), { timeout: 60_000 });
+  if (error) return { ok: false, error };
+  done();
+  return { ok: true, sponsorName: sponsor.name, sponsorUsername: sponsor.username };
 }
 
 export async function changePackage(id: string, packageId: string): Promise<Result<{ package: string }>> {
