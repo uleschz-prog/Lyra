@@ -372,7 +372,7 @@ export function PayMembership({
             <input
               value={promoCode}
               onChange={(event) => setPromoCode(event.target.value.toUpperCase())}
-              placeholder="LYRA-PROMO-…"
+              placeholder="LYRA-…"
               autoComplete="off"
               className="mt-2 h-12 w-full rounded-md border border-[#D9D5CE] px-3 text-sm font-normal uppercase tracking-wide text-[#0F0F0F] outline-none placeholder:normal-case placeholder:tracking-normal placeholder:text-[#B0B0B0] focus:border-[#312F2F]"
             />

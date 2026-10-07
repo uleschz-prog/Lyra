@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 
 import { isSignupPlanId } from "@/config/compensation-plan";
 import { getCurrentUser } from "@/lib/auth/profile";
-import { activateSignupWithPromo } from "@/lib/payments/promo-signup";
+import { activateSignupWithCode } from "@/lib/payments/promo-signup";
 
 export async function POST(request: Request) {
   const user = await getCurrentUser();
@@ -21,7 +21,7 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Escribe el código promocional." }, { status: 400 });
   }
 
-  const result = await activateSignupWithPromo({
+  const result = await activateSignupWithCode({
     userId: user.id,
     name: user.name,
     sponsorId: user.sponsorId,

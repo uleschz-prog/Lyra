@@ -21,8 +21,13 @@ export default function TermsPage() {
           10% en el nivel 2 y 5% del nivel 3 al 6, sobre paquetes y recargas de créditos.
         </p>
         <p>
+          Cada dólar que entra a LYRA se convierte en 0.80 puntos. Las comisiones de la red, Órbita y el bono mundial,
+          se calculan sobre esos puntos. Una cuenta pagada con un código promocional no genera comisión de
+          inscripción. Las recompras de esa cuenta sí generan comisión.
+        </p>
+        <p>
           El contenido generado con los agentes y el estudio es responsabilidad de quien lo publica. Las comisiones
-          se calculan sobre membresías activadas y quedan registradas en la billetera.
+          quedan registradas en la billetera.
         </p>
       </div>
       <Link href={brand.links.home} className="mt-10 inline-block text-sm text-cyan-200">

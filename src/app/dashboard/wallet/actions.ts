@@ -7,6 +7,7 @@ import { revalidatePath } from "next/cache";
 
 import {
   creditRechargeUsd,
+  founderSignupCodeCredits,
   getPackage,
   isFounderPackage,
   isSignupPlanId,
@@ -287,8 +288,7 @@ export async function startUpgradeCheckout(targetPackageId: string): Promise<Upg
 
 const activationPackages: SignupPlanId[] = ["STARTED", "PRO", "FOUNDER"];
 
-/** Tope vitalicio que un Pro (antes Founder) puede gastar de sus créditos normales generando códigos. */
-const founderActivationCapUsd = 1000;
+/** Tope: 500 de los 1,000 créditos iniciales de un Pro. */
 
 function newCode() {
   return `LYRA-${randomBytes(4).toString("hex").toUpperCase()}`;
@@ -304,6 +304,22 @@ export async function createActivationCode(packageId: string) {
   const price = getPackage(packageId).price;
   const prisma = getPrisma();
 
+  if (user.activationCredits < price) {
+    if (!isFounderPackage(user.package)) {
+      return { ok: false as const, error: "No tienes créditos suficientes para generar ese código." };
+    }
+    const used = await prisma.activationCode.aggregate({
+      where: { ownerId: user.id },
+      _sum: { price: true },
+    });
+    if ((used._sum.price ?? 0) + price > founderSignupCodeCredits) {
+      return { ok: false as const, error: "Puedes usar hasta 500 créditos de los 1,000 iniciales para crear códigos." };
+    }
+    if (user.credits < price) {
+      return { ok: false as const, error: "No tienes créditos suficientes para generar ese código." };
+    }
+  }
+
   const code = await prisma.$transaction(async (tx) => {
     // 1) Pool dedicado de créditos de activación (Pro).
     const spent = await tx.user.updateMany({
@@ -317,13 +333,13 @@ export async function createActivationCode(packageId: string) {
       });
     }
 
-    // 2) Pro: paga desde sus créditos normales, con tope vitalicio de $1,000.
+    // 2) Pro: paga desde sus créditos normales, hasta 500 de los 1,000 iniciales.
     if (user.package !== "FOUNDER") return null;
     const used = await tx.activationCode.aggregate({
       where: { ownerId: user.id },
       _sum: { price: true },
     });
-    if ((used._sum.price ?? 0) + price > founderActivationCapUsd) return null;
+    if ((used._sum.price ?? 0) + price > founderSignupCodeCredits) return null;
     const debited = await tx.user.updateMany({
       where: { id: user.id, credits: { gte: price } },
       data: { credits: { decrement: price } },

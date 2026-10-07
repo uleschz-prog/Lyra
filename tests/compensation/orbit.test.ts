@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { getPackage, signupPlans } from "@/config/compensation-plan";
+import { founderCodeBudget, getPackage, signupPlans } from "@/config/compensation-plan";
 import { distributeSale, estimateInvitationEarnings, monthlyClose, roundMoney, type CompensationMember } from "@/lib/compensation/engine";
 
 function member(
@@ -20,6 +20,15 @@ function chain(packageId: CompensationMember["packageId"], status: CompensationM
   ];
 }
 
+describe("códigos de un Pro", () => {
+  it("deja usar 500 de los 1,000 créditos iniciales", () => {
+    expect(founderCodeBudget({ spentUsd: 0, credits: 1000, activationCredits: 0 })).toBe(500);
+    expect(founderCodeBudget({ spentUsd: 249, credits: 751, activationCredits: 0 })).toBe(251);
+    expect(founderCodeBudget({ spentUsd: 500, credits: 500, activationCredits: 0 })).toBe(0);
+    expect(founderCodeBudget({ spentUsd: 0, credits: 80, activationCredits: 0 })).toBe(80);
+  });
+});
+
 describe("bono órbita", () => {
   it("vende Inicio, Negocio y Pro con los créditos y el precio nuevos", () => {
     expect(signupPlans.map((plan) => plan.id)).toEqual(["STARTED", "PRO", "FOUNDER"]);
@@ -31,8 +40,8 @@ describe("bono órbita", () => {
 
   it("paga 20, 10 y 5 por ciento hasta sumar 50 en seis niveles Pro", () => {
     const lines = distributeSale(chain("FOUNDER"), "buyer", 100, "purchase");
-    expect(lines.map((line) => line.amount)).toEqual([20, 10, 5, 5, 5, 5]);
-    expect(lines.reduce((sum, line) => sum + line.amount, 0)).toBe(50);
+    expect(lines.map((line) => line.amount)).toEqual([16, 8, 4, 4, 4, 4]);
+    expect(lines.reduce((sum, line) => sum + line.amount, 0)).toBe(40);
     expect(lines.every((line) => line.bonus === "orbita" && line.paid)).toBe(true);
   });
 
@@ -40,22 +49,22 @@ describe("bono órbita", () => {
     const purchase = distributeSale(chain("FOUNDER"), "buyer", 49, "purchase");
     const rebuy = distributeSale(chain("FOUNDER"), "buyer", 49, "rebuy");
     expect(rebuy.map((line) => line.amount)).toEqual(purchase.map((line) => line.amount));
-    expect(rebuy.map((line) => line.amount)).toEqual([9.8, 4.9, 2.45, 2.45, 2.45, 2.45]);
+    expect(rebuy.map((line) => line.amount)).toEqual([7.84, 3.92, 1.96, 1.96, 1.96, 1.96]);
   });
 
   it("Inicio cobra dos niveles y Negocio cuatro", () => {
     expect(distributeSale(chain("STARTED"), "buyer", 100, "purchase").map((line) => line.amount)).toEqual([
-      20, 10, 0, 0, 0, 0,
+      16, 8, 0, 0, 0, 0,
     ]);
     expect(distributeSale(chain("PRO"), "buyer", 100, "rebuy").map((line) => line.amount)).toEqual([
-      20, 10, 5, 5, 0, 0,
+      16, 8, 4, 4, 0, 0,
     ]);
   });
 
   it("una cuenta Corporate retirada cobra los seis niveles", () => {
     const lines = distributeSale(chain("CORPORATE"), "buyer", 100, "purchase");
     expect(lines.every((line) => line.paid)).toBe(true);
-    expect(lines.reduce((sum, line) => sum + line.amount, 0)).toBe(50);
+    expect(lines.reduce((sum, line) => sum + line.amount, 0)).toBe(40);
   });
 
   it("no paga a un patrocinador inactivo ni un monto vacío", () => {
@@ -71,7 +80,7 @@ describe("bono órbita", () => {
       salePackageId: "STARTED",
       earnerPackageId: "STARTED",
     });
-    expect(inicio.levels.map((level) => level.packageUsd)).toEqual([5.8, 2.9, 0, 0, 0, 0]);
+    expect(inicio.levels.map((level) => level.packageUsd)).toEqual([4.64, 2.32, 0, 0, 0, 0]);
     expect(inicio.earnerShare).toBe(0.3);
 
     const pro = estimateInvitationEarnings({
@@ -81,13 +90,13 @@ describe("bono órbita", () => {
       earnerPackageId: "FOUNDER",
     });
     expect(pro.levels.every((level) => level.active)).toBe(true);
-    expect(pro.level1).toBe(11.6);
-    expect(pro.level2).toBe(17.4);
-    expect(pro.levels[2]?.packageUsd).toBe(1.45);
-    expect(pro.packageTotal).toBe(14.5);
-    expect(pro.rebuyTotal).toBe(9.5);
+    expect(pro.level1).toBe(9.28);
+    expect(pro.level2).toBe(13.92);
+    expect(pro.levels[2]?.packageUsd).toBe(1.16);
+    expect(pro.packageTotal).toBe(11.6);
+    expect(pro.rebuyTotal).toBe(7.6);
     expect(pro.networkSales).toBe(34944);
-    expect(pro.globalBonusUsd).toBe(3494.4);
+    expect(pro.globalBonusUsd).toBe(2795.52);
     expect(inicio.globalBonusUsd).toBe(0);
   });
 
@@ -99,7 +108,7 @@ describe("bono órbita", () => {
       earnerPackageId: "FOUNDER",
     });
     expect(pro.networkSales).toBe(380016);
-    expect(pro.globalBonusUsd).toBe(38001.6);
+    expect(pro.globalBonusUsd).toBe(30401.28);
 
     const negocio = estimateInvitationEarnings({
       directs: 3,
@@ -122,10 +131,10 @@ describe("bono órbita", () => {
     ];
     const closed = monthlyClose(members);
     expect(closed.sales).toBe(843);
-    expect(closed.pool).toBe(84.3);
+    expect(closed.pool).toBe(67.44);
     expect(closed.shares).toBe(2);
     expect(closed.payouts.map((payout) => payout.userId)).toEqual(["ana", "cata"]);
-    expect(closed.payouts.map((payout) => payout.poolPayout)).toEqual([42.15, 42.15]);
+    expect(closed.payouts.map((payout) => payout.poolPayout)).toEqual([33.72, 33.72]);
     expect(closed.payouts.every((payout) => payout.rankPayout === 0)).toBe(true);
   });
 
@@ -135,7 +144,7 @@ describe("bono órbita", () => {
       { ...member("otro", null, "STARTED"), personalVolume: 0, renewalUsd: 0 },
     ];
     const closed = monthlyClose(members);
-    expect(closed.pool).toBe(100);
+    expect(closed.pool).toBe(80);
     expect(closed.payouts).toEqual([]);
     expect(closed.shares).toBe(0);
   });
@@ -148,10 +157,10 @@ describe("bono órbita", () => {
     }));
     const closed = monthlyClose(members);
     const paid = closed.payouts.reduce((sum, payout) => sum + payout.poolPayout, 0);
-    expect(closed.pool).toBe(1);
-    expect(roundMoney(paid)).toBe(1);
+    expect(closed.pool).toBe(0.8);
+    expect(roundMoney(paid)).toBe(0.8);
     expect(closed.payouts.map((payout) => payout.poolPayout).sort((left, right) => right - left)).toEqual([
-      0.34, 0.33, 0.33,
+      0.27, 0.27, 0.26,
     ]);
   });
 });

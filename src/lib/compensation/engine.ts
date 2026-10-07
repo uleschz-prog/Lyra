@@ -4,6 +4,7 @@ import {
   getPackage,
   isPackageId,
   rebuyStatus,
+  productPoints,
   toPoints,
   type CompensationRankId,
   type MemberStatus,
@@ -210,7 +211,7 @@ export function monthlyClose(members: CompensationMember[]): {
     members.reduce((total, member) => total + member.personalVolume + member.creditPurchaseUsd, 0),
   );
   const points = roundMoney(members.reduce((total, member) => total + toPoints(member.personalVolume), 0));
-  const pool = roundMoney(sales * compensationPlan.globalPoolRate);
+  const pool = roundMoney(toPoints(sales) * compensationPlan.globalPoolRate);
   const qualifiers = members
     .filter(
       (member) =>
@@ -292,6 +293,7 @@ export function distributeSale(
 ): UnilevelLine[] {
   if (!(amountUsd > 0)) return [];
 
+  const base = productPoints(amountUsd);
   const index = indexMembers(members);
   const chain = upline(index, userId, compensationPlan.unilevel.length);
 
@@ -309,7 +311,7 @@ export function distributeSale(
       rate,
       sponsorId: sponsor.id,
       sponsorName: sponsor.name,
-      amount: reason ? 0 : roundMoney(amountUsd * rate),
+      amount: reason ? 0 : roundMoney(base * rate),
       paid: reason === null,
       reason,
     };
@@ -323,6 +325,8 @@ export function estimateInvitationEarnings(input: {
   earnerPackageId: PackageId;
 }) {
   const sale = getPackage(input.salePackageId);
+  const packagePoints = productPoints(sale.price);
+  const rebuyPoints = productPoints(sale.rebuy);
   const profile = bonusProfile(input.earnerPackageId);
   const depth = profile?.orbitaLevels ?? 0;
   const levels = compensationPlan.unilevel.map((listedRate, index) => {
@@ -337,9 +341,9 @@ export function estimateInvitationEarnings(input: {
       listedRate,
       active,
       people,
-      packageUsd: active ? roundMoney(sale.price * listedRate) : 0,
-      rebuyUsd: active ? roundMoney(sale.rebuy * listedRate) : 0,
-      networkUsd: active && people > 0 ? roundMoney(people * sale.price * listedRate) : 0,
+      packageUsd: active ? roundMoney(packagePoints * listedRate) : 0,
+      rebuyUsd: active ? roundMoney(rebuyPoints * listedRate) : 0,
+      networkUsd: active && people > 0 ? roundMoney(people * packagePoints * listedRate) : 0,
     };
   });
   const level1 = levels[0]?.networkUsd ?? 0;
@@ -350,7 +354,7 @@ export function estimateInvitationEarnings(input: {
   const earnerPackage = getPackage(input.earnerPackageId);
   const globalBonusUsd =
     earnerPackage.price === compensationPlan.globalPoolPrice
-      ? roundMoney(networkSales * compensationPlan.globalPoolRate)
+      ? roundMoney(productPoints(networkSales) * compensationPlan.globalPoolRate)
       : 0;
 
   return {

@@ -94,7 +94,12 @@ export const activeDirectBonusCap = 1500;
 
 export const compensationPlan = {
   name: "Bono Órbita",
-  pointsPerUsd: 1,
+  /**
+   * Cada dólar que entra se convierte en 0.80 puntos.
+   * Órbita y el bono mundial se calculan sobre esos puntos.
+   * La explicación va solo en los términos, no en el resto del sitio.
+   */
+  pointsPerUsd: 0.8,
   unilevel: [0.2, 0.1, 0.05, 0.05, 0.05, 0.05],
   galaxyPoolRate: 0,
   /**
@@ -286,6 +291,14 @@ export function productPoints(usd: number) {
 /** Pago máximo de red para un monto de producto, aplicando payoutCap. */
 export function maxNetworkPayout(usd: number) {
   return Math.round(productPoints(usd) * compensationPlan.payoutCap * 100) / 100;
+}
+
+/** Créditos de los 1,000 iniciales que un Pro de $249 puede convertir en códigos de alta. */
+export const founderSignupCodeCredits = 500;
+
+export function founderCodeBudget(input: { spentUsd: number; credits: number; activationCredits: number }) {
+  const remainingCap = Math.max(0, founderSignupCodeCredits - input.spentUsd);
+  return input.activationCredits + Math.min(remainingCap, Math.max(0, input.credits));
 }
 
 export function isFounderPackage(packageId: string | null | undefined) {

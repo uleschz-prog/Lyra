@@ -8,7 +8,7 @@ import { CreditRecharge } from "@/components/wallet/credit-recharge";
 import { UsdtWallet } from "@/components/wallet/usdt-wallet";
 import { WalletPanel } from "@/components/wallet/wallet-panel";
 import { brand } from "@/config/brand";
-import { creditRechargeUsd, isFounderPackage, rebuyStatus } from "@/config/compensation-plan";
+import { creditRechargeUsd, founderCodeBudget, isFounderPackage, rebuyStatus } from "@/config/compensation-plan";
 import { getCurrentUser } from "@/lib/auth/profile";
 import { mercadoPagoQuote, mercadoPagoReady } from "@/lib/payments/mercadopago";
 import { getPrisma } from "@/lib/prisma";
@@ -43,9 +43,9 @@ export default async function WalletPage({
         select: { code: true, packageId: true, price: true, createdAt: true, usedBy: { select: { name: true } } },
       })
     : [];
-  // Pro (antes Founder) genera códigos desde sus créditos normales con tope vitalicio de $1,000.
+  const spentOnCodes = codes.reduce((total, row) => total + row.price, 0);
   const activationBalance = isFounderPackage(user.package)
-    ? Math.max(0, 1000 - codes.reduce((total, row) => total + row.price, 0))
+    ? founderCodeBudget({ spentUsd: spentOnCodes, credits: user.credits, activationCredits: user.activationCredits })
     : user.activationCredits;
   const headerStore = await headers();
   const host = headerStore.get("x-forwarded-host") ?? headerStore.get("host");
