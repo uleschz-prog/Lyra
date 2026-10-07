@@ -10,6 +10,7 @@ import { useCredits } from "@/components/dashboard/credit-provider";
 import { Button } from "@/components/ui/button";
 import type { CreationRecord } from "@/lib/media-pieces";
 import { studioVoices } from "@/lib/ai/voices";
+import { recordStudioClip } from "@/lib/studio/record-clip";
 import { cn } from "@/lib/utils";
 
 type SourceKind = "pdf" | "link" | "note";
@@ -236,10 +237,24 @@ export function NotebookWorkspace({ initialPieces = [] }: { initialPieces?: Crea
           script: data.text,
         }),
       });
-      const job = (await response.json()) as VideoJob;
+      let job = (await response.json()) as VideoJob;
       if (!response.ok) {
         toast.error(job.error ?? "No se pudo preparar el video.");
         return;
+      }
+      if (!job.videoUrl) {
+        try {
+          const clip = await recordStudioClip({
+            title: sources[0]?.title ?? "Resumen",
+            script: data.text,
+            format: "9:16",
+            styleId: "vlog",
+            duration: "15 s",
+          });
+          job = { ...job, mode: "live", status: "completed", videoUrl: clip.url, message: "Video listo." };
+        } catch (error) {
+          toast.error(error instanceof Error ? error.message : "No se pudo grabar el video.");
+        }
       }
       setVideoJob(job);
       void remember("video", sources[0]?.title ?? "Resumen", data.text, job.videoUrl ?? null);

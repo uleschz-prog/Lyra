@@ -571,6 +571,7 @@ function ImagePanel({
   const [activeTemplate, setActiveTemplate] = useState<string | null>(null);
   const [restoredId, setRestoredId] = useState<string | null>(null);
 
+  const { syncBalance } = useCredits();
   const chosen = imageStyles.find((item) => item.id === style) ?? imageStyles[0];
   const locked = Boolean(imageUrl) && !editing;
 
@@ -611,6 +612,26 @@ function ImagePanel({
   }
 
   async function create() {
+    const prompt = [title.trim(), detail.trim(), chosen.name].filter(Boolean).join(". ");
+    try {
+      const response = await fetch("/api/ai/image", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ prompt, size: format }),
+      });
+      const payload = (await response.json().catch(() => ({}))) as { dataUrl?: string; error?: string; credits?: number };
+      syncBalance(payload.credits, response.ok ? "Imagen" : undefined);
+      if (response.ok && payload.dataUrl) {
+        setImageUrl(payload.dataUrl);
+        setEditing(false);
+        toast.success("Imagen lista. Guárdala si quieres conservarla.");
+        return;
+      }
+      toast.error(payload.error ?? "No se pudo crear la imagen con IA.");
+    } catch {
+      toast.error("No se pudo crear la imagen con IA.");
+    }
+
     const canvas = document.createElement("canvas");
     const wide = format === "16:9";
     const story = format === "9:16";
@@ -647,7 +668,7 @@ function ImagePanel({
     const url = canvas.toDataURL("image/jpeg", 0.82);
     setImageUrl(url);
     setEditing(false);
-    toast.success("Imagen lista. Guárdala si quieres conservarla.");
+    toast.success("Dejé una pieza con el texto. La imagen de IA no respondió.");
   }
 
   async function saveImage() {

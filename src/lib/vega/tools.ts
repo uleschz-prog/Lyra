@@ -12,8 +12,8 @@ import {
   writeWorkspaceFile,
 } from "@/lib/vega/assistant-tools";
 import { buildProject, buildStoryboard, type ProjectDraft } from "@/lib/vega/build-project";
+import { generateClip } from "@/lib/ai/media";
 import { scenesFromScript } from "@/lib/studio/video-plan";
-import { renderStudioVideo } from "@/lib/studio/render-video";
 import type { VegaConnections } from "@/lib/vega/apps";
 import type { FunctionDeclaration } from "@/lib/vega/gemini-stream";
 import { forgetMemory, MEMORY_MAX_LENGTH, saveMemory } from "@/lib/vega/memory";
@@ -640,7 +640,7 @@ export async function runVegaTool(userId: string, name: string, args: Record<str
     if (prompt.length < 4) return { kind: "invalid", response: { error: "Describe la imagen con un poco más de detalle." } };
     const size = text(args.tamano, 20);
     const orientation = size === "horizontal" ? "Una imagen panorámica, " : size === "vertical" ? "Una imagen vertical, " : "";
-    const generated = await generateImage(`${orientation}${prompt}`).catch(() => ({
+    const generated = await generateImage(`${orientation}${prompt}`, size).catch(() => ({
       ok: false as const,
       error: "El proveedor de imagen no respondió.",
     }));
@@ -661,19 +661,14 @@ export async function runVegaTool(userId: string, name: string, args: Record<str
     const format = text(args.formato, 8);
     const scenes = scenesFromScript(script).map((scene) => scene.line);
     const html = buildStoryboard(title || "Video", scenes);
-    let videoUrl: string | undefined;
-    try {
-      const video = await renderStudioVideo({
-        title,
-        script,
-        format: format === "16:9" || format === "1:1" ? format : "9:16",
-        duration: "15 s",
-        styleId: "cine",
-      });
-      videoUrl = `data:video/mp4;base64,${video.toString("base64")}`;
-    } catch {
-      videoUrl = undefined;
-    }
+    const clip = await generateClip({
+      title,
+      script,
+      format: format === "16:9" || format === "1:1" ? format : "9:16",
+      duration: "15 s",
+      styleId: "cine",
+    });
+    const videoUrl = clip.ok ? clip.url : undefined;
     const files = [
       { path: "guion.txt", content: `${title}\n\n${script}\n` },
       { path: "pieza.html", content: html },

@@ -1,8 +1,7 @@
 import { promises as fs } from "node:fs";
 import path from "node:path";
 
-import { geminiCredentials } from "@/lib/ai/generate";
-import { providerError, readJson } from "@/lib/ai/providers";
+import { generateStill } from "@/lib/ai/media";
 
 /**
  * Herramientas de asistente de Vega sobre un espacio de trabajo privado por socio.
@@ -190,38 +189,8 @@ export type ImageResult =
   | { ok: false; error: string };
 
 /**
- * Genera una imagen con Gemini (respuesta multimodal). Devuelve una data URL PNG/JPEG.
- * Solo se llama después de que el socio confirma la tarjeta «crear_imagen».
+ * Genera una imagen con un modelo de imagen. El modelo de chat no devuelve pixeles.
  */
-export async function generateImage(prompt: string): Promise<ImageResult> {
-  const { apiKey, model } = geminiCredentials();
-  if (!apiKey) return { ok: false, error: "La generación de imágenes no está configurada en el servidor." };
-
-  const response = await fetch(
-    `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`,
-    {
-      method: "POST",
-      headers: { "Content-Type": "application/json", "x-goog-api-key": apiKey },
-      body: JSON.stringify({
-        contents: [{ role: "user", parts: [{ text: prompt }] }],
-        generationConfig: { responseModalities: ["TEXT", "IMAGE"] },
-      }),
-    },
-  );
-
-  const payload = await readJson(response);
-  if (!response.ok) return { ok: false, error: providerError(payload, "El proveedor de imagen no pudo responder.") };
-
-  const candidates = (payload as { candidates?: { content?: { parts?: { inlineData?: { mimeType?: string; data?: string } }[] } }[] } | null)?.candidates;
-  const parts = candidates?.[0]?.content?.parts ?? [];
-  const inline = parts.find((part) => part.inlineData?.data);
-  if (!inline?.inlineData?.data) {
-    return { ok: false, error: "El proveedor no devolvió una imagen. Intenta con otra descripción." };
-  }
-  const mime = inline.inlineData.mimeType || "image/png";
-  return {
-    ok: true,
-    dataUrl: `data:${mime};base64,${inline.inlineData.data}`,
-    note: `Imagen generada con ${model}.`,
-  };
+export async function generateImage(prompt: string, size?: string): Promise<ImageResult> {
+  return generateStill(prompt, size);
 }

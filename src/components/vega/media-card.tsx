@@ -1,7 +1,9 @@
 "use client";
 
 import { Download } from "lucide-react";
+import { useEffect, useState } from "react";
 
+import { recordStudioClip } from "@/lib/studio/record-clip";
 import { zipStore } from "@/lib/vega/zip-store";
 import type { ImageDraft, VideoDraft } from "@/lib/vega/tools";
 
@@ -34,9 +36,43 @@ export function MediaCard({ image, video }: { image?: ImageDraft; video?: VideoD
   }
 
   if (!video) return null;
+  return <VideoCard video={video} />;
+}
+
+function VideoCard({ video }: { video: VideoDraft }) {
+  const [url, setUrl] = useState(video.videoUrl);
+  const [preparing, setPreparing] = useState(!video.videoUrl);
+
+  useEffect(() => {
+    if (video.videoUrl) return;
+    let cancelled = false;
+    recordStudioClip({
+      title: video.title,
+      script: video.script,
+      format: "9:16",
+      styleId: "cine",
+      duration: "15 s",
+    })
+      .then((clip) => {
+        if (!cancelled) setUrl(clip.url);
+      })
+      .catch(() => undefined)
+      .finally(() => {
+        if (!cancelled) setPreparing(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [video.script, video.title, video.videoUrl]);
 
   function downloadVideo() {
-    if (!video) return;
+    if (url) {
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = `${video.title.replace(/[^\p{L}\p{N}]+/gu, "-").slice(0, 40) || "video"}.${url.startsWith("data:video/webm") ? "webm" : "mp4"}`;
+      link.click();
+      return;
+    }
     save(`${video.title.replace(/[^\p{L}\p{N}]+/gu, "-").slice(0, 40) || "video"}.zip`, zipStore(video.files), "application/zip");
   }
 
@@ -50,8 +86,10 @@ export function MediaCard({ image, video }: { image?: ImageDraft; video?: VideoD
         </button>
       </div>
       <div className="px-4 py-3">
-        {video.videoUrl ? (
-          <video src={video.videoUrl} controls className="max-h-[420px] w-full rounded-xl bg-black" />
+        {url ? (
+          <video src={url} controls className="max-h-[420px] w-full rounded-xl bg-black" />
+        ) : preparing ? (
+          <p className="rounded-xl bg-[#1E1B4B] px-4 py-10 text-center text-sm text-white">Preparando el video…</p>
         ) : (
           <iframe title={`Video ${video.title}`} sandbox="allow-scripts" srcDoc={video.html} className="h-[280px] w-full rounded-xl border border-[#E7E2DA] bg-[#1E1B4B]" />
         )}

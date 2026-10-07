@@ -4,6 +4,7 @@ import { getPrisma } from "@/lib/prisma";
 
 export const creditPrices = {
   notebook: 5,
+  image: 5,
   speech: 3,
   search: 2,
   vegaMessage: 1,

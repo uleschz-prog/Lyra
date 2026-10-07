@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 
+import { generateClip } from "@/lib/ai/media";
 import { requireMember } from "@/lib/auth/api";
-import { renderStudioVideo } from "@/lib/studio/render-video";
 import { scenesFromScript } from "@/lib/studio/video-plan";
 
 export const maxDuration = 60;
@@ -32,25 +32,24 @@ export async function POST(request: Request) {
 
   const scenes = scenesFromScript(script);
 
-  try {
-    const video = await renderStudioVideo({ title, script, format, styleId, duration, captions });
+  const clip = await generateClip({ title, script, format, styleId, duration, captions }, 45_000);
+  if (clip.ok) {
     return NextResponse.json({
       mode: "live",
       provider: "lyra",
       title,
       status: "completed",
-      videoUrl: `data:video/mp4;base64,${video.toString("base64")}`,
+      videoUrl: clip.url,
       scenes,
       message: "Video listo. Puedes guardarlo, editarlo o eliminarlo.",
     });
-  } catch {
-    return NextResponse.json({
-      mode: "preview",
-      provider: "lyra",
-      title,
-      status: "ready",
-      scenes,
-      message: "El servidor no pudo escribir el archivo. El estudio lo graba en el navegador.",
-    });
   }
+  return NextResponse.json({
+    mode: "preview",
+    provider: "lyra",
+    title,
+    status: "ready",
+    scenes,
+    message: "El servidor no pudo escribir el archivo. El estudio lo graba en el navegador.",
+  });
 }
