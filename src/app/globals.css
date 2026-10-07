@@ -351,6 +351,16 @@ body {
   background-color: var(--surface);
 }
 
+.lyra-office {
+  --lyra-tab: calc(3.25rem + 1px + env(safe-area-inset-bottom));
+}
+
+@media (min-width: 768px) {
+  .lyra-office {
+    --lyra-tab: 0px;
+  }
+}
+
 .dark .lyra-office ::selection {
   background: rgba(124, 58, 237, 0.35);
   color: #ffffff;

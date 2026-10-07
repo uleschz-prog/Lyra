@@ -57,7 +57,7 @@ const filters: { id: Filter; label: string }[] = [
 
 const planLabel = (id: string | null) => (id ? id.charAt(0) + id.slice(1).toLowerCase() : "Sin plan");
 
-const packageOptions = ["STARTED", "PRO", "FOUNDER", "CORPORATE"] as const;
+const packageOptions = ["STARTED", "PRO", "FOUNDER"] as const;
 
 const shortDate = (iso: string) =>
   new Date(iso).toLocaleDateString("es-MX", { day: "numeric", month: "short", year: "numeric" });
@@ -394,9 +394,9 @@ function UserEditor({ user, onClose }: { user: AdminUserRow; onClose: () => void
           </p>
           <div className="mt-3 space-y-2">
             <select value={packageId} onChange={(event) => setPackageId(event.target.value)} className={field}>
-              {packageOptions.map((option) => (
+              {[...packageOptions, ...(user.packageId === "CORPORATE" ? (["CORPORATE"] as const) : [])].map((option) => (
                 <option key={option} value={option}>
-                  {planLabel(option)}
+                  {option === "CORPORATE" ? "Corporate (retirado)" : planLabel(option)}
                 </option>
               ))}
             </select>

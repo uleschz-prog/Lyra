@@ -1,15 +1,11 @@
 "use client";
 
-import { Lock } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
 
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
-import { canAccess, rankBadge, rankLabel } from "@/lib/format";
-import type { Course, Rank } from "@/lib/types";
-import { cn } from "@/lib/utils";
+import type { Course } from "@/lib/types";
 
 function progressOf(course: Course) {
   if (course.lessons.length === 0) return 0;
@@ -17,26 +13,14 @@ function progressOf(course: Course) {
   return Math.round((done / course.lessons.length) * 100);
 }
 
-export function CourseCatalog({
-  courses,
-  userRank,
-}: {
-  courses: Course[];
-  userRank: Rank;
-}) {
+export function CourseCatalog({ courses }: { courses: Course[] }) {
   const [catalog, setCatalog] = useState(courses);
-  const [filter, setFilter] = useState<"all" | "open">("all");
   const [openId, setOpenId] = useState<string | null>(catalog[0]?.id ?? null);
-
-  const visible =
-    filter === "open"
-      ? catalog.filter((course) => canAccess(userRank, course.rankRequirement))
-      : catalog;
 
   function toggleLesson(courseId: string, lessonId: string) {
     const course = catalog.find((item) => item.id === courseId);
     const lesson = course?.lessons.find((item) => item.id === lessonId);
-    if (!course || !lesson || !canAccess(userRank, course.rankRequirement)) return;
+    if (!course || !lesson) return;
 
     setCatalog((current) =>
       current.map((item) =>
@@ -58,36 +42,8 @@ export function CourseCatalog({
 
   return (
     <div className="space-y-5">
-      <div className="flex flex-wrap gap-2">
-        <button
-          type="button"
-          onClick={() => setFilter("all")}
-          className={cn(
-            "rounded-full border px-3 py-1.5 text-xs transition-all duration-300 ease-in-out",
-            filter === "all"
-              ? "border-[#7C3AED]/30 bg-[#7C3AED]/10 text-[#1E1E24]"
-              : "border-border bg-[#F4F1EC] text-[#5C5854] hover:text-[#1E1E24]",
-          )}
-        >
-          Todos
-        </button>
-        <button
-          type="button"
-          onClick={() => setFilter("open")}
-          className={cn(
-            "rounded-full border px-3 py-1.5 text-xs transition-all duration-300 ease-in-out",
-            filter === "open"
-              ? "border-[#7C3AED]/30 bg-[#7C3AED]/10 text-[#1E1E24]"
-              : "border-border bg-[#F4F1EC] text-[#5C5854] hover:text-[#1E1E24]",
-          )}
-        >
-          Disponibles para tu rango
-        </button>
-      </div>
-
       <div className="grid gap-4 lg:grid-cols-2">
-        {visible.map((course) => {
-          const unlocked = canAccess(userRank, course.rankRequirement);
+        {catalog.map((course) => {
           const progress = progressOf(course);
           const done = course.lessons.filter((lesson) => lesson.completed).length;
           const open = openId === course.id;
@@ -95,24 +51,9 @@ export function CourseCatalog({
           return (
             <article
               key={course.id}
-              className={cn(
-                "flex flex-col rounded-2xl border border-border bg-surface/80 backdrop-blur-md transition-colors hover:border-border-bright p-5",
-                !unlocked && "opacity-80",
-              )}
+              className="flex flex-col rounded-2xl border border-border bg-surface/80 backdrop-blur-md transition-colors hover:border-border-bright p-5"
             >
-              <div className="flex items-center justify-between gap-3">
-                <Badge variant={rankBadge(course.rankRequirement)}>
-                  {rankLabel[course.rankRequirement]}
-                </Badge>
-                {unlocked ? (
-                  <span className="text-[10px] uppercase tracking-[0.16em] text-lyra-cyan">Abierto</span>
-                ) : (
-                  <span className="inline-flex items-center gap-1 text-[10px] uppercase tracking-[0.16em] text-[#5C5854]">
-                    <Lock className="h-3 w-3" aria-hidden />
-                    Requiere {rankLabel[course.rankRequirement]}
-                  </span>
-                )}
-              </div>
+              <p className="text-[10px] uppercase tracking-[0.16em] text-lyra-cyan">Abierto</p>
               <h2 className="mt-4 text-lg font-bold tracking-tight text-[#1E1E24]">{course.title}</h2>
               <p className="mt-2 flex-1 text-sm leading-6 text-[#5C5854]">{course.description}</p>
               <div className="mt-5 space-y-2">
@@ -152,10 +93,9 @@ export function CourseCatalog({
                           type="button"
                           size="sm"
                           variant={lesson.completed ? "secondary" : "ghost"}
-                          disabled={!unlocked}
                           onClick={() => toggleLesson(course.id, lesson.id)}
                         >
-                          {unlocked ? (lesson.completed ? "Vista" : "Marcar") : "Bloqueada"}
+                          {lesson.completed ? "Vista" : "Marcar"}
                         </Button>
                       </div>
                     </li>

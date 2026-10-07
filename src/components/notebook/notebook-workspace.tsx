@@ -60,7 +60,7 @@ const initialSources: Source[] = [
     id: "src-guia",
     title: "Guía breve de la red",
     kind: "note",
-    text: "Las membresías de LYRA son Inicio, Negocio, Pro y Corporate. Inicio entra con 29 dólares y 300 créditos, y al mes siguiente recarga desde 19. Negocio entra con 99 dólares y 1,500 créditos, cobra Órbita de 4 niveles y al mes siguiente recarga desde 49. Pro entra con 299 dólares y 5,000 créditos, cobra el máximo de la red desde el día 0 y al mes siguiente recarga desde 99. Corporate se cotiza según el alcance de la operación. Quien tiene 3 directos activos queda exento de recarga. El Plan Constelación paga Chispa por inscripción directa (10, 20, 30 o 40% según el paquete), Órbita residual de 6 niveles, Bono Constelación por rango, Espejo para Pro y Corporate, y Fondo Galaxia; el pago total nunca pasa del 55% de los puntos. Un crédito equivale a 1 dólar. La cuenta administradora es Corporate.",
+    text: "Las membresías de LYRA son Inicio, Negocio y Pro. Todas incluyen los mismos servicios. Inicio entra con 29 dólares y 150 créditos, y cobra Órbita hasta el nivel 2. Negocio entra con 99 dólares y 300 créditos, y cobra Órbita hasta el nivel 4. Pro entra con 249 dólares y 1,000 créditos, y cobra Órbita en los 6 niveles. El único bono es Órbita: 20% en el nivel 1, 10% en el nivel 2 y 5% del nivel 3 al 6, sobre paquetes de inicio y recargas de créditos. Al mes siguiente Inicio recarga desde 19, Negocio desde 49 y Pro desde 99. Un crédito equivale a 1 dólar.",
   },
   {
     id: "src-academia",

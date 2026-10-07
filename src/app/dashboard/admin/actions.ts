@@ -16,6 +16,7 @@ import {
 } from "@/config/compensation-plan";
 import { getCurrentUser } from "@/lib/auth/profile";
 import { INDEFINITE_YEAR } from "@/lib/auth/suspension";
+import { payCommissions } from "@/lib/compensation/payout";
 import { activateMembership } from "@/lib/payments/activate";
 import { setCompanyUsdtWallet as persistCompanyWallet } from "@/lib/payments/usdt";
 import { trongridReady, verifyUsdtTransfer } from "@/lib/payments/usdt-verify";
@@ -235,20 +236,29 @@ export async function approveUsdtOrder(orderId: string): Promise<Result> {
       where: { userId: user.id, kind: "REBUY", createdAt: { gte: monthStart } },
     });
     if (existing) return { ok: false, error: "La recompra de este mes ya está pagada." };
-    const wallet = await prisma.creditWallet.upsert({
-      where: { userId: user.id },
-      create: { userId: user.id, balance: user.credits },
-      update: {},
-    });
-    await prisma.transaction.create({
-      data: {
-        userId: user.id,
-        walletId: wallet.id,
-        amount: Number(order.amountUsd) || 0,
-        creditDelta: 0,
-        kind: "REBUY",
-        description: `Recompra del mes · USDT TRC20 · ${order.trxHash}`,
-      },
+    const amount = Number(order.amountUsd) || 0;
+    await prisma.$transaction(async (tx) => {
+      const wallet = await tx.creditWallet.upsert({
+        where: { userId: user.id },
+        create: { userId: user.id, balance: user.credits },
+        update: {},
+      });
+      await tx.transaction.create({
+        data: {
+          userId: user.id,
+          walletId: wallet.id,
+          amount,
+          creditDelta: 0,
+          kind: "REBUY",
+          description: `Recompra del mes · USDT TRC20 · ${order.trxHash}`,
+        },
+      });
+      await payCommissions(
+        tx,
+        { id: user.id, name: user.name, sponsorId: user.sponsorId, package: user.package },
+        amount,
+        "rebuy",
+      );
     });
   } else if (order.purpose === "credits") {
     const extra = creditRechargeUsd(user.package as Parameters<typeof creditRechargeUsd>[0]);
@@ -270,6 +280,12 @@ export async function approveUsdtOrder(orderId: string): Promise<Result> {
           description: `Recarga ${extra} créditos · USDT TRC20 · ${order.trxHash}`,
         },
       });
+      await payCommissions(
+        tx,
+        { id: user.id, name: user.name, sponsorId: user.sponsorId, package: user.package },
+        Number(order.amountUsd) || extra,
+        "rebuy",
+      );
     });
   } else if (order.purpose === "upgrade") {
     // El destino del upgrade está en la nota, p. ej. "Upgrade a PRO".

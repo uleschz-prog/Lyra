@@ -31,8 +31,8 @@ export const packageLabel: Record<PackageType, string> = {
   VEGA_PARTNER: "Inicio",
 };
 
-export function canAccess(userRank: Rank, required: Rank) {
-  return rankOrder[userRank] >= rankOrder[required];
+export function canAccess(_userRank: Rank, _required: Rank) {
+  return true;
 }
 
 export function rankBadge(rank: Rank): "default" | "violet" | "cyan" {

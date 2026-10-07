@@ -12,10 +12,10 @@ async function main() {
       where: { id: existing.id },
       data: {
         name: "LyraMaster",
-        package: "CORPORATE",
+        package: "FOUNDER",
         role: "ADMIN",
         isSubscriptionExempt: true,
-        ...(existing.package === "CORPORATE" ? {} : { activationCredits: 5000 }),
+        ...(existing.activationCredits > 0 ? {} : { activationCredits: 5000 }),
       },
     });
     return;
@@ -30,7 +30,7 @@ async function main() {
       username: "lyra-root",
       password,
       role: "ADMIN",
-      package: "CORPORATE",
+      package: "FOUNDER",
       activationCredits: 5000,
       rank: "CONSTELLATION",
       referralCode: "LYRA-ROOT",

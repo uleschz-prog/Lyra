@@ -36,12 +36,6 @@ const meta: Record<SignupPlanId, { accent: string; ring: string; glow: string; t
     glow: "from-amber-400/25",
     tag: "Liderazgo",
   },
-  CORPORATE: {
-    accent: "text-rose-600 dark:text-rose-300",
-    ring: "border-rose-200 dark:border-rose-400/30",
-    glow: "from-rose-400/25",
-    tag: "Equipo",
-  },
 };
 
 export function UpgradeWorkspace({
@@ -59,10 +53,12 @@ export function UpgradeWorkspace({
   const [trxHash, setTrxHash] = useState("");
   const [orderId, setOrderId] = useState<string | null>(null);
 
-  const currentRank = useMemo(
-    () => signupPlans.findIndex((p) => p.id === currentPackage),
-    [currentPackage],
-  );
+  const currentRank = useMemo(() => {
+    const index = signupPlans.findIndex((p) => p.id === currentPackage);
+    if (index >= 0) return index;
+    if (currentPackage && currentPackage !== "NONE") return signupPlans.length;
+    return -1;
+  }, [currentPackage]);
 
   const options = useMemo(
     () =>
@@ -140,7 +136,7 @@ export function UpgradeWorkspace({
           <div>
             <p className="text-base font-semibold text-[#1E1E24] dark:text-[#F2F0F7]">Estás en el nivel más alto</p>
             <p className="text-sm text-[#8A8680] dark:text-[#9B96AC]">
-              Corporate es el techo de LYRA. Disfruta tus {credits.toLocaleString("es-MX")} créditos.
+              Ya tienes el acceso completo. Tus créditos: {credits.toLocaleString("es-MX")}.
             </p>
           </div>
         </div>
