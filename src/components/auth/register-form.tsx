@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useRef, useState, type FormEvent, type ReactNode } from "react";
+import { useEffect, useRef, useState, type FormEvent } from "react";
 
 import { PasswordField } from "@/components/auth/password-field";
 import { Logo } from "@/components/brand/logo";
@@ -15,19 +15,11 @@ const notices: Record<string, string> = {
   sesion: "Ese acceso expiró. Vuelve a elegir el proveedor.",
 };
 
-function usernameFromEmail(email: string) {
-  const local = email.split("@")[0] ?? "lyra";
-  let slug = local
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, "-")
-    .replace(/^-+|-+$/g, "");
-  if (slug.length < 3) slug = `${slug}lyra`;
-  return slug.slice(0, 24);
-}
+const usernamePattern = /^[a-z0-9](?:[a-z0-9-]{1,22}[a-z0-9])$/;
 
-function nameFromEmail(email: string) {
-  const local = email.split("@")[0]?.replace(/[._-]+/g, " ").trim() || "Miembro LYRA";
-  return local.length >= 2 ? local.slice(0, 80) : "Miembro LYRA";
+function nameFromUsername(username: string) {
+  const name = username.trim().replace(/-+/g, " ").replace(/\s+/g, " ");
+  return name.length >= 2 ? name.slice(0, 80) : "Miembro LYRA";
 }
 
 export function RegisterForm({
@@ -43,24 +35,17 @@ export function RegisterForm({
   activation?: { code: string; packageId: SignupPlanId } | null;
   activationError?: string;
 }) {
-  const [packageId, setPackageId] = useState<SignupPlanId | null>(activation?.packageId ?? null);
   const [error, setError] = useState(activationError || notices[aviso] || "");
   const prepaid = activation ? signupPlans.find((plan) => plan.id === activation.packageId) : null;
   const [pending, setPending] = useState(false);
-  const [codeMode, setCodeMode] = useState(false);
-  const [manualCode, setManualCode] = useState("");
   const [email, setEmail] = useState(social?.email ?? "");
+  const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const startedSocial = useRef(false);
-  const ready = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) && password.length >= 8;
+  const ready =
+    /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) && usernamePattern.test(username) && password.length >= 8 && password.length <= 72;
 
-  async function submitRegistration(packageOverride?: SignupPlanId | null) {
-    const code = activation?.code ?? (codeMode ? manualCode.trim().toUpperCase().slice(0, 24) : "");
-    const chosen = packageOverride === undefined ? packageId : packageOverride;
-    if (codeMode && !code) {
-      setError("Escribe el código de activación.");
-      return;
-    }
+  async function submitRegistration() {
     setPending(true);
     setError("");
     const response = await fetch(social ? "/api/auth/oauth/finish" : "/api/auth/register", {
@@ -68,16 +53,16 @@ export function RegisterForm({
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(
         social
-          ? { packageId: chosen ?? "" }
+          ? { packageId: activation?.packageId ?? "" }
           : {
-              name: nameFromEmail(email),
+              name: nameFromUsername(username),
               email,
-              username: usernameFromEmail(email),
+              username,
               password,
               confirmPassword: password,
-              packageId: code ? (chosen ?? "") : "",
+              packageId: activation?.packageId ?? "",
               ref: refCode,
-              code,
+              code: activation?.code ?? "",
             },
       ),
     });
@@ -91,27 +76,22 @@ export function RegisterForm({
       window.location.href = payload.checkout;
       return;
     }
-    window.location.href = payload?.next ?? "/vincular";
+    window.location.href = payload?.next ?? "/pago";
   }
 
   useEffect(() => {
     if (!social || startedSocial.current) return;
     startedSocial.current = true;
-    void submitRegistration(null);
-    // El alta social no vuelve a pedir el plan: el paquete se elige después de MetaMask.
+    void submitRegistration();
+    // Un acceso social que ya empezó termina solo y sigue al pago.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [social]);
 
   function continueToAccount(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (!ready && !activation) return;
+    if (!ready) return;
     void submitRegistration();
   }
-
-  const socialHref = (provider: string) => {
-    const params = new URLSearchParams({ ref: refCode });
-    return `/api/auth/oauth/${provider}?${params.toString()}`;
-  };
 
   return (
     <div>
@@ -132,112 +112,59 @@ export function RegisterForm({
       {social ? (
         <p className="mt-8 text-center text-sm text-[#5C5854]">{pending ? "Preparando tu cuenta…" : error || "Un momento."}</p>
       ) : (
-        <>
-          {prepaid ? (
-            <div className="mt-8" />
-          ) : (
-            <>
-              <div className="mt-8 space-y-3">
-                <SocialLink href={socialHref("google")} label="Registrarse con Google">
-                  <GoogleMark />
-                </SocialLink>
-                <SocialLink href={socialHref("apple")} label="Registrarse con Apple">
-                  <AppleMark />
-                </SocialLink>
-              </div>
-
-              <div className="my-6 flex items-center gap-3 text-[#C8C8C8]">
-                <span className="h-px flex-1 bg-[#E6E6E6]" />
-                <span className="grid h-6 w-6 place-items-center rounded-full border border-[#E6E6E6] text-xs text-[#8A8680]">
-                  o
-                </span>
-                <span className="h-px flex-1 bg-[#E6E6E6]" />
-              </div>
-            </>
-          )}
-
-          <form onSubmit={continueToAccount} className="space-y-4">
-            <label className="block text-sm font-medium text-[#1E1E24]">
-              Correo electrónico
-              <input
-                type="email"
-                required
-                value={email}
-                onChange={(event) => setEmail(event.target.value)}
-                placeholder="Ingresa tu correo electrónico"
-                autoComplete="email"
-                className="mt-2 h-12 w-full rounded-md border border-[#D9D5CE] px-3 text-sm font-normal text-[#0F0F0F] outline-none placeholder:text-[#B0B0B0] focus:border-[#312F2F]"
-              />
-            </label>
-            <label className="block text-sm font-medium text-[#1E1E24]">
-              Contraseña
-              <PasswordField
-                name="password"
-                required
+        <form onSubmit={continueToAccount} className="mt-8 space-y-4">
+          <label className="block text-sm font-medium text-[#1E1E24]">
+            Correo electrónico
+            <input
+              type="email"
+              required
+              value={email}
+              onChange={(event) => setEmail(event.target.value)}
+              placeholder="Ingresa tu correo electrónico"
+              autoComplete="email"
+              className="mt-2 h-12 w-full rounded-md border border-[#D9D5CE] px-3 text-sm font-normal text-[#0F0F0F] outline-none placeholder:text-[#B0B0B0] focus:border-[#312F2F]"
+            />
+          </label>
+          <label className="block text-sm font-medium text-[#1E1E24]">
+            Nombre de usuario
+            <input
+              type="text"
+              required
+              value={username}
+              onChange={(event) => setUsername(event.target.value.toLowerCase().replace(/\s+/g, ""))}
+              placeholder="Ingresa tu nombre de usuario"
+              autoComplete="username"
+              minLength={3}
+              maxLength={24}
+              className="mt-2 h-12 w-full rounded-md border border-[#D9D5CE] px-3 text-sm font-normal text-[#0F0F0F] outline-none placeholder:text-[#B0B0B0] focus:border-[#312F2F]"
+            />
+          </label>
+          <p className="-mt-2 text-xs text-[#8A8680]">Minúsculas, números y guiones, de 3 a 24 caracteres.</p>
+          <label className="block text-sm font-medium text-[#1E1E24]">
+            Contraseña
+            <PasswordField
+              name="password"
+required
                 minLength={8}
                 value={password}
-                onChange={(event) => setPassword(event.target.value)}
-                placeholder="Ingresa tu contraseña"
-                autoComplete="new-password"
-                tone="light"
-                className="h-12 w-full rounded-md border border-[#D9D5CE] px-3 text-sm font-normal text-[#0F0F0F] outline-none placeholder:text-[#B0B0B0] focus:border-[#312F2F]"
-              />
-            </label>
-            {codeMode ? (
-              <>
-                <label className="block text-sm font-medium text-[#1E1E24]">
-                  Código de activación
-                  <input
-                    type="text"
-                    required
-                    value={manualCode}
-                    onChange={(event) => setManualCode(event.target.value.toUpperCase())}
-                    placeholder="LYRA-XXXXXXXX"
-                    autoComplete="off"
-                    className="mt-2 h-12 w-full rounded-md border border-[#D9D5CE] px-3 text-sm font-normal uppercase tracking-wide text-[#0F0F0F] outline-none placeholder:normal-case placeholder:tracking-normal placeholder:text-[#B0B0B0] focus:border-[#312F2F]"
-                  />
-                </label>
-                <div className="grid grid-cols-3 gap-2">
-                  {signupPlans.map((plan) => (
-                    <button
-                      key={plan.id}
-                      type="button"
-                      onClick={() => setPackageId(plan.id)}
-                      className={`rounded-md border px-2 py-2 text-xs ${packageId === plan.id ? "border-[#312F2F] bg-[#F7F4EF]" : "border-[#D9D5CE]"}`}
-                    >
-                      {plan.label}
-                      <span className="mt-1 block text-[#8A8680]">${plan.price}</span>
-                    </button>
-                  ))}
-                </div>
-              </>
-            ) : null}
-            {error ? <p className="text-sm text-[#9A3B2F]">{error}</p> : null}
-            <button
-              type="submit"
-              disabled={!ready || pending || (codeMode && manualCode.trim().length < 4)}
-              className={`h-12 w-full rounded-md text-sm font-medium ${
-                ready && !pending ? "bg-[#312F2F] text-white" : "cursor-default bg-[#E7E7E7] text-[#A3A3A3]"
-              }`}
-            >
-              {pending ? "Creando tu cuenta…" : "Registrarse"}
-            </button>
-          </form>
-          {prepaid ? null : (
-            <p className="mt-4 text-center">
-              <button
-                type="button"
-                onClick={() => {
-                  setCodeMode((mode) => !mode);
-                  setError("");
-                }}
-                className="text-sm font-medium text-[#7C3AED] underline"
-              >
-                {codeMode ? "Crear la cuenta sin código" : "Tengo un código de activación"}
-              </button>
-            </p>
-          )}
-        </>
+              onChange={(event) => setPassword(event.target.value)}
+              placeholder="Ingresa tu contraseña"
+              autoComplete="new-password"
+              tone="light"
+              className="h-12 w-full rounded-md border border-[#D9D5CE] px-3 text-sm font-normal text-[#0F0F0F] outline-none placeholder:text-[#B0B0B0] focus:border-[#312F2F]"
+            />
+          </label>
+          {error ? <p className="text-sm text-[#9A3B2F]">{error}</p> : null}
+          <button
+            type="submit"
+            disabled={!ready || pending}
+            className={`h-12 w-full rounded-md text-sm font-medium ${
+              ready && !pending ? "bg-[#312F2F] text-white" : "cursor-default bg-[#E7E7E7] text-[#A3A3A3]"
+            }`}
+          >
+            {pending ? "Creando tu cuenta…" : "Registrarse"}
+          </button>
+        </form>
       )}
 
       <p className="mt-8 text-center text-sm text-[#8A8680]">
@@ -247,36 +174,5 @@ export function RegisterForm({
         </Link>
       </p>
     </div>
-  );
-}
-
-function SocialLink({ href, label, children }: { href: string; label: string; children: ReactNode }) {
-  return (
-    <Link
-      href={href}
-      className="flex h-12 w-full items-center justify-center gap-2 rounded-md border border-[#D9D5CE] text-sm font-medium text-[#1E1E24] hover:bg-[#F7F4EF]"
-    >
-      {children}
-      {label}
-    </Link>
-  );
-}
-
-function GoogleMark() {
-  return (
-    <svg viewBox="0 0 24 24" className="h-4 w-4" aria-hidden>
-      <path
-        fill="#1E1E24"
-        d="M12 11.2v2.9h6.6c-.3 1.6-1.9 4.6-6.6 4.6-4 0-7.2-3.3-7.2-7.3S8 4.1 12 4.1c2.3 0 3.8 1 4.7 1.8l2-1.9C17 2.3 14.7 1.2 12 1.2 6.2 1.2 1.5 6 1.5 11.8S6.2 22.4 12 22.4c6.1 0 10.1-4.3 10.1-10.3 0-.7-.1-1.2-.2-1.8H12z"
-      />
-    </svg>
-  );
-}
-
-function AppleMark() {
-  return (
-    <svg viewBox="0 0 24 24" className="h-4 w-4 fill-[#1E1E24]" aria-hidden>
-      <path d="M16.4 12.6c0-2.2 1.8-3.2 1.9-3.3-1-1.5-2.6-1.7-3.2-1.7-1.3-.1-2.6.8-3.3.8s-1.7-.8-2.9-.8c-1.5 0-2.8.9-3.6 2.2-1.5 2.7-.4 6.6 1.1 8.8.7 1.1 1.6 2.3 2.7 2.2 1.1 0 1.5-.7 2.8-.7s1.7.7 2.9.7 1.9-1.1 2.6-2.1c.8-1.2 1.2-2.3 1.2-2.4-.1 0-2.2-.9-2.2-3.7zM14.7 6.4c.6-.7 1-1.7.9-2.7-.9 0-1.9.6-2.5 1.3-.6.6-1.1 1.6-.9 2.6 1 .1 1.9-.5 2.5-1.2z" />
-    </svg>
   );
 }

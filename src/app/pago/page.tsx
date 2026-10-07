@@ -15,7 +15,6 @@ export default async function PagoPage() {
   const user = await getCurrentUser();
   if (!user) redirect(brand.links.login);
   if (user.role === "ADMIN" || user.package !== "NONE") redirect(brand.links.dashboard);
-  if (!user.polygonWallet) redirect("/vincular");
 
   const sponsor = user.sponsorId
     ? await getPrisma().user.findUnique({ where: { id: user.sponsorId }, select: { polygonWallet: true } })

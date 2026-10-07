@@ -33,7 +33,7 @@ export async function POST(request: Request) {
     if (existing) {
       await createSession(existing.id);
       await clearOauthProfile();
-      return NextResponse.json({ ok: true, next: "/vincular" });
+      return NextResponse.json({ ok: true, next: "/pago" });
     }
   }
 
@@ -52,7 +52,7 @@ export async function POST(request: Request) {
     });
     await createSession(user.id);
     await clearOauthProfile();
-    return NextResponse.json({ ok: true, next: "/vincular", checkout: user.pending ? await signupCheckout(user.id, requestOrigin(request)) : null });
+    return NextResponse.json({ ok: true, next: "/pago", checkout: user.pending ? await signupCheckout(user.id, requestOrigin(request)) : null });
   } catch (error) {
     if (error instanceof AuthError && error.message.includes("usuario")) {
       username = `${username.slice(0, 18)}-${crypto.randomUUID().slice(0, 4)}`;
@@ -68,7 +68,7 @@ export async function POST(request: Request) {
         });
         await createSession(user.id);
         await clearOauthProfile();
-        return NextResponse.json({ ok: true, next: "/vincular", checkout: user.pending ? await signupCheckout(user.id, requestOrigin(request)) : null });
+        return NextResponse.json({ ok: true, next: "/pago", checkout: user.pending ? await signupCheckout(user.id, requestOrigin(request)) : null });
       } catch (retry) {
         if (retry instanceof AuthError) {
           return NextResponse.json({ error: retry.message }, { status: retry.status });

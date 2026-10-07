@@ -38,7 +38,7 @@ export async function POST(request: Request) {
       code: text(body?.code),
     });
     await createSession(user.id);
-    return NextResponse.json({ ok: true, next: "/vincular", checkout: user.pending ? await signupCheckout(user.id, requestOrigin(request)) : null });
+    return NextResponse.json({ ok: true, next: "/pago", checkout: user.pending ? await signupCheckout(user.id, requestOrigin(request)) : null });
   } catch (error) {
     if (error instanceof AuthError) {
       return NextResponse.json({ error: error.message }, { status: error.status });
