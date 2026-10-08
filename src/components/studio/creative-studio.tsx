@@ -1,6 +1,6 @@
 "use client";
 
-import { ArrowUp, Download, Pencil, Play, Save, Sparkles, Trash2, Upload } from "lucide-react";
+import { ArrowUp, Download, Pencil, Save, Sparkles, Trash2, Upload } from "lucide-react";
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { toast } from "sonner";
 
@@ -15,11 +15,8 @@ import {
   StudioSection,
   StylePicker,
   TemplateCard,
-  videoStyles,
-  videoTemplates,
 } from "@/components/studio/studio-pieces";
 import type { CreationRecord } from "@/lib/media-pieces";
-import { recordStudioClip } from "@/lib/studio/record-clip";
 import { cn } from "@/lib/utils";
 
 const mediaLimit = 1_900_000;
@@ -89,19 +86,18 @@ const tabs: { id: StudioTab; label: string; hint: string }[] = [
 
 const stages: Record<
   StudioTab,
-  { kicker: string; title: string; hint: string; placeholder: string; examples: string[]; video: string }
+  { kicker: string; title: string; hint: string; placeholder: string; examples: string[] }
 > = {
   video: {
     kicker: "Anuncios",
     title: "Describe el anuncio.\nLyra rueda el resto.",
-    hint: "Clip de hasta 8 segundos, con luz de campaña. 4K es la calidad máxima de Veo 3.1.",
+    hint: "Veo rueda un clip real de hasta 8 segundos, con audio. 4K es la calidad máxima.",
     placeholder: "Un perfume sobre mármol negro, luz dorada, cámara lenta…",
     examples: [
       "Un frasco de perfume sobre mármol negro, luz dorada, cámara lenta",
       "Un reloj de oro sobre roble, reflejo suave, estudio oscuro",
       "Una ciudad de noche desde un auto, luces violetas",
     ],
-    video: "/studio/ejemplo-anuncio.mp4",
   },
   image: {
     kicker: "Imagen",
@@ -109,7 +105,6 @@ const stages: Record<
     hint: "Editorial, producto o retrato. La imagen sale del mismo pedido.",
     placeholder: "Retrato editorial, luz lateral, fondo negro…",
     examples: ["Retrato editorial, luz de estudio, fondo negro", "Skincare sobre piedra, luz lateral", "Logo de oro sobre seda oscura"],
-    video: "/studio/ejemplo-imagen.mp4",
   },
   search: {
     kicker: "Búsqueda",
@@ -117,7 +112,6 @@ const stages: Record<
     hint: "Busca campañas, productos o tendencias y quédate con lo que sirva.",
     placeholder: "Campañas de relojes de lujo…",
     examples: ["campañas de lujo 2026", "anuncios de perfumes", "fotografía de producto premium"],
-    video: "/studio/ejemplo-busqueda.mp4",
   },
 };
 
@@ -130,6 +124,7 @@ export function CreativeStudio({ initialPieces = [] }: { initialPieces?: Creatio
   const [draft, setDraft] = useState("");
   const [quality, setQuality] = useState<"4K" | "1080p">("4K");
   const [brief, setBrief] = useState<StudioBrief | null>(null);
+  const [reel, setReel] = useState<string | null>(null);
   const stage = stages[tab];
 
   function launch(text = draft) {
@@ -147,10 +142,12 @@ export function CreativeStudio({ initialPieces = [] }: { initialPieces?: Creatio
   return (
     <div className="space-y-5">
       <section className="relative isolate min-h-[78vh] overflow-hidden bg-[#0B0A10] text-white md:min-h-[calc(100dvh-1rem)]">
-        <video key={stage.video} className="absolute inset-0 h-full w-full object-cover" autoPlay muted loop playsInline poster="" aria-hidden>
-          <source src={stage.video} type="video/mp4" />
-        </video>
-        <div className="absolute inset-0 bg-gradient-to-b from-black/35 via-black/25 to-black/70" />
+        {reel && tab === "video" ? (
+          <video key={reel} className="absolute inset-0 h-full w-full object-cover" autoPlay muted loop playsInline>
+            <source src={reel} type="video/mp4" />
+          </video>
+        ) : null}
+        <div className={reel && tab === "video" ? "absolute inset-0 bg-gradient-to-b from-black/55 via-black/40 to-black/75" : "absolute inset-0 bg-[radial-gradient(ellipse_at_center,#241833_0%,#0B0A10_68%)]"} />
         <div className="relative flex min-h-[78vh] flex-col px-4 py-5 sm:px-8 md:min-h-[calc(100dvh-1rem)]">
           <div role="tablist" aria-label="Estudio creativo" className="flex flex-wrap gap-2">
             {tabs.map((item) => {
@@ -242,6 +239,7 @@ export function CreativeStudio({ initialPieces = [] }: { initialPieces?: Creatio
             restore={opened}
             brief={brief}
             quality={quality}
+            onReady={setReel}
             onSaved={(piece) => setPieces((current) => [piece, ...current.filter((item) => item.id !== piece.id)])}
             onRemoved={(id) => setPieces((current) => current.filter((piece) => piece.id !== id))}
           />
@@ -276,7 +274,7 @@ export function CreativeStudio({ initialPieces = [] }: { initialPieces?: Creatio
 }
 
 async function waitForPremium(jobId: string) {
-  const deadline = Date.now() + 180_000;
+  const deadline = Date.now() + 240_000;
   while (Date.now() < deadline) {
     await new Promise((resolve) => setTimeout(resolve, 4000));
     const response = await fetch(`/api/ai/video?jobId=${encodeURIComponent(jobId)}`);
@@ -295,26 +293,23 @@ function VideoPanel({
   restore,
   brief,
   quality,
+  onReady,
   onSaved,
   onRemoved,
 }: {
   restore: CreationRecord | null;
   brief: StudioBrief | null;
   quality: "4K" | "1080p";
+  onReady: (url: string) => void;
   onSaved: (piece: CreationRecord) => void;
   onRemoved: (id: string) => void;
 }) {
-  const [format, setFormat] = useState("9:16");
-  const [duration, setDuration] = useState("30 s");
-  const [look, setLook] = useState("vlog");
-  const [voice, setVoice] = useState("Cálida");
-  const [music, setMusic] = useState("Suave");
-  const [captions, setCaptions] = useState("Con subtítulos");
+  const [format, setFormat] = useState("16:9");
+  const [duration, setDuration] = useState("8 s");
+  const [look, setLook] = useState("cine");
   const [detail, setDetail] = useState("");
-  const [title, setTitle] = useState("Bienvenida a LYRA");
-  const [script, setScript] = useState(
-    "LYRA reúne la academia y los agentes para que tu red deje de improvisar cada conversación. Empieza por una fuente, una pregunta y un siguiente paso.",
-  );
+  const [title, setTitle] = useState("");
+  const [script, setScript] = useState("");
   const [images, setImages] = useState<StudioImage[]>([]);
   const [job, setJob] = useState<VideoJob | null>(null);
   const [pending, setPending] = useState(false);
@@ -328,7 +323,6 @@ function VideoPanel({
   const launched = useRef(0);
 
   const busy = pending || job?.status === "processing";
-  const style = videoStyles.find((item) => item.id === look) ?? videoStyles[0];
   const locked = Boolean(job?.videoUrl) && !editing;
 
   if (restore && restore.kind === "video" && restore.id !== restoredId) {
@@ -368,18 +362,6 @@ function VideoPanel({
     };
   }, [busy]);
 
-  function applyTemplate(id: string) {
-    const template = videoTemplates.find((item) => item.id === id);
-    if (!template) return;
-    setActiveTemplate(id);
-    setTitle(template.title);
-    setScript(template.script);
-    setDetail(template.detail);
-    setDuration(template.duration);
-    setLook(template.styleId);
-    toast.success(`Plantilla "${template.title}" lista para editar`);
-  }
-
   useEffect(() => {
     if (!brief || brief.tab !== "video" || brief.id === launched.current) return;
     launched.current = brief.id;
@@ -392,57 +374,39 @@ function VideoPanel({
 
   async function generate(override?: string) {
     setPending(true);
+    setJob({ mode: "live", provider: "lyra", status: "processing", message: "Rodando el anuncio con Veo…" });
     try {
       const spoken = [override?.trim() || script.trim(), detail.trim()].filter(Boolean).join(" ");
-      const withCaptions = captions === "Con subtítulos";
-      let data: VideoJob | null = null;
-      try {
-        const response = await fetch("/api/ai/video", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            title: override?.slice(0, 72) || title,
-            script: spoken,
-            format: override ? "16:9" : format,
-            styleId: override ? "cine" : look,
-            duration,
-            captions: withCaptions,
-            quality: qualityRef.current,
-          }),
-        });
-        const payload = (await response.json()) as VideoJob & { jobId?: string };
-        if (response.ok && payload.status === "processing" && payload.jobId) {
-          setJob({ ...payload, provider: "lyra", status: "processing", message: payload.message ?? "Renderizando el anuncio…" });
-          const videoUrl = await waitForPremium(payload.jobId);
-          data = { ...payload, provider: "lyra", status: "completed", videoUrl, message: "Anuncio listo." };
-        } else if (response.ok && payload.videoUrl) data = payload;
-      } catch {
-        data = null;
-      }
-      if (!data?.videoUrl) {
-        const clip = await recordStudioClip({
-          title,
+      const response = await fetch("/api/ai/video", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          title: override?.slice(0, 72) || title,
           script: spoken,
-          format,
-          styleId: look,
-          duration,
-          imageUrl: images[0]?.url ?? null,
-          captions: withCaptions,
-        });
-        data = {
-          mode: "live",
-          provider: "lyra",
-          status: "completed",
-          videoUrl: clip.url,
-          scenes: clip.scenes,
-          message: "Video listo. Puedes guardarlo, editarlo o eliminarlo.",
-        };
-      }
+          format: override ? "16:9" : format,
+          styleId: "cine",
+          duration: "8 s",
+          captions: false,
+          quality: qualityRef.current,
+        }),
+      });
+      const payload = (await response.json()) as VideoJob & { jobId?: string; error?: string };
+      if (!response.ok) throw new Error(payload.error ?? "No se pudo crear el video.");
+      let data: VideoJob | null = null;
+      if (payload.status === "processing" && payload.jobId) {
+        setJob({ ...payload, provider: "lyra", status: "processing", message: payload.message ?? "Rodando el anuncio…" });
+        const videoUrl = await waitForPremium(payload.jobId);
+        data = { ...payload, provider: "lyra", status: "completed", videoUrl, message: "Anuncio listo." };
+      } else if (payload.videoUrl) data = payload;
+      if (!data?.videoUrl) throw new Error(payload.error ?? "El modelo no devolvió el video.");
+      onReady(data.videoUrl);
       setJob(data);
       setEditing(false);
-      toast.success("Video listo. Guárdalo si quieres conservarlo.");
+      toast.success("Video listo. Puedes guardarlo o descargarlo.");
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "No se pudo crear el video.");
+      const message = error instanceof Error ? error.message : "No se pudo crear el video.";
+      setJob({ mode: "live", provider: "lyra", status: "failed", error: message, message });
+      toast.error(message);
     } finally {
       setPending(false);
     }
@@ -518,155 +482,70 @@ function VideoPanel({
     }
   }
 
-  const frame = format === "16:9" ? "aspect-video max-w-xl" : format === "1:1" ? "aspect-square max-w-sm" : "aspect-[9/16] max-w-[220px]";
+  const frame = format === "16:9" ? "aspect-video" : format === "1:1" ? "aspect-square max-w-xl" : "aspect-[9/16] max-w-sm";
 
   return (
-    <div className="space-y-5">
-      <div className={cn(locked && "pointer-events-none opacity-60")}>
-        <StudioSection
-          eyebrow="Empieza con una plantilla"
-          title="Toca una idea y queda lista para editar"
-          hint="Las plantillas traen guion, estilo y duración listos. Solo cambia lo tuyo."
-        >
-          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
-            {videoTemplates.map((template) => (
-              <TemplateCard
-                key={template.id}
-                gradient={template.gradient}
-                title={template.title}
-                tag={template.tag}
-                meta={template.duration}
-                active={activeTemplate === template.id}
-                onClick={() => applyTemplate(template.id)}
-              />
-            ))}
+    <section className="overflow-hidden rounded-3xl bg-[#0B0A10] text-white">
+      {bar > 0 && !job?.videoUrl ? (
+        <div className="px-5 pt-5">
+          <div className="flex items-center justify-between text-sm">
+            <p className="flex items-center gap-1.5">
+              <Sparkles className="h-3.5 w-3.5 text-[#C4B5FD]" aria-hidden />
+              Rodando el anuncio
+            </p>
+            <p className="tabular-nums text-[#C4B5FD]">{Math.round(bar)}%</p>
           </div>
-        </StudioSection>
+          <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-white/10" role="progressbar" aria-valuenow={Math.round(bar)} aria-valuemin={0} aria-valuemax={100} aria-label="Creación del video">
+            <div className="h-full bg-[#7C3AED]" style={{ width: `${bar}%` }} />
+          </div>
+        </div>
+      ) : null}
+      <div className="flex min-h-[420px] items-center justify-center p-4">
+        {job?.videoUrl ? (
+          <video controls autoPlay src={job.videoUrl} className={`w-full bg-black ${frame}`} />
+        ) : (
+          <p className="max-w-md text-center text-sm leading-6 text-white/70">
+            {job?.status === "failed"
+              ? job.message
+              : pending || job?.status === "processing"
+                ? "Veo está rodando el clip. El video aparece aquí cuando el archivo está listo."
+                : "Escribe el anuncio arriba. Aquí se reproduce el video, con imagen y audio."}
+          </p>
+        )}
       </div>
-
-      <section className="grid gap-6 rounded-3xl border border-[#E7E2DA] bg-white p-4 sm:p-6 lg:grid-cols-[minmax(0,0.95fr)_minmax(0,1.05fr)]">
-        <div className={cn(locked && "pointer-events-none opacity-60")}>
-          <p className="text-[11px] tracking-[0.22em] uppercase text-[#8A8680]">Video</p>
-          <h2 className="mt-2 text-2xl font-semibold tracking-tight text-[#1E1E24]">Arma tu plano</h2>
-          <p className="mt-1 text-sm text-[#5C5854]">Cambia el encuadre y el estilo; el preview se actualiza en vivo.</p>
-
-          <StylePicker styles={videoStyles} value={look} onChange={setLook} label="Estilo visual" />
-
-          <Choice label="Formato" value={format} options={["9:16", "1:1", "16:9"]} onChange={setFormat} />
-          <Choice label="Duración" value={duration} options={["15 s", "30 s", "60 s"]} onChange={setDuration} />
-          <Choice label="Voz" value={voice} options={["Cálida", "Firme", "Enérgica"]} onChange={setVoice} />
-          <Choice label="Música" value={music} options={["Suave", "Épica", "Sin música"]} onChange={setMusic} />
-          <Choice label="Texto en pantalla" value={captions} options={["Con subtítulos", "Sin subtítulos"]} onChange={setCaptions} />
-
-          <Field label="Título" id="video-title">
-            <input id="video-title" value={title} onChange={(event) => setTitle(event.target.value)} className={fieldClass} />
-          </Field>
-          <Field label="Qué tiene que verse" id="video-detail">
-            <input id="video-detail" value={detail} onChange={(event) => setDetail(event.target.value)} placeholder="Nombre, oferta, logo, ciudad" className={fieldClass} />
-          </Field>
-          <Field label="Guion · la voz" id="video-script">
-            <textarea id="video-script" value={script} onChange={(event) => setScript(event.target.value)} rows={5} className={`${fieldClass} resize-none`} />
-          </Field>
-          <Field label="Imágenes del plano" id="video-images">
-            <label
-              htmlFor="video-images"
-              className="mt-2 flex cursor-pointer items-center justify-center gap-2 rounded-xl border border-dashed border-[#C4B5FD] bg-[#F5F3FF] px-4 py-3 text-sm text-[#5B21B6] transition-colors hover:bg-[#EDE9FE]"
+      <div className={cn("flex flex-wrap items-center justify-between gap-3 px-5 pb-5", locked && "pointer-events-none opacity-60")}>
+        <div className="flex gap-2">
+          {(["16:9", "9:16", "1:1"] as const).map((option) => (
+            <button
+              key={option}
+              type="button"
+              onClick={() => setFormat(option)}
+              className={cn("rounded-full px-3 py-1.5 text-sm", format === option ? "bg-white text-[#0B0A10]" : "bg-white/10 text-white")}
             >
-              <Upload className="h-4 w-4" aria-hidden />
-              Sube hasta 6 imágenes
-            </label>
-            <input id="video-images" type="file" accept="image/*" multiple onChange={(event) => addImages(event.target.files)} className="sr-only" />
-          </Field>
-          {images.length > 0 ? (
-            <ul className="mt-3 grid grid-cols-3 gap-2">
-              {images.map((image) => (
-                <li key={image.id} className="overflow-hidden rounded-xl border border-[#E7E2DA]">
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img src={image.url} alt={image.name} className="h-20 w-full object-cover" />
-                </li>
-              ))}
-            </ul>
-          ) : null}
-
-          <GenerateButton label="Crear video" busyLabel="Creando…" disabled={pending || script.trim().length < 12} onClick={() => void generate()} />
+              {option}
+            </button>
+          ))}
         </div>
-
-        <div className="flex min-h-[440px] flex-col rounded-2xl bg-gradient-to-b from-[#F7F5F2] to-[#EFEAE3] p-4">
-          {bar > 0 ? (
-            <div className="mb-4">
-              <div className="flex items-center justify-between text-sm text-[#1E1E24]">
-                <p className="flex items-center gap-1.5">
-                  <Sparkles className="h-3.5 w-3.5 text-[#7C3AED]" aria-hidden />
-                  Creando el video
-                </p>
-                <p className="tabular-nums text-[#7C3AED]">{Math.round(bar)}%</p>
-              </div>
-              <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-[#E7E2DA]" role="progressbar" aria-valuenow={Math.round(bar)} aria-valuemin={0} aria-valuemax={100} aria-label="Creación del video">
-                <div className="h-full bg-gradient-to-r from-[#7C3AED] to-[#DB2777]" style={{ width: `${bar}%` }} />
-              </div>
-            </div>
-          ) : null}
-
-          <p className="mb-2 text-[11px] tracking-[0.22em] uppercase text-[#8A8680]">Preview en vivo</p>
-          <div className="flex flex-1 items-center justify-center">
-            <div
-              className={`relative flex w-full flex-col justify-end overflow-hidden rounded-2xl bg-[#1E1E24] bg-cover bg-center text-white shadow-[0_24px_60px_-30px_rgba(30,30,36,0.9)] ${job?.videoUrl ? "" : "p-4"} ${frame}`}
-              style={images[0] && !job?.videoUrl ? { backgroundImage: `linear-gradient(to top, rgba(30,30,36,0.9), rgba(30,30,36,0.15)), url(${images[0].url})` } : undefined}
-            >
-              {job?.videoUrl ? (
-                <video controls src={job.videoUrl} className="absolute inset-0 h-full w-full bg-black object-contain" />
-              ) : (
-                <>
-                  <span className={`pointer-events-none absolute inset-0 bg-gradient-to-br opacity-70 ${style.gradient}`} aria-hidden />
-                  <span className="pointer-events-none absolute -top-10 -right-8 h-32 w-32 rounded-full bg-white/20 blur-2xl vega-pulse" aria-hidden />
-                  <span className="absolute top-3 left-3 flex items-center gap-1.5 rounded-full bg-black/40 px-2.5 py-1 text-[10px] font-medium backdrop-blur">
-                    <span className="h-1.5 w-1.5 rounded-full bg-[#10B981]" />
-                    {style.name} · {format} · {duration}
-                  </span>
-                  <div className="relative">
-                    <p className="text-lg font-medium drop-shadow">{title || "Sin título"}</p>
-                    {detail ? <p className="mt-2 text-sm text-white/85 drop-shadow">{detail}</p> : null}
-                    <p className="mt-3 text-[11px] text-white/70">
-                      Voz {voice.toLowerCase()} · {music.toLowerCase()} · {captions.toLowerCase()}
-                    </p>
-                  </div>
-                  <span className="absolute inset-0 grid place-items-center">
-                    <span className="grid h-14 w-14 place-items-center rounded-full bg-white/25 backdrop-blur">
-                      <Play className="h-5 w-5 translate-x-[1px] fill-white text-white" aria-hidden />
-                    </span>
-                  </span>
-                </>
-              )}
-            </div>
-          </div>
-
-          {job?.videoUrl ? (
-            <div className="mt-4 space-y-3">
-              <PieceActions
-                editing={editing}
-                onDownload={() => void downloadVideo()}
-                onSave={() => void saveVideo()}
-                onEdit={() => setEditing((current) => !current)}
-                onDelete={removePiece}
-              />
-              <p className="text-sm text-[#5C5854]">{job.message ?? job.error}</p>
-              {job.scenes ? (
-                <ol className="grid gap-2 sm:grid-cols-3">
-                  {job.scenes.map((scene) => (
-                    <li key={scene.index} className="rounded-xl border border-[#E7E2DA] bg-white px-3 py-2 text-sm text-[#5C5854]">
-                      <span className="text-[10px] tracking-[0.18em] uppercase text-[#8A8680]">Plano {scene.index}</span>
-                      <p className="mt-1">{scene.line}</p>
-                    </li>
-                  ))}
-                </ol>
-              ) : null}
-            </div>
-          ) : (
-            <p className="mt-4 text-center text-sm text-[#8A8680]">El encuadre cambia con el formato. El detalle entra en el plano.</p>
-          )}
-        </div>
-      </section>
-    </div>
+        {job?.videoUrl ? (
+          <PieceActions
+            editing={editing}
+            onDownload={() => void downloadVideo()}
+            onSave={() => void saveVideo()}
+            onEdit={() => setEditing((current) => !current)}
+            onDelete={removePiece}
+          />
+        ) : (
+          <button
+            type="button"
+            disabled={pending || script.trim().length < 12}
+            onClick={() => void generate()}
+            className="rounded-full bg-white px-4 py-2 text-sm font-medium text-[#0B0A10] disabled:opacity-40"
+          >
+            {pending ? "Rodando…" : "Crear video"}
+          </button>
+        )}
+      </div>
+    </section>
   );
 }
 
@@ -804,48 +683,10 @@ function ImagePanel({
         return;
       }
       toast.error(payload.error ?? "No se pudo crear la imagen con IA.");
+      return;
     } catch {
       toast.error("No se pudo crear la imagen con IA.");
     }
-
-    const canvas = document.createElement("canvas");
-    const wide = format === "16:9";
-    const story = format === "9:16";
-    canvas.width = wide ? 1280 : story ? 720 : 1080;
-    canvas.height = wide ? 720 : story ? 1280 : 1080;
-    const context = canvas.getContext("2d");
-    if (!context) return;
-    const cine = style === "cine";
-    context.fillStyle = cine ? "#1E1E24" : style === "producto" ? "#F5F3FF" : style === "ilustracion" ? "#FDF2F8" : style === "tresd" ? "#ECFEFF" : "#F7F5F2";
-    context.fillRect(0, 0, canvas.width, canvas.height);
-    const grad = context.createLinearGradient(0, 0, canvas.width, canvas.height);
-    grad.addColorStop(0, cine ? "rgba(49,46,129,0.85)" : "rgba(167,139,250,0.28)");
-    grad.addColorStop(1, "rgba(219,39,119,0.18)");
-    context.fillStyle = grad;
-    context.fillRect(0, 0, canvas.width, canvas.height);
-    const photo = reference ? await loadImage(reference) : null;
-    if (photo) {
-      const scale = Math.max(canvas.width / photo.width, canvas.height / photo.height);
-      const w = photo.width * scale;
-      const h = photo.height * scale;
-      context.drawImage(photo, (canvas.width - w) / 2, (canvas.height - h) / 2, w, h);
-      context.fillStyle = cine ? "rgba(30,30,36,0.55)" : "rgba(247,245,242,0.72)";
-      context.fillRect(0, 0, canvas.width, canvas.height);
-    }
-    context.fillStyle = cine ? "#F7F5F2" : "#1E1E24";
-    context.font = "600 64px sans-serif";
-    wrapText(context, title || "LYRA", 72, 180, canvas.width - 144, 76);
-    context.font = "28px sans-serif";
-    context.fillStyle = cine ? "#C8C2BA" : "#5C5854";
-    wrapText(context, detail || "Detalle de la pieza", 72, canvas.height * 0.55, canvas.width - 144, 40);
-    context.fillStyle = cine ? "rgba(255,255,255,0.85)" : "rgba(124,58,237,0.9)";
-    context.font = "600 26px sans-serif";
-    context.fillText("LYRA", 72, canvas.height - 64);
-    const url = canvas.toDataURL("image/jpeg", 0.82);
-    setTitle(headline);
-    setImageUrl(url);
-    setEditing(false);
-    toast.success("Dejé una pieza con el texto. La imagen de IA no respondió.");
   }
 
   async function saveImage() {

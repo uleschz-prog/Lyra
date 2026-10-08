@@ -1,6 +1,5 @@
 import { geminiCredentials } from "@/lib/ai/generate";
 import { providerError, readJson } from "@/lib/ai/providers";
-import { renderStudioVideo } from "@/lib/studio/render-video";
 
 export type StillResult = { ok: true; dataUrl: string; note: string } | { ok: false; error: string };
 export type ClipResult =
@@ -95,13 +94,15 @@ export function openRouterVideoModel() {
 
 export function openRouterJob(payload: unknown) {
   if (!payload || typeof payload !== "object") return null;
-  const record = payload as Record<string, unknown>;
+  const source = payload as Record<string, unknown>;
+  const nested = source.data && typeof source.data === "object" ? (source.data as Record<string, unknown>) : null;
+  const record = nested && (typeof nested.id === "string" || typeof nested.status === "string") ? nested : source;
   const id = typeof record.id === "string" ? record.id.trim() : "";
   const status = typeof record.status === "string" ? record.status : "";
   const urls = Array.isArray(record.unsigned_urls)
     ? record.unsigned_urls.filter((item): item is string => typeof item === "string" && item.startsWith("https://"))
     : [];
-  if (!/^[A-Za-z0-9_-]{6,80}$/.test(id) || !status) return null;
+  if (!/^[A-Za-z0-9_-]{6,120}$/.test(id) || !status) return null;
   return { id, status, urls };
 }
 
@@ -265,7 +266,7 @@ async function openRouterClip(
     });
     const payload = await readJson(response);
     const job = openRouterJob(payload);
-    if (response.ok && job) {
+    if ((response.ok || response.status === 202) && job) {
       jobId = job.id;
       if (job.status === "completed") {
         return { ok: true, url: `/api/ai/video?jobId=${job.id}&play=1`, note: `Anuncio ${resolution} con ${model}.` };
@@ -273,7 +274,7 @@ async function openRouterClip(
       break;
     }
     lastError = providerError(payload, lastError);
-    if (response.status === 401 || response.status === 403) return { ok: false, error: lastError };
+    if (response.status === 401 || response.status === 402 || response.status === 403) return { ok: false, error: lastError };
   }
 
   if (!jobId) return { ok: false, error: lastError };
@@ -296,15 +297,15 @@ async function openRouterClip(
   return { ok: false, pending: true, jobId, note: "El anuncio premium sigue renderizándose." };
 }
 
-export async function readOpenRouterVideo(jobId: string) {
+export async function readOpenRouterVideo(jobId: string, download = false) {
   const apiKey = process.env.OPENROUTER_API_KEY?.trim() || "";
-  if (!apiKey || !/^[A-Za-z0-9_-]{6,80}$/.test(jobId)) return { ok: false as const, error: "Ese video no está disponible." };
+  if (!apiKey || !/^[A-Za-z0-9_-]{6,120}$/.test(jobId)) return { ok: false as const, error: "Ese video no está disponible." };
   const headers = { Authorization: `Bearer ${apiKey}` };
   const status = await fetch(`https://openrouter.ai/api/v1/videos/${jobId}`, { headers });
   const payload = await readJson(status);
   const job = openRouterJob(payload);
   if (!status.ok || !job) return { ok: false as const, error: providerError(payload, "No se pudo consultar el video.") };
-  if (job.status !== "completed") return { ok: true as const, status: job.status, jobId: job.id };
+  if (job.status !== "completed" || !download) return { ok: true as const, status: job.status, jobId: job.id };
   const file = await fetch(`https://openrouter.ai/api/v1/videos/${jobId}/content?index=0`, { headers });
   if (!file.ok || !file.body) return { ok: false as const, error: "El archivo del video todavía no está listo." };
   return {
@@ -323,13 +324,16 @@ export async function generateClip(
   if (input.quality) {
     const premium = await openRouterClip(input, waitMs).catch(() => ({ ok: false as const, error: "OpenRouter no respondió." }));
     if (premium.ok || ("pending" in premium && premium.pending)) return premium;
+    const runway = await runwayClip(input, Math.min(waitMs, 20_000)).catch(() => ({ ok: false as const, error: "Runway no respondió." }));
+    if (runway.ok) return runway;
+    const reason = "error" in premium && premium.error ? premium.error : "No se pudo crear el video.";
+    const backup = "error" in runway ? runway.error : "";
+    if (/credit|crédito|quota/i.test(`${reason} ${backup}`)) {
+      return { ok: false, error: "No hay crédito para rodar el video. Recarga OpenRouter para el anuncio 4K, o Runway para el respaldo." };
+    }
+    return { ok: false, error: reason };
   }
   const runway = await runwayClip(input, waitMs).catch(() => ({ ok: false as const, error: "Runway no respondió." }));
   if (runway.ok) return runway;
-  try {
-    const video = await renderStudioVideo(input);
-    return { ok: true, url: `data:video/mp4;base64,${video.toString("base64")}`, note: "Video listo." };
-  } catch {
-    return { ok: false, error: "No se pudo crear el archivo de video en el servidor." };
-  }
+  return { ok: false, error: "error" in runway ? runway.error : "No se pudo crear el video." };
 }

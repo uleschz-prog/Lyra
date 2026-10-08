@@ -16,7 +16,7 @@ export async function GET(request: Request) {
 
   const jobId = new URL(request.url).searchParams.get("jobId") ?? "";
   const play = new URL(request.url).searchParams.get("play") === "1";
-  const video = await readOpenRouterVideo(jobId);
+  const video = await readOpenRouterVideo(jobId, play);
   if (!video.ok) return NextResponse.json({ error: video.error }, { status: 400 });
   if (video.status !== "completed" || !("body" in video) || !video.body) {
     return NextResponse.json({ status: video.status, jobId: video.jobId });
@@ -69,7 +69,7 @@ export async function POST(request: Request) {
   if (clip.ok) {
     return NextResponse.json({
       mode: "live",
-      provider: clip.url.includes("jobId=") ? "openrouter" : "lyra",
+      provider: clip.url.includes("jobId=") ? "openrouter" : "runway",
       title,
       status: "completed",
       videoUrl: clip.url,
@@ -77,12 +77,5 @@ export async function POST(request: Request) {
       message: clip.note,
     });
   }
-  return NextResponse.json({
-    mode: "preview",
-    provider: "lyra",
-    title,
-    status: "ready",
-    scenes,
-    message: "El servidor no pudo escribir el archivo. El estudio lo graba en el navegador.",
-  });
+  return NextResponse.json({ error: "error" in clip ? clip.error : "No se pudo crear el video." }, { status: 502 });
 }
