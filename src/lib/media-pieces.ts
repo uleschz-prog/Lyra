@@ -2,7 +2,17 @@ import { getCurrentUser } from "@/lib/auth/profile";
 import { getPrisma } from "@/lib/prisma";
 
 export type CreationArea = "notebook" | "studio";
-export type CreationKind = "audio" | "video" | "pdf" | "image";
+export type CreationKind =
+  | "audio"
+  | "video"
+  | "pdf"
+  | "image"
+  | "mindmap"
+  | "report"
+  | "cards"
+  | "quiz"
+  | "infographic"
+  | "table";
 
 export type CreationRecord = {
   id: string;
@@ -18,8 +28,21 @@ function isArea(value: string): value is CreationArea {
   return value === "notebook" || value === "studio";
 }
 
+const creationKinds = new Set<CreationKind>([
+  "audio",
+  "video",
+  "pdf",
+  "image",
+  "mindmap",
+  "report",
+  "cards",
+  "quiz",
+  "infographic",
+  "table",
+]);
+
 function isKind(value: string): value is CreationKind {
-  return value === "audio" || value === "video" || value === "pdf" || value === "image";
+  return creationKinds.has(value as CreationKind);
 }
 
 export async function listCreations(area: CreationArea): Promise<CreationRecord[]> {

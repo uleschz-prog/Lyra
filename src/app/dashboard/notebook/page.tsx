@@ -1,7 +1,6 @@
 import type { Metadata } from "next";
 
 import { NotebookWorkspace } from "@/components/notebook/notebook-workspace";
-import { PageHeader } from "@/components/dashboard/page-header";
 import { listCreations } from "@/lib/media-pieces";
 
 export const metadata: Metadata = {
@@ -11,14 +10,8 @@ export const metadata: Metadata = {
 export default async function NotebookPage() {
   const pieces = await listCreations("notebook").catch(() => []);
   return (
-    <>
-      <PageHeader
-        eyebrow="Lyra Notebook"
-        title="Investigación"
-        description="Carga fuentes, pregunta sobre ellas y convierte el material en resumen, cuestionario, audio, diapositivas o video."
-        section="notebook"
-      />
+    <div className="-mx-4 -my-4 sm:-mx-6 sm:-my-8 lg:-mx-10 lg:-my-10">
       <NotebookWorkspace initialPieces={pieces} />
-    </>
+    </div>
   );
 }

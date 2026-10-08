@@ -2,7 +2,18 @@
 
 import type { CreationRecord } from "@/lib/media-pieces";
 
-const kindLabel = { audio: "Audio", video: "Video", pdf: "PDF", image: "Imagen" } as const;
+const kindLabel = {
+  audio: "Audio",
+  video: "Video",
+  pdf: "PDF",
+  image: "Imagen",
+  mindmap: "Mapa mental",
+  report: "Informe",
+  cards: "Tarjetas",
+  quiz: "Cuestionario",
+  infographic: "Infografía",
+  table: "Tabla",
+} as const;
 
 export function CreationHistory({
   pieces,
