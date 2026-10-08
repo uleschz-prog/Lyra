@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { aspectHint, imageFromPayload, imageModels, runwayOutputUrl, runwayRatio } from "@/lib/ai/media";
+import { aspectHint, imageFromPayload, imageModels, openRouterJob, openRouterVideoModel, runwayOutputUrl, runwayRatio } from "@/lib/ai/media";
 
 describe("generación de imagen y video", () => {
   it("pide un modelo de imagen y no el modelo de chat", () => {
@@ -24,6 +24,13 @@ describe("generación de imagen y video", () => {
       })?.mime,
     ).toBe("image/jpeg");
     expect(imageFromPayload({ candidates: [{ content: { parts: [{ text: "solo texto" }] } }] })).toBeNull();
+  });
+
+  it("lee el trabajo de video de OpenRouter y rechaza un id raro", () => {
+    expect(openRouterVideoModel()).toBe("google/veo-3.1");
+    expect(openRouterJob({ id: "job-abc123", status: "completed", unsigned_urls: ["https://openrouter.ai/api/v1/videos/job-abc123/content"] })?.status).toBe("completed");
+    expect(openRouterJob({ id: "../etc", status: "completed" })).toBeNull();
+    expect(openRouterJob({ id: "job-abc123", status: "in_progress" })?.urls).toEqual([]);
   });
 
   it("lee la dirección del video cuando Runway termina", () => {

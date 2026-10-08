@@ -1,7 +1,7 @@
 "use client";
 
-import { Download, Pencil, Play, Save, Sparkles, Trash2, Upload } from "lucide-react";
-import { useEffect, useState, type ReactNode } from "react";
+import { ArrowUp, Download, Pencil, Play, Save, Sparkles, Trash2, Upload } from "lucide-react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import { toast } from "sonner";
 
 import { discardCreation, reviseCreation, storeCreation } from "@/app/dashboard/studio/actions";
@@ -12,7 +12,6 @@ import {
   GenerateButton,
   imageStyles,
   imageTemplates,
-  StudioHero,
   StudioSection,
   StylePicker,
   TemplateCard,
@@ -83,63 +82,183 @@ async function persistPiece(input: {
 }
 
 const tabs: { id: StudioTab; label: string; hint: string }[] = [
-  { id: "video", label: "Video", hint: "Guion, voz y estilo" },
-  { id: "image", label: "Imagen", hint: "Piezas y portadas" },
-  { id: "search", label: "Inspiración", hint: "Busca referencias" },
+  { id: "video", label: "Video", hint: "Anuncios en 4K" },
+  { id: "image", label: "Imagen", hint: "Campañas y portadas" },
+  { id: "search", label: "Búsqueda", hint: "Referencias en vivo" },
 ];
+
+const stages: Record<
+  StudioTab,
+  { kicker: string; title: string; hint: string; placeholder: string; examples: string[]; video: string }
+> = {
+  video: {
+    kicker: "Anuncios",
+    title: "Describe el anuncio.\nLyra rueda el resto.",
+    hint: "Clip de hasta 8 segundos, con luz de campaña. 4K es la calidad máxima de Veo 3.1.",
+    placeholder: "Un perfume sobre mármol negro, luz dorada, cámara lenta…",
+    examples: [
+      "Un frasco de perfume sobre mármol negro, luz dorada, cámara lenta",
+      "Un reloj de oro sobre roble, reflejo suave, estudio oscuro",
+      "Una ciudad de noche desde un auto, luces violetas",
+    ],
+    video: "/studio/ejemplo-anuncio.mp4",
+  },
+  image: {
+    kicker: "Imagen",
+    title: "La pieza de la campaña,\nlista para publicar.",
+    hint: "Editorial, producto o retrato. La imagen sale del mismo pedido.",
+    placeholder: "Retrato editorial, luz lateral, fondo negro…",
+    examples: ["Retrato editorial, luz de estudio, fondo negro", "Skincare sobre piedra, luz lateral", "Logo de oro sobre seda oscura"],
+    video: "/studio/ejemplo-imagen.mp4",
+  },
+  search: {
+    kicker: "Búsqueda",
+    title: "Encuentra la referencia.\nDespués conviértela en pieza.",
+    hint: "Busca campañas, productos o tendencias y quédate con lo que sirva.",
+    placeholder: "Campañas de relojes de lujo…",
+    examples: ["campañas de lujo 2026", "anuncios de perfumes", "fotografía de producto premium"],
+    video: "/studio/ejemplo-busqueda.mp4",
+  },
+};
+
+type StudioBrief = { id: number; tab: StudioTab; text: string };
 
 export function CreativeStudio({ initialPieces = [] }: { initialPieces?: CreationRecord[] }) {
   const [tab, setTab] = useState<StudioTab>("video");
   const [pieces, setPieces] = useState<CreationRecord[]>(initialPieces);
   const [opened, setOpened] = useState<CreationRecord | null>(null);
+  const [draft, setDraft] = useState("");
+  const [quality, setQuality] = useState<"4K" | "1080p">("4K");
+  const [brief, setBrief] = useState<StudioBrief | null>(null);
+  const stage = stages[tab];
+
+  function launch(text = draft) {
+    const next = text.trim();
+    const minimum = tab === "search" ? 3 : tab === "image" ? 2 : 12;
+    if (next.length < minimum) {
+      toast.error(tab === "video" ? "Describe el anuncio con al menos una frase." : "Escribe un poco más.");
+      return;
+    }
+    setDraft(next);
+    setBrief({ id: Date.now(), tab, text: next });
+    document.getElementById("studio-work")?.scrollIntoView({ behavior: "smooth", block: "start" });
+  }
 
   return (
     <div className="space-y-5">
-      <StudioHero
-        title="Crea como en un patio de juegos"
-        subtitle="Elige una plantilla, cámbiale el estilo y mírala antes de generar. Video, imagen y voz en un solo lugar."
-        stat={`${pieces.length} ${pieces.length === 1 ? "pieza guardada" : "piezas guardadas"}`}
-      />
-
-      <div role="tablist" aria-label="Estudio creativo" className="grid gap-2 sm:grid-cols-3">
-        {tabs.map((item) => {
-          const active = tab === item.id;
-          return (
-            <button
-              key={item.id}
-              type="button"
-              role="tab"
-              aria-selected={active}
-              onClick={() => setTab(item.id)}
-              className={cn(
-                "rounded-2xl border p-3 text-left transition-all duration-300",
-                active
-                  ? "border-[#7C3AED] bg-[#F5F3FF] shadow-[0_18px_40px_-30px_rgba(124,58,237,0.8)]"
-                  : "border-[#E7E2DA] bg-white hover:border-[#C4B5FD]",
-              )}
+      <section className="relative isolate min-h-[78vh] overflow-hidden bg-[#0B0A10] text-white md:min-h-[calc(100dvh-1rem)]">
+        <video key={stage.video} className="absolute inset-0 h-full w-full object-cover" autoPlay muted loop playsInline poster="" aria-hidden>
+          <source src={stage.video} type="video/mp4" />
+        </video>
+        <div className="absolute inset-0 bg-gradient-to-b from-black/35 via-black/25 to-black/70" />
+        <div className="relative flex min-h-[78vh] flex-col px-4 py-5 sm:px-8 md:min-h-[calc(100dvh-1rem)]">
+          <div role="tablist" aria-label="Estudio creativo" className="flex flex-wrap gap-2">
+            {tabs.map((item) => {
+              const active = tab === item.id;
+              return (
+                <button
+                  key={item.id}
+                  type="button"
+                  role="tab"
+                  aria-selected={active}
+                  onClick={() => setTab(item.id)}
+                  className={cn(
+                    "rounded-full border px-4 py-2 text-sm backdrop-blur",
+                    active ? "border-white bg-white text-[#0B0A10]" : "border-white/30 bg-black/25 text-white hover:border-white/60",
+                  )}
+                >
+                  {item.label}
+                </button>
+              );
+            })}
+          </div>
+          <div className="mx-auto flex w-full max-w-3xl flex-1 flex-col items-center justify-center pb-10 text-center">
+            <p className="text-xs uppercase tracking-[0.28em] text-white/75">{stage.kicker}</p>
+            <h2 className="mt-4 whitespace-pre-line text-4xl font-semibold tracking-tight sm:text-6xl">{stage.title}</h2>
+            <p className="mt-4 max-w-xl text-sm leading-6 text-white/80 sm:text-base">{stage.hint}</p>
+            <form
+              className="mt-8 w-full"
+              onSubmit={(event) => {
+                event.preventDefault();
+                launch();
+              }}
             >
-              <p className={cn("text-sm font-semibold", active ? "text-[#5B21B6]" : "text-[#1E1E24]")}>{item.label}</p>
-              <p className="mt-0.5 text-xs text-[#8A8680]">{item.hint}</p>
-            </button>
-          );
-        })}
-      </div>
+              <label htmlFor="studio-prompt" className="sr-only">
+                Describe lo que quieres crear
+              </label>
+              <div className="flex items-center gap-2 rounded-full border border-white/25 bg-white/95 px-4 py-2 text-left text-[#1E1E24] shadow-[0_20px_60px_-24px_rgba(0,0,0,0.65)]">
+                <Sparkles className="h-4 w-4 shrink-0 text-[#7C3AED]" aria-hidden />
+                <input
+                  id="studio-prompt"
+                  value={draft}
+                  onChange={(event) => setDraft(event.target.value)}
+                  placeholder={stage.placeholder}
+                  className="h-11 min-w-0 flex-1 bg-transparent text-sm outline-none placeholder:text-[#8A8680] sm:text-base"
+                />
+                <button type="submit" aria-label="Crear" className="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-[#7C3AED] text-white">
+                  <ArrowUp className="h-4 w-4" />
+                </button>
+              </div>
+            </form>
+            {tab === "video" ? (
+              <div className="mt-4 flex gap-2">
+                {(["4K", "1080p"] as const).map((option) => (
+                  <button
+                    key={option}
+                    type="button"
+                    onClick={() => setQuality(option)}
+                    className={cn(
+                      "rounded-full px-3 py-1 text-xs",
+                      quality === option ? "bg-white text-[#0B0A10]" : "bg-black/35 text-white",
+                    )}
+                  >
+                    {option === "4K" ? "4K" : "HD 1080p"}
+                  </button>
+                ))}
+              </div>
+            ) : null}
+            <div className="mt-4 flex flex-wrap justify-center gap-2">
+              {stage.examples.map((example) => (
+                <button
+                  key={example}
+                  type="button"
+                  onClick={() => launch(example)}
+                  className="rounded-full border border-white/25 bg-black/30 px-3 py-1.5 text-xs text-white backdrop-blur hover:border-white/60"
+                >
+                  {example}
+                </button>
+              ))}
+            </div>
+            <p className="mt-6 text-[11px] text-white/60">
+              {pieces.length} {pieces.length === 1 ? "pieza guardada" : "piezas guardadas"}
+            </p>
+          </div>
+        </div>
+      </section>
 
-      {tab === "video" ? (
-        <VideoPanel
-          restore={opened}
-          onSaved={(piece) => setPieces((current) => [piece, ...current.filter((item) => item.id !== piece.id)])}
-          onRemoved={(id) => setPieces((current) => current.filter((piece) => piece.id !== id))}
-        />
-      ) : null}
-      {tab === "image" ? (
-        <ImagePanel
-          restore={opened}
-          onSaved={(piece) => setPieces((current) => [piece, ...current.filter((item) => item.id !== piece.id)])}
-          onRemoved={(id) => setPieces((current) => current.filter((piece) => piece.id !== id))}
-        />
-      ) : null}
-      {tab === "search" ? <SearchPanel /> : null}
+      <div id="studio-work" className="space-y-5 px-4 sm:px-6 lg:px-10">
+        <div className={tab === "video" ? undefined : "hidden"}>
+          <VideoPanel
+            restore={opened}
+            brief={brief}
+            quality={quality}
+            onSaved={(piece) => setPieces((current) => [piece, ...current.filter((item) => item.id !== piece.id)])}
+            onRemoved={(id) => setPieces((current) => current.filter((piece) => piece.id !== id))}
+          />
+        </div>
+        <div className={tab === "image" ? undefined : "hidden"}>
+          <ImagePanel
+            restore={opened}
+            brief={brief}
+            onSaved={(piece) => setPieces((current) => [piece, ...current.filter((item) => item.id !== piece.id)])}
+            onRemoved={(id) => setPieces((current) => current.filter((piece) => piece.id !== id))}
+          />
+        </div>
+        <div className={tab === "search" ? undefined : "hidden"}>
+          <SearchPanel brief={brief} />
+        </div>
+      </div>
+      <div className="px-4 sm:px-6 lg:px-10">
       <CreationHistory
         pieces={pieces}
         onOpen={(piece) => {
@@ -151,18 +270,37 @@ export function CreativeStudio({ initialPieces = [] }: { initialPieces?: Creatio
           void discardCreation(piece.id);
         }}
       />
+      </div>
     </div>
   );
+}
+
+async function waitForPremium(jobId: string) {
+  const deadline = Date.now() + 180_000;
+  while (Date.now() < deadline) {
+    await new Promise((resolve) => setTimeout(resolve, 4000));
+    const response = await fetch(`/api/ai/video?jobId=${encodeURIComponent(jobId)}`);
+    const payload = (await response.json().catch(() => ({}))) as { status?: string; error?: string; videoUrl?: string };
+    if (payload.status === "completed") return payload.videoUrl ?? `/api/ai/video?jobId=${encodeURIComponent(jobId)}&play=1`;
+    if (!response.ok || payload.status === "failed" || payload.status === "cancelled" || payload.status === "expired") {
+      throw new Error(payload.error ?? "No se pudo terminar el anuncio.");
+    }
+  }
+  throw new Error("El render sigue en curso. Vuelve a pedirlo en un momento.");
 }
 
 type StudioImage = { id: string; name: string; url: string };
 
 function VideoPanel({
   restore,
+  brief,
+  quality,
   onSaved,
   onRemoved,
 }: {
   restore: CreationRecord | null;
+  brief: StudioBrief | null;
+  quality: "4K" | "1080p";
   onSaved: (piece: CreationRecord) => void;
   onRemoved: (id: string) => void;
 }) {
@@ -185,6 +323,9 @@ function VideoPanel({
   const [pieceId, setPieceId] = useState<string | null>(null);
   const [activeTemplate, setActiveTemplate] = useState<string | null>(null);
   const [restoredId, setRestoredId] = useState<string | null>(null);
+  const qualityRef = useRef(quality);
+  qualityRef.current = quality;
+  const launched = useRef(0);
 
   const busy = pending || job?.status === "processing";
   const style = videoStyles.find((item) => item.id === look) ?? videoStyles[0];
@@ -239,20 +380,42 @@ function VideoPanel({
     toast.success(`Plantilla "${template.title}" lista para editar`);
   }
 
-  async function generate() {
+  useEffect(() => {
+    if (!brief || brief.tab !== "video" || brief.id === launched.current) return;
+    launched.current = brief.id;
+    setTitle(brief.text.slice(0, 72));
+    setScript(brief.text);
+    setLook("cine");
+    setFormat("16:9");
+    void generate(brief.text);
+  }, [brief]);
+
+  async function generate(override?: string) {
     setPending(true);
     try {
-      const spoken = [script.trim(), detail.trim()].filter(Boolean).join(" ");
+      const spoken = [override?.trim() || script.trim(), detail.trim()].filter(Boolean).join(" ");
       const withCaptions = captions === "Con subtítulos";
       let data: VideoJob | null = null;
       try {
         const response = await fetch("/api/ai/video", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ title, script: spoken, format, styleId: look, duration, captions: withCaptions }),
+          body: JSON.stringify({
+            title: override?.slice(0, 72) || title,
+            script: spoken,
+            format: override ? "16:9" : format,
+            styleId: override ? "cine" : look,
+            duration,
+            captions: withCaptions,
+            quality: qualityRef.current,
+          }),
         });
-        const payload = (await response.json()) as VideoJob;
-        if (response.ok && payload.videoUrl) data = payload;
+        const payload = (await response.json()) as VideoJob & { jobId?: string };
+        if (response.ok && payload.status === "processing" && payload.jobId) {
+          setJob({ ...payload, provider: "lyra", status: "processing", message: payload.message ?? "Renderizando el anuncio…" });
+          const videoUrl = await waitForPremium(payload.jobId);
+          data = { ...payload, provider: "lyra", status: "completed", videoUrl, message: "Anuncio listo." };
+        } else if (response.ok && payload.videoUrl) data = payload;
       } catch {
         data = null;
       }
@@ -553,10 +716,12 @@ function Choice({
 
 function ImagePanel({
   restore,
+  brief,
   onSaved,
   onRemoved,
 }: {
   restore: CreationRecord | null;
+  brief: StudioBrief | null;
   onSaved: (piece: CreationRecord) => void;
   onRemoved: (id: string) => void;
 }) {
@@ -572,6 +737,7 @@ function ImagePanel({
   const [restoredId, setRestoredId] = useState<string | null>(null);
 
   const { syncBalance } = useCredits();
+  const launched = useRef(0);
   const chosen = imageStyles.find((item) => item.id === style) ?? imageStyles[0];
   const locked = Boolean(imageUrl) && !editing;
 
@@ -611,8 +777,18 @@ function ImagePanel({
     toast.success(`Plantilla "${template.title}" lista para editar`);
   }
 
-  async function create() {
-    const prompt = [title.trim(), detail.trim(), chosen.name].filter(Boolean).join(". ");
+  useEffect(() => {
+    if (!brief || brief.tab !== "image" || brief.id === launched.current) return;
+    launched.current = brief.id;
+    setTitle(brief.text.slice(0, 80));
+    setStyle("cine");
+    setFormat("16:9");
+    void create(brief.text);
+  }, [brief]);
+
+  async function create(overrideTitle?: string) {
+    const headline = (overrideTitle ?? title).trim();
+    const prompt = [headline, detail.trim(), chosen.name].filter(Boolean).join(". ");
     try {
       const response = await fetch("/api/ai/image", {
         method: "POST",
@@ -666,6 +842,7 @@ function ImagePanel({
     context.font = "600 26px sans-serif";
     context.fillText("LYRA", 72, canvas.height - 64);
     const url = canvas.toDataURL("image/jpeg", 0.82);
+    setTitle(headline);
     setImageUrl(url);
     setEditing(false);
     toast.success("Dejé una pieza con el texto. La imagen de IA no respondió.");
@@ -851,20 +1028,29 @@ function wrapText(context: CanvasRenderingContext2D, text: string, x: number, y:
   if (line) context.fillText(line, x, cursor);
 }
 
-function SearchPanel() {
+function SearchPanel({ brief }: { brief: StudioBrief | null }) {
   const [query, setQuery] = useState("tendencias de academias digitales y redes de agentes");
   const [results, setResults] = useState<SearchResult[]>([]);
   const [note, setNote] = useState("Exa busca mercado y fuentes en vivo.");
   const [pending, setPending] = useState(false);
   const { syncBalance } = useCredits();
+  const launched = useRef(0);
 
-  async function search() {
+  useEffect(() => {
+    if (!brief || brief.tab !== "search" || brief.id === launched.current) return;
+    launched.current = brief.id;
+    setQuery(brief.text);
+    void search(brief.text);
+  }, [brief]);
+
+  async function search(override?: string) {
+    const q = (override ?? query).trim();
     setPending(true);
     try {
       const response = await fetch("/api/ai/search", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ query }),
+        body: JSON.stringify({ query: q }),
       });
       const data = (await response.json().catch(() => ({}))) as {
         error?: string;
@@ -872,7 +1058,7 @@ function SearchPanel() {
         results?: SearchResult[];
         credits?: number;
       };
-      syncBalance(data.credits, response.ok ? `Búsqueda · ${query.slice(0, 40)}` : undefined);
+      syncBalance(data.credits, response.ok ? `Búsqueda · ${q.slice(0, 40)}` : undefined);
       if (!response.ok) {
         toast.error(data.error ?? "No se pudo buscar.");
         return;

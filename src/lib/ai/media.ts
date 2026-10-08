@@ -3,7 +3,12 @@ import { providerError, readJson } from "@/lib/ai/providers";
 import { renderStudioVideo } from "@/lib/studio/render-video";
 
 export type StillResult = { ok: true; dataUrl: string; note: string } | { ok: false; error: string };
-export type ClipResult = { ok: true; url: string; note: string } | { ok: false; error: string };
+export type ClipResult =
+  | { ok: true; url: string; note: string }
+  | { ok: false; pending: true; jobId: string; note: string }
+  | { ok: false; error: string };
+
+export type VideoQuality = "4K" | "1080p";
 
 const fallbackImageModels = ["gemini-3.1-flash-image", "gemini-2.5-flash-image"];
 const textVideoModels = new Set(["gen4.5", "veo3", "veo3.1", "veo3.1_fast", "seedance2"]);
@@ -82,6 +87,22 @@ export function imageFromPayload(payload: unknown): { mime: string; data: string
     if (found) return found;
   }
   return null;
+}
+
+export function openRouterVideoModel() {
+  return process.env.OPENROUTER_VIDEO_MODEL?.trim() || "google/veo-3.1";
+}
+
+export function openRouterJob(payload: unknown) {
+  if (!payload || typeof payload !== "object") return null;
+  const record = payload as Record<string, unknown>;
+  const id = typeof record.id === "string" ? record.id.trim() : "";
+  const status = typeof record.status === "string" ? record.status : "";
+  const urls = Array.isArray(record.unsigned_urls)
+    ? record.unsigned_urls.filter((item): item is string => typeof item === "string" && item.startsWith("https://"))
+    : [];
+  if (!/^[A-Za-z0-9_-]{6,80}$/.test(id) || !status) return null;
+  return { id, status, urls };
 }
 
 export function runwayOutputUrl(payload: unknown) {
@@ -202,10 +223,107 @@ async function runwayClip(input: { title: string; script: string; format?: strin
   return { ok: true, url: ready.url, note: `Video generado con ${model}.` };
 }
 
+function openRouterAspect(format?: string) {
+  if (format === "9:16" || format === "vertical") return "9:16";
+  if (format === "1:1" || format === "cuadrada") return "1:1";
+  return "16:9";
+}
+
+function openRouterSeconds(model: string) {
+  return model.includes("seedance") ? 10 : 8;
+}
+
+async function openRouterClip(
+  input: { title: string; script: string; format?: string; quality?: VideoQuality },
+  waitMs: number,
+): Promise<ClipResult> {
+  const apiKey = process.env.OPENROUTER_API_KEY?.trim() || "";
+  if (!apiKey) return { ok: false, error: "OpenRouter no está configurado." };
+
+  const model = openRouterVideoModel();
+  const prompt = `${input.title}. ${input.script}. Anuncio cinematográfico, luz de lujo, cámara lenta, textura real, sin texto en pantalla.`
+    .replace(/\s+/g, " ")
+    .trim()
+    .slice(0, 1800);
+  const headers = { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" };
+  const resolutions = input.quality === "1080p" ? ["1080p"] : ["4K", "1080p"];
+  let jobId = "";
+  let lastError = "OpenRouter no aceptó el video.";
+
+  for (const resolution of resolutions) {
+    const response = await fetch("https://openrouter.ai/api/v1/videos", {
+      method: "POST",
+      headers,
+      body: JSON.stringify({
+        model,
+        prompt,
+        resolution,
+        duration: openRouterSeconds(model),
+        aspect_ratio: openRouterAspect(input.format),
+        generate_audio: true,
+      }),
+    });
+    const payload = await readJson(response);
+    const job = openRouterJob(payload);
+    if (response.ok && job) {
+      jobId = job.id;
+      if (job.status === "completed") {
+        return { ok: true, url: `/api/ai/video?jobId=${job.id}&play=1`, note: `Anuncio ${resolution} con ${model}.` };
+      }
+      break;
+    }
+    lastError = providerError(payload, lastError);
+    if (response.status === 401 || response.status === 403) return { ok: false, error: lastError };
+  }
+
+  if (!jobId) return { ok: false, error: lastError };
+
+  const deadline = Date.now() + waitMs;
+  while (Date.now() < deadline) {
+    await new Promise((resolve) => setTimeout(resolve, 3000));
+    const response = await fetch(`https://openrouter.ai/api/v1/videos/${jobId}`, { headers });
+    const payload = await readJson(response);
+    const job = openRouterJob(payload);
+    if (!response.ok || !job) continue;
+    if (job.status === "completed") {
+      return { ok: true, url: `/api/ai/video?jobId=${job.id}&play=1`, note: `Anuncio premium con ${model}.` };
+    }
+    if (job.status === "failed" || job.status === "cancelled" || job.status === "expired") {
+      return { ok: false, error: providerError(payload, "El render premium no se pudo completar.") };
+    }
+  }
+
+  return { ok: false, pending: true, jobId, note: "El anuncio premium sigue renderizándose." };
+}
+
+export async function readOpenRouterVideo(jobId: string) {
+  const apiKey = process.env.OPENROUTER_API_KEY?.trim() || "";
+  if (!apiKey || !/^[A-Za-z0-9_-]{6,80}$/.test(jobId)) return { ok: false as const, error: "Ese video no está disponible." };
+  const headers = { Authorization: `Bearer ${apiKey}` };
+  const status = await fetch(`https://openrouter.ai/api/v1/videos/${jobId}`, { headers });
+  const payload = await readJson(status);
+  const job = openRouterJob(payload);
+  if (!status.ok || !job) return { ok: false as const, error: providerError(payload, "No se pudo consultar el video.") };
+  if (job.status !== "completed") return { ok: true as const, status: job.status, jobId: job.id };
+  const file = await fetch(`https://openrouter.ai/api/v1/videos/${jobId}/content?index=0`, { headers });
+  if (!file.ok || !file.body) return { ok: false as const, error: "El archivo del video todavía no está listo." };
+  return {
+    ok: true as const,
+    status: "completed" as const,
+    jobId,
+    body: file.body,
+    contentType: file.headers.get("content-type") || "video/mp4",
+  };
+}
+
 export async function generateClip(
-  input: { title: string; script: string; format?: string; styleId?: string; duration?: string; captions?: boolean },
+  input: { title: string; script: string; format?: string; styleId?: string; duration?: string; captions?: boolean; quality?: VideoQuality },
   waitMs = 25_000,
 ): Promise<ClipResult> {
+  if (input.quality) {
+    const premium = await openRouterClip(input, waitMs).catch(() => ({ ok: false as const, error: "OpenRouter no respondió." }));
+    if (premium.ok || ("pending" in premium && premium.pending)) return premium;
+  }
   const runway = await runwayClip(input, waitMs).catch(() => ({ ok: false as const, error: "Runway no respondió." }));
   if (runway.ok) return runway;
   try {
