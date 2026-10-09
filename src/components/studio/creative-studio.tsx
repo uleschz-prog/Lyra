@@ -1,6 +1,6 @@
 "use client";
 
-import { ArrowUp, Download, Pencil, Save, Sparkles, Trash2, Upload } from "lucide-react";
+import { ArrowUp, Download, Paperclip, Pencil, Save, Sparkles, Trash2, Upload } from "lucide-react";
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { toast } from "sonner";
 
@@ -79,41 +79,41 @@ async function persistPiece(input: {
 }
 
 const tabs: { id: StudioTab; label: string; hint: string }[] = [
-  { id: "video", label: "Video", hint: "Anuncios en 4K" },
-  { id: "image", label: "Imagen", hint: "Campañas y portadas" },
-  { id: "search", label: "Búsqueda", hint: "Referencias en vivo" },
+  { id: "video", label: "Video", hint: "Anuncio con imagen y audio" },
+  { id: "image", label: "Imagen", hint: "Campaña, retrato o producto" },
+  { id: "search", label: "Búsqueda", hint: "Referencias para la pieza" },
 ];
 
-const stages: Record<
-  StudioTab,
-  { kicker: string; title: string; hint: string; placeholder: string; examples: string[] }
-> = {
-  video: {
-    kicker: "Anuncios",
-    title: "Describe el anuncio.\nLyra rueda el resto.",
-    hint: "Veo rueda un clip real de hasta 8 segundos, con audio. 4K es la calidad máxima.",
-    placeholder: "Un perfume sobre mármol negro, luz dorada, cámara lenta…",
-    examples: [
-      "Un frasco de perfume sobre mármol negro, luz dorada, cámara lenta",
-      "Un reloj de oro sobre roble, reflejo suave, estudio oscuro",
-      "Una ciudad de noche desde un auto, luces violetas",
-    ],
-  },
-  image: {
-    kicker: "Imagen",
-    title: "La pieza de la campaña,\nlista para publicar.",
-    hint: "Editorial, producto o retrato. La imagen sale del mismo pedido.",
-    placeholder: "Retrato editorial, luz lateral, fondo negro…",
-    examples: ["Retrato editorial, luz de estudio, fondo negro", "Skincare sobre piedra, luz lateral", "Logo de oro sobre seda oscura"],
-  },
-  search: {
-    kicker: "Búsqueda",
-    title: "Encuentra la referencia.\nDespués conviértela en pieza.",
-    hint: "Busca campañas, productos o tendencias y quédate con lo que sirva.",
-    placeholder: "Campañas de relojes de lujo…",
-    examples: ["campañas de lujo 2026", "anuncios de perfumes", "fotografía de producto premium"],
-  },
+const stages: Record<StudioTab, { placeholder: string; action: string }> = {
+  video: { placeholder: "Escribe la idea o pega el guion del video", action: "Crear video" },
+  image: { placeholder: "Describe la imagen que quieres", action: "Crear imagen" },
+  search: { placeholder: "Qué quieres encontrar", action: "Buscar" },
 };
+
+const ideas: Record<StudioTab, { label: string; text: string }[]> = {
+  video: [
+    { label: "Anuncio", text: "Un frasco de perfume sobre mármol negro, luz dorada, cámara lenta" },
+    { label: "Producto", text: "Un reloj de oro sobre roble, reflejo suave, estudio oscuro" },
+    { label: "Ciudad", text: "Una ciudad de noche desde un auto, luces violetas" },
+  ],
+  image: [
+    { label: "Retrato", text: "Retrato editorial, luz de estudio, fondo negro" },
+    { label: "Producto", text: "Skincare sobre piedra, luz lateral" },
+    { label: "Logo", text: "Logo de oro sobre seda oscura" },
+  ],
+  search: [
+    { label: "Lujo", text: "campañas de lujo 2026" },
+    { label: "Perfumes", text: "anuncios de perfumes" },
+    { label: "Producto", text: "fotografía de producto premium" },
+  ],
+};
+
+const backdrop = [
+  { src: "/studio/fondo-1.mp4", place: "left-[-8%] top-[6%] hidden w-[36%] -rotate-6 sm:block", delay: "0s" },
+  { src: "/studio/fondo-2.mp4", place: "right-[-6%] top-[8%] w-[34%] rotate-6 sm:w-[30%]", delay: "1.2s" },
+  { src: "/studio/fondo-3.mp4", place: "bottom-[5%] left-[-6%] hidden w-[32%] rotate-3 sm:block", delay: "0.6s" },
+  { src: "/studio/fondo-4.mp4", place: "right-[-4%] bottom-[7%] w-[36%] -rotate-3 sm:w-[28%]", delay: "1.8s" },
+];
 
 type StudioBrief = { id: number; tab: StudioTab; text: string };
 
@@ -125,6 +125,7 @@ export function CreativeStudio({ initialPieces = [] }: { initialPieces?: Creatio
   const [quality, setQuality] = useState<"4K" | "1080p">("4K");
   const [brief, setBrief] = useState<StudioBrief | null>(null);
   const [reel, setReel] = useState<string | null>(null);
+  const scriptRef = useRef<HTMLInputElement>(null);
   const stage = stages[tab];
 
   function launch(text = draft) {
@@ -141,95 +142,120 @@ export function CreativeStudio({ initialPieces = [] }: { initialPieces?: Creatio
 
   return (
     <div className="space-y-5">
-      <section className="relative isolate min-h-[78vh] overflow-hidden bg-[#0B0A10] text-white md:min-h-[calc(100dvh-1rem)]">
+      <section className="relative isolate min-h-[78vh] overflow-hidden bg-[#100818] text-white md:min-h-[calc(100dvh-1rem)]">
         {reel && tab === "video" ? (
           <video key={reel} className="absolute inset-0 h-full w-full object-cover" autoPlay muted loop playsInline>
             <source src={reel} type="video/mp4" />
           </video>
-        ) : null}
-        <div className={reel && tab === "video" ? "absolute inset-0 bg-gradient-to-b from-black/55 via-black/40 to-black/75" : "absolute inset-0 bg-[radial-gradient(ellipse_at_center,#241833_0%,#0B0A10_68%)]"} />
-        <div className="relative flex min-h-[78vh] flex-col px-4 py-5 sm:px-8 md:min-h-[calc(100dvh-1rem)]">
-          <div role="tablist" aria-label="Estudio creativo" className="flex flex-wrap gap-2">
-            {tabs.map((item) => {
-              const active = tab === item.id;
-              return (
-                <button
-                  key={item.id}
-                  type="button"
-                  role="tab"
-                  aria-selected={active}
-                  onClick={() => setTab(item.id)}
-                  className={cn(
-                    "rounded-full border px-4 py-2 text-sm backdrop-blur",
-                    active ? "border-white bg-white text-[#0B0A10]" : "border-white/30 bg-black/25 text-white hover:border-white/60",
-                  )}
-                >
-                  {item.label}
-                </button>
-              );
-            })}
-          </div>
-          <div className="mx-auto flex w-full max-w-3xl flex-1 flex-col items-center justify-center pb-10 text-center">
-            <p className="text-xs uppercase tracking-[0.28em] text-white/75">{stage.kicker}</p>
-            <h2 className="mt-4 whitespace-pre-line text-4xl font-semibold tracking-tight sm:text-6xl">{stage.title}</h2>
-            <p className="mt-4 max-w-xl text-sm leading-6 text-white/80 sm:text-base">{stage.hint}</p>
-            <form
-              className="mt-8 w-full"
-              onSubmit={(event) => {
-                event.preventDefault();
-                launch();
-              }}
-            >
-              <label htmlFor="studio-prompt" className="sr-only">
-                Describe lo que quieres crear
-              </label>
-              <div className="flex items-center gap-2 rounded-full border border-white/25 bg-white/95 px-4 py-2 text-left text-[#1E1E24] shadow-[0_20px_60px_-24px_rgba(0,0,0,0.65)]">
-                <Sparkles className="h-4 w-4 shrink-0 text-[#7C3AED]" aria-hidden />
-                <input
-                  id="studio-prompt"
-                  value={draft}
-                  onChange={(event) => setDraft(event.target.value)}
-                  placeholder={stage.placeholder}
-                  className="h-11 min-w-0 flex-1 bg-transparent text-sm outline-none placeholder:text-[#8A8680] sm:text-base"
-                />
-                <button type="submit" aria-label="Crear" className="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-[#7C3AED] text-white">
-                  <ArrowUp className="h-4 w-4" />
-                </button>
+        ) : (
+          backdrop.map((clip) => (
+            <div key={clip.src} className={cn("pointer-events-none absolute", clip.place)}>
+              <div className="studio-drift overflow-hidden rounded-2xl shadow-[0_24px_60px_-20px_rgba(0,0,0,0.65)] ring-1 ring-white/20" style={{ animationDelay: clip.delay }}>
+                <video className="aspect-video w-full object-cover" autoPlay muted loop playsInline>
+                  <source src={clip.src} type="video/mp4" />
+                </video>
               </div>
-            </form>
-            {tab === "video" ? (
-              <div className="mt-4 flex gap-2">
-                {(["4K", "1080p"] as const).map((option) => (
+            </div>
+          ))
+        )}
+        <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_center,rgba(16,8,24,0.15)_0%,rgba(16,8,24,0.72)_58%,rgba(16,8,24,0.92)_100%)]" />
+        <div className="relative z-10 flex min-h-[78vh] flex-col items-center justify-center px-4 py-8 md:min-h-[calc(100dvh-1rem)]">
+          <p className="text-[11px] font-medium tracking-[0.28em] text-white/70 uppercase">Estudio creativo</p>
+          <h2 className="mt-3 text-center text-3xl font-semibold tracking-tight sm:text-5xl">Video o imagen, desde aquí.</h2>
+          <form
+            className="mt-8 w-full max-w-2xl overflow-hidden rounded-3xl bg-white text-[#1E1E24] shadow-[0_30px_80px_-24px_rgba(0,0,0,0.55)]"
+            onSubmit={(event) => {
+              event.preventDefault();
+              launch();
+            }}
+          >
+            <div role="tablist" aria-label="Qué quieres crear" className="grid grid-cols-3 border-b border-[#E7E2DA]">
+              {tabs.map((item) => {
+                const active = tab === item.id;
+                return (
                   <button
-                    key={option}
+                    key={item.id}
                     type="button"
-                    onClick={() => setQuality(option)}
-                    className={cn(
-                      "rounded-full px-3 py-1 text-xs",
-                      quality === option ? "bg-white text-[#0B0A10]" : "bg-black/35 text-white",
-                    )}
+                    role="tab"
+                    aria-selected={active}
+                    onClick={() => setTab(item.id)}
+                    className={cn("px-3 py-4 text-left", active ? "bg-[#F5F3FF]" : "hover:bg-[#F6F4F1]")}
                   >
-                    {option === "4K" ? "4K" : "HD 1080p"}
+                    <span className={cn("block text-sm font-semibold", active ? "text-[#5B21B6]" : "text-[#1E1E24]")}>{item.label}</span>
+                    <span className="mt-0.5 hidden text-[11px] leading-4 text-[#8A8680] sm:block">{item.hint}</span>
+                  </button>
+                );
+              })}
+            </div>
+            <div className="px-4 pt-4 sm:px-5">
+              {tab === "video" ? (
+                <div className="mb-3 flex gap-2">
+                  {(["4K", "1080p"] as const).map((option) => (
+                    <button
+                      key={option}
+                      type="button"
+                      onClick={() => setQuality(option)}
+                      className={cn(
+                        "rounded-full border px-3 py-1 text-xs font-medium",
+                        quality === option ? "border-[#7C3AED] bg-[#7C3AED] text-white" : "border-[#E7E2DA] text-[#5C5854]",
+                      )}
+                    >
+                      {option === "4K" ? "4K" : "HD 1080p"}
+                    </button>
+                  ))}
+                </div>
+              ) : null}
+              <div className="flex flex-wrap gap-2">
+                {ideas[tab].map((idea) => (
+                  <button
+                    key={idea.label}
+                    type="button"
+                    onClick={() => setDraft(idea.text)}
+                    className="rounded-full border border-[#DDD6FE] bg-[#F5F3FF] px-3 py-1 text-xs font-medium text-[#5B21B6] hover:border-[#7C3AED]"
+                  >
+                    {idea.label}
                   </button>
                 ))}
               </div>
-            ) : null}
-            <div className="mt-4 flex flex-wrap justify-center gap-2">
-              {stage.examples.map((example) => (
-                <button
-                  key={example}
-                  type="button"
-                  onClick={() => launch(example)}
-                  className="rounded-full border border-white/25 bg-black/30 px-3 py-1.5 text-xs text-white backdrop-blur hover:border-white/60"
-                >
-                  {example}
-                </button>
-              ))}
+              <label htmlFor="studio-prompt" className="sr-only">
+                Describe lo que quieres crear
+              </label>
+              <textarea
+                id="studio-prompt"
+                value={draft}
+                onChange={(event) => setDraft(event.target.value)}
+                placeholder={stage.placeholder}
+                rows={4}
+                className="mt-3 w-full resize-none bg-transparent text-sm leading-6 text-[#1E1E24] outline-none placeholder:text-[#A8A29E] sm:text-base"
+              />
             </div>
-            <p className="mt-6 text-[11px] text-white/60">
-              {pieces.length} {pieces.length === 1 ? "pieza guardada" : "piezas guardadas"}
-            </p>
-          </div>
+            <div className="flex items-center justify-between gap-3 border-t border-[#F0ECE6] px-4 py-3 sm:px-5">
+              <input
+                ref={scriptRef}
+                type="file"
+                accept=".txt,.md,text/plain"
+                className="hidden"
+                onChange={(event) => {
+                  const file = event.target.files?.[0];
+                  event.target.value = "";
+                  if (!file) return;
+                  void file.text().then((text) => setDraft(text.trim().slice(0, 4000)));
+                }}
+              />
+              <button
+                type="button"
+                onClick={() => scriptRef.current?.click()}
+                className="inline-flex items-center gap-2 rounded-xl border border-[#E7E2DA] px-3 py-2 text-sm text-[#5C5854] hover:border-[#C4B5FD]"
+              >
+                <Paperclip className="size-4" />
+                Guion
+              </button>
+              <button type="submit" className="inline-flex items-center gap-2 rounded-xl bg-[#7C3AED] px-4 py-2.5 text-sm font-medium text-white hover:bg-[#6D28D9]">
+                {stage.action}
+                <ArrowUp className="size-4" />
+              </button>
+            </div>
+          </form>
         </div>
       </section>
 

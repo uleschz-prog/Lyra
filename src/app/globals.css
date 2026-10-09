@@ -502,6 +502,18 @@ body::before {
   animation-delay: 0.18s;
 }
 
+@keyframes studio-drift {
+  0%,
+  100% { translate: 0 0; }
+  50% { translate: 0 -14px; }
+}
+.studio-drift {
+  animation: studio-drift 8s ease-in-out infinite;
+}
+@media (prefers-reduced-motion: reduce) {
+  .studio-drift { animation: none; }
+}
+
 /* ===== Modo app (PWA / móvil) ===== */
 html {
   -webkit-tap-highlight-color: transparent;
