@@ -2,9 +2,11 @@
 
 import {
   ArrowUp,
+  Bot,
   Brain,
   CalendarClock,
   ChevronLeft,
+  Clapperboard,
   EllipsisVertical,
   FileText,
   Globe,
@@ -14,11 +16,15 @@ import {
   Paperclip,
   Pencil,
   Plug,
+  Search,
   ShieldCheck,
+  Smartphone,
+  Sparkles,
   Square,
   Trash2,
   User,
   X,
+  type LucideIcon,
 } from "lucide-react";
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
@@ -97,33 +103,13 @@ async function shrinkImage(file: File) {
   }
 }
 
-const briefs = [
-  {
-    kicker: "App",
-    title: "Quiero una app para agendar citas en mi clínica",
-    note: "La agenda, el recordatorio y el tono de tu consultorio.",
-  },
-  {
-    kicker: "Sitio",
-    title: "Hazme un sitio web para mi estudio de diseño",
-    note: "Una primera pantalla que ya se sienta tuya.",
-  },
-  {
-    kicker: "Agente",
-    title: "Crea un agente que confirme citas y responda dudas",
-    note: "Alguien que conteste con tu voz cuando tú no estás.",
-  },
-  {
-    kicker: "Campaña",
-    title: "Hazme el logo de mi clínica y un video corto para anunciarla",
-    note: "Marca y anuncio, listos para salir a la calle.",
-  },
-];
-
-const craft = [
-  { index: "01", title: "Amor", text: "El detalle se cuida como si el trabajo fuera nuestro." },
-  { index: "02", title: "Curiosidad", text: "Primero entiende el pedido. Luego construye." },
-  { index: "03", title: "Eficiencia", text: "De una idea a un paso que ya se puede usar." },
+const launches: { icon: LucideIcon; label: string; prompt: string }[] = [
+  { icon: Smartphone, label: "App", prompt: "Quiero una app para agendar citas en mi clínica" },
+  { icon: Globe, label: "Sitio", prompt: "Hazme un sitio web para mi estudio de diseño" },
+  { icon: Bot, label: "Agente", prompt: "Crea un agente que confirme citas y responda dudas" },
+  { icon: Clapperboard, label: "Video", prompt: "Hazme un video corto para anunciar mi negocio" },
+  { icon: Sparkles, label: "Imagen", prompt: "Hazme el logo de mi clínica" },
+  { icon: Search, label: "Buscar", prompt: "Búscame ideas para crecer mi negocio esta semana" },
 ];
 
 export function VegaChat({
@@ -444,9 +430,7 @@ export function VegaChat({
   return (
     <div className={cn(
       "fixed inset-x-0 top-0 bottom-[var(--lyra-tab)] z-20 flex min-h-0 flex-col overflow-hidden md:relative md:inset-auto md:bottom-auto md:z-auto md:h-[calc(100dvh-7rem)] md:min-h-[520px] md:flex-row md:rounded-3xl md:border md:border-[#E7E2DA] dark:md:border-white/12",
-      empty
-        ? "bg-[#F6F3EE] md:bg-[radial-gradient(ellipse_at_top,#EDE9FE_0%,#F6F3EE_46%,#FCFBF9_100%)] dark:bg-[#14121C]"
-        : "bg-white dark:bg-[#14121C]",
+      empty ? "bg-[#0C0A12]" : "bg-white dark:bg-[#14121C]",
     )}>
       {listOpen || menuOpen || panel ? (
         <button
@@ -482,7 +466,7 @@ export function VegaChat({
           </button>
         </div>
         <ul className="flex-1 space-y-0.5 overflow-y-auto px-2 pb-3">
-          {chats.length === 0 ? <li className="px-3 py-6 text-xs leading-5 text-[#8A8680]">El estudio empieza en blanco. La primera conversación se queda aquí.</li> : null}
+          {chats.length === 0 ? <li className="px-3 py-6 text-xs leading-5 text-[#8A8680]">Todavía no hay conversaciones.</li> : null}
           {chats.map((chat) => (
             <li key={chat.id} className="group relative">
               <button
@@ -515,20 +499,20 @@ export function VegaChat({
         </Link>
       </aside>
 
-      <section className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
-        <header className="flex items-center gap-2 border-b border-[#F0ECE6] bg-white/95 px-2 pt-[max(0.5rem,env(safe-area-inset-top))] pb-2 backdrop-blur md:hidden dark:border-white/10 dark:bg-[#14121C]/95">
-          <Link href="/dashboard" className="grid size-10 place-items-center rounded-full text-[#1E1E24] active:bg-[#F3F0EB] dark:text-[#F2F0F7] dark:active:bg-[#221F30]" aria-label="Volver a LYRA">
+      <section className={cn("flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden", empty && "bg-[#0C0A12] bg-[radial-gradient(ellipse_at_50%_0%,#5B21B6_0%,#0C0A12_62%)]")}>
+        <header className={cn("flex items-center gap-2 px-2 pt-[max(0.5rem,env(safe-area-inset-top))] pb-2 backdrop-blur md:hidden", empty ? "border-b border-white/10 bg-transparent text-white" : "border-b border-[#F0ECE6] bg-white/95 dark:border-white/10 dark:bg-[#14121C]/95")}>
+          <Link href="/dashboard" className={cn("grid size-10 place-items-center rounded-full active:bg-white/10", empty ? "text-white" : "text-[#1E1E24] active:bg-[#F3F0EB] dark:text-[#F2F0F7]")} aria-label="Volver a LYRA">
             <ChevronLeft className="size-6" />
           </Link>
           <div className="min-w-0 flex-1">
-            <p className="text-[15px] leading-tight font-semibold text-[#1E1E24]">Vega</p>
-            <p className={cn("truncate text-xs", streaming ? "text-[#7C3AED]" : "text-[#8A8680]")}>
-              {streaming ? "Escribiendo…" : "En el estudio"}
+            <p className={cn("text-[15px] leading-tight font-semibold", empty ? "text-white" : "text-[#1E1E24]")}>Vega</p>
+            <p className={cn("truncate text-xs", streaming ? "text-[#C4B5FD]" : empty ? "text-white/55" : "text-[#8A8680]")}>
+              {streaming ? "Escribiendo…" : "Listo"}
             </p>
           </div>
           <button
             type="button"
-            className="grid size-10 place-items-center rounded-full text-[#1E1E24] active:bg-[#F3F0EB]"
+            className={cn("grid size-10 place-items-center rounded-full", empty ? "text-white active:bg-white/10" : "text-[#1E1E24] active:bg-[#F3F0EB]")}
             onClick={() => setListOpen(true)}
             aria-label="Ver conversaciones"
           >
@@ -536,7 +520,7 @@ export function VegaChat({
           </button>
           <button
             type="button"
-            className="grid size-10 place-items-center rounded-full text-[#1E1E24] active:bg-[#F3F0EB]"
+            className={cn("grid size-10 place-items-center rounded-full", empty ? "text-white active:bg-white/10" : "text-[#1E1E24] active:bg-[#F3F0EB]")}
             onClick={() => setMenuOpen(true)}
             aria-label="Más opciones"
           >
@@ -544,10 +528,10 @@ export function VegaChat({
           </button>
         </header>
 
-        <header className="hidden items-center gap-3 border-b border-[#F0ECE6] px-4 py-3 md:flex">
+        <header className={cn("hidden items-center gap-3 px-4 py-3 md:flex", empty ? "border-b border-white/10" : "border-b border-[#F0ECE6]")}>
           <div className="min-w-0 flex-1">
-            <p className="text-sm font-semibold text-[#1E1E24]">Vega</p>
-            <p className="text-[11px] text-[#8A8680]">Estudio listo</p>
+            <p className={cn("text-sm font-semibold", empty ? "text-white" : "text-[#1E1E24]")}>Vega</p>
+            <p className={cn("text-[11px]", empty ? "text-white/50" : "text-[#8A8680]")}>Listo</p>
           </div>
           <CreditRing balance={balance} tank={tank} />
           {panelButtons.map(({ id, label, icon: Icon }) => (
@@ -556,11 +540,17 @@ export function VegaChat({
               type="button"
               onClick={() => openPanel(id)}
               className={cn(
-                "inline-flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-medium text-[#1E1E24] hover:border-[#C4B5FD]",
-                panel === id ? "border-[#C4B5FD] bg-[#F5F3FF] dark:border-[#A78BFA]/50 dark:bg-[#221F30]" : "border-[#E7E2DA] dark:border-white/12",
+                "inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs font-medium",
+                empty
+                  ? panel === id
+                    ? "border-white/30 bg-white/15 text-white"
+                    : "border-white/15 text-white/80 hover:border-white/30 hover:bg-white/10"
+                  : panel === id
+                    ? "border-[#C4B5FD] bg-[#F5F3FF] text-[#1E1E24]"
+                    : "border-[#E7E2DA] text-[#1E1E24] hover:border-[#C4B5FD]",
               )}
             >
-              <Icon className="size-3.5 text-[#7C3AED]" />
+              <Icon className={cn("size-3.5", empty ? "text-[#C4B5FD]" : "text-[#7C3AED]")} />
               <span className="hidden lg:inline">{label}</span>
             </button>
           ))}
@@ -608,52 +598,32 @@ export function VegaChat({
         <div className={cn("min-h-0 flex-1 overscroll-contain overflow-y-auto px-3 sm:px-8", empty ? "pt-3 pb-1 sm:pt-4" : "py-5 sm:py-6")}>
           {loadingChat ? <p className="text-center text-sm text-[#8A8680]">Abriendo conversación…</p> : null}
           {empty && !loadingChat ? (
-            <div className="mx-auto flex w-full max-w-3xl flex-col items-center px-1 pt-1 text-center sm:pt-3">
-              <div className="inline-flex items-center gap-2 rounded-full border border-[#E7E2DA]/80 bg-white/80 px-3 py-1 shadow-[0_12px_30px_-24px_rgba(30,30,36,0.9)] backdrop-blur dark:border-white/10 dark:bg-[#181625]/80">
-                <span className="size-1.5 rounded-full bg-[#10B981]" aria-hidden />
-                <p className="text-[11px] font-medium tracking-[0.28em] text-[#7C3AED] uppercase">Estudio Vega</p>
+            <div className="mx-auto flex min-h-full w-full max-w-lg flex-col items-center justify-center px-1 py-6 text-center">
+              <div className="relative grid size-28 place-items-center sm:size-32">
+                <span className="absolute inset-0 rounded-full bg-[radial-gradient(circle,rgba(167,139,250,0.55)_0%,transparent_68%)]" aria-hidden />
+                <span className="absolute inset-1 animate-[spin_18s_linear_infinite] rounded-full border border-dashed border-white/25" aria-hidden />
+                <span className="absolute inset-4 rounded-full border border-white/15" aria-hidden />
+                <VegaGreeting className="relative size-20 drop-shadow-[0_18px_40px_rgba(124,58,237,0.65)] sm:size-24" />
               </div>
-              <div className="relative mt-2 grid size-16 place-items-center sm:size-[4.25rem]">
-                <span className="absolute inset-0 rounded-full bg-[radial-gradient(circle,rgba(167,139,250,0.5)_0%,transparent_68%)]" aria-hidden />
-                <span className="absolute inset-0.5 rounded-full border border-[#C4B5FD]/80" aria-hidden />
-                <span className="absolute inset-2.5 rounded-full border border-white/90 dark:border-white/15" aria-hidden />
-                <VegaGreeting className="relative size-10 sm:size-12" />
-              </div>
-              <h2 className="mt-2 text-[1.7rem] leading-tight font-semibold tracking-tight text-[#1E1E24] sm:text-[2.15rem]">Hola, {firstName}.</h2>
-              <p className="mt-1 max-w-xl text-base leading-6 text-[#3F3A36] sm:text-lg">¿Qué quieres construir hoy?</p>
-              <p className="mt-2 max-w-lg text-sm leading-5 text-[#5C5854]">
-                Detrás de Vega está el estudio que escribe Lyra: pregunta con curiosidad, cuida el detalle y te deja el siguiente paso listo.
-              </p>
-              <ul className="mt-4 flex flex-wrap justify-center gap-2 sm:hidden">
-                {craft.map((item) => (
-                  <li key={item.title} className="rounded-full bg-white/85 px-3 py-1 text-[11px] font-medium text-[#5B21B6] dark:bg-[#221F30] dark:text-[#DDD6FE]">
-                    {item.title}
-                  </li>
-                ))}
-              </ul>
-              <ol className="mt-3 hidden w-full gap-2 sm:grid sm:grid-cols-3">
-                {craft.map((item) => (
-                  <li key={item.title} className="rounded-2xl border border-white/80 bg-white/75 px-3 py-2 text-left shadow-[0_16px_40px_-28px_rgba(30,30,36,0.75)] backdrop-blur dark:border-white/10 dark:bg-[#181625]/80">
-                    <span className="font-mono text-[10px] tracking-[0.22em] text-[#A78BFA]">{item.index}</span>
-                    <span className="mt-0.5 block text-sm font-semibold text-[#1E1E24] dark:text-[#F2F0F7]">{item.title}</span>
-                    <span className="mt-0.5 block text-[11px] leading-4 text-[#5C5854]">{item.text}</span>
-                  </li>
-                ))}
-              </ol>
-              <div className="mt-3 grid w-full gap-2 text-left sm:grid-cols-2">
-                {briefs.map((brief) => (
-                  <button
-                    key={brief.title}
-                    type="button"
-                    onClick={() => void send(brief.title, { files: [], links: [] })}
-                    className="group relative overflow-hidden rounded-2xl border border-[#E7E2DA] bg-white/92 px-4 py-3 pl-5 text-left shadow-[0_18px_40px_-32px_rgba(30,30,36,0.9)] transition hover:-translate-y-0.5 hover:border-[#C4B5FD] hover:shadow-[0_22px_40px_-28px_rgba(124,58,237,0.55)] active:bg-[#F5F3FF] dark:border-white/12 dark:bg-[#181625] dark:hover:border-[#A78BFA]/50"
-                  >
-                    <span className="absolute inset-y-3 left-0 w-0.5 rounded-full bg-[#7C3AED]" aria-hidden />
-                    <span className="text-[10px] font-medium tracking-[0.18em] text-[#7C3AED] uppercase">{brief.kicker}</span>
-                    <span className="mt-1 line-clamp-2 block text-sm font-medium leading-5 text-[#1E1E24] dark:text-[#F2F0F7]">{brief.title}</span>
-                    <span className="mt-1 line-clamp-1 block text-xs leading-5 text-[#8A8680]">{brief.note}</span>
-                  </button>
-                ))}
+              <h2 className="mt-5 text-3xl font-semibold tracking-tight text-white sm:text-4xl">Hola, {firstName}</h2>
+              <p className="mt-1 text-sm text-white/55">Toca y Vega arranca.</p>
+              <div className="mt-8 grid w-full grid-cols-3 gap-2.5 sm:gap-3">
+                {launches.map((launch) => {
+                  const Icon = launch.icon;
+                  return (
+                    <button
+                      key={launch.label}
+                      type="button"
+                      onClick={() => void send(launch.prompt, { files: [], links: [] })}
+                      className="group flex flex-col items-center gap-2.5 rounded-3xl border border-white/10 bg-white/6 px-2 py-4 transition hover:-translate-y-1 hover:border-white/25 hover:bg-white/10 active:scale-[0.98]"
+                    >
+                      <span className="grid size-12 place-items-center rounded-2xl bg-gradient-to-br from-[#C4B5FD] via-[#7C3AED] to-[#4C1D95] text-white shadow-[0_14px_30px_-14px_rgba(124,58,237,0.95)] transition group-hover:shadow-[0_18px_36px_-12px_rgba(167,139,250,0.9)]">
+                        <Icon className="size-5" />
+                      </span>
+                      <span className="text-[13px] font-medium text-white">{launch.label}</span>
+                    </button>
+                  );
+                })}
               </div>
             </div>
           ) : null}
@@ -741,7 +711,7 @@ export function VegaChat({
         </div>
 
         <form
-          className="shrink-0 border-t border-[#F0ECE6] bg-white px-3 pt-2 pb-3 sm:p-4 dark:border-white/10 dark:bg-[#14121C]"
+          className={cn("shrink-0 px-3 pt-2 pb-3 sm:p-4", empty ? "bg-transparent" : "border-t border-[#F0ECE6] bg-white dark:border-white/10 dark:bg-[#14121C]")}
           onSubmit={(event) => {
             event.preventDefault();
             void send();
@@ -759,8 +729,14 @@ export function VegaChat({
         >
           <div
             className={cn(
-              "mx-auto max-w-3xl rounded-3xl border bg-[#FCFBF9] p-1.5 focus-within:border-[#7C3AED] sm:rounded-2xl sm:bg-white sm:p-2 dark:bg-[#181625] dark:focus-within:border-[#A78BFA] dark:sm:bg-[#181625]",
-              dragging ? "border-[#7C3AED] bg-[#F5F3FF]" : "border-[#E7E2DA] dark:border-white/12",
+              "mx-auto max-w-3xl rounded-3xl border p-1.5 transition sm:rounded-2xl sm:p-2",
+              empty
+                ? dragging
+                  ? "border-[#C4B5FD] bg-white/12 shadow-[0_0_0_4px_rgba(124,58,237,0.28)]"
+                  : "border-white/15 bg-white/8 shadow-[0_20px_50px_-28px_rgba(124,58,237,0.85)] focus-within:border-[#C4B5FD] focus-within:shadow-[0_0_0_4px_rgba(124,58,237,0.28)]"
+                : dragging
+                  ? "border-[#7C3AED] bg-[#F5F3FF]"
+                  : "border-[#E7E2DA] bg-[#FCFBF9] focus-within:border-[#7C3AED] sm:bg-white dark:border-white/12 dark:bg-[#181625]",
             )}
           >
             {files.length || links.length ? (
@@ -821,7 +797,7 @@ export function VegaChat({
             <button
               type="button"
               onClick={() => fileRef.current?.click()}
-              className="grid size-10 shrink-0 place-items-center rounded-full text-[#5C5854] hover:bg-[#F3F0EB] hover:text-[#1E1E24] dark:hover:bg-[#221F30]"
+              className={cn("grid size-10 shrink-0 place-items-center rounded-full", empty ? "text-white/70 hover:bg-white/10 hover:text-white" : "text-[#5C5854] hover:bg-[#F3F0EB] hover:text-[#1E1E24] dark:hover:bg-[#221F30]")}
               aria-label="Adjuntar archivos"
             >
               <Paperclip className="size-4" />
@@ -829,7 +805,7 @@ export function VegaChat({
             <button
               type="button"
               onClick={() => setLinkOpen((open) => !open)}
-              className="grid size-10 shrink-0 place-items-center rounded-full text-[#5C5854] hover:bg-[#F3F0EB] hover:text-[#1E1E24] dark:hover:bg-[#221F30]"
+              className={cn("grid size-10 shrink-0 place-items-center rounded-full", empty ? "text-white/70 hover:bg-white/10 hover:text-white" : "text-[#5C5854] hover:bg-[#F3F0EB] hover:text-[#1E1E24] dark:hover:bg-[#221F30]")}
               aria-label="Agregar enlace"
             >
               <Link2 className="size-4" />
@@ -854,8 +830,8 @@ export function VegaChat({
               rows={1}
               maxLength={4000}
               enterKeyHint="send"
-              placeholder="Escríbele a Vega, adjunta archivos o un enlace…"
-              className="max-h-32 min-h-10 flex-1 resize-none bg-transparent px-1 py-2 text-base text-[#1E1E24] outline-none placeholder:text-[#A8A29E] field-sizing-content sm:max-h-40 sm:text-sm"
+              placeholder={empty ? "Pídeselo a Vega…" : "Escríbele a Vega, adjunta archivos o un enlace…"}
+              className={cn("max-h-32 min-h-10 flex-1 resize-none bg-transparent px-1 py-2 text-base outline-none field-sizing-content sm:max-h-40 sm:text-sm", empty ? "text-white placeholder:text-white/40" : "text-[#1E1E24] placeholder:text-[#A8A29E]")}
             />
             <CreditRing balance={balance} tank={tank} size={26} className="mb-2 md:hidden" />
             {streaming ? (
@@ -879,9 +855,11 @@ export function VegaChat({
             )}
             </div>
           </div>
-          <p className="mx-auto mt-2 hidden max-w-3xl text-center text-[11px] text-[#A8A29E] sm:block">
-            Vega puede equivocarse. Revisa lo que importa antes de enviarlo.
-          </p>
+          {empty ? null : (
+            <p className="mx-auto mt-2 hidden max-w-3xl text-center text-[11px] text-[#A8A29E] sm:block">
+              Vega puede equivocarse. Revisa lo que importa antes de enviarlo.
+            </p>
+          )}
         </form>
       </section>
     </div>
