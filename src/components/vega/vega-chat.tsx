@@ -13,6 +13,8 @@ import {
   Link2,
   MessageSquarePlus,
   MessagesSquare,
+  PanelLeftClose,
+  PanelLeftOpen,
   Paperclip,
   Pencil,
   Plug,
@@ -141,6 +143,7 @@ export function VegaChat({
   const [mood, setMood] = useState<VegaMood>("neutral");
   const [loadingChat, setLoadingChat] = useState(false);
   const [listOpen, setListOpen] = useState(false);
+  const [chatsHidden, setChatsHidden] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
   const abortRef = useRef<AbortController | null>(null);
   const endRef = useRef<HTMLDivElement>(null);
@@ -163,6 +166,23 @@ export function VegaChat({
     );
     window.history.replaceState(null, "", window.location.pathname);
   }, [justConnected]);
+
+  useEffect(() => {
+    try {
+      if (sessionStorage.getItem("lyra-vega-chats") === "0") setChatsHidden(true);
+    } catch {
+      /* modo privado */
+    }
+  }, []);
+
+  function setChatsCollapsed(hidden: boolean) {
+    setChatsHidden(hidden);
+    try {
+      sessionStorage.setItem("lyra-vega-chats", hidden ? "0" : "1");
+    } catch {
+      /* modo privado */
+    }
+  }
 
   function actionChanged(messageId: string, action: VegaActionView, result: string) {
     if (action.status === "done") setMood("happy");
@@ -414,6 +434,7 @@ export function VegaChat({
   }
 
   const empty = messages.length === 0;
+  const column = chatsHidden ? "max-w-4xl" : "max-w-3xl";
   const panelButtons = [
     { id: "profile", label: "Perfil", hint: "Tu negocio, metas y tono", icon: User },
     { id: "autonomy", label: "Autonomía", hint: "Lo que Vega ejecuta sin confirmar", icon: ShieldCheck },
@@ -449,6 +470,7 @@ export function VegaChat({
         className={cn(
           "fixed top-0 bottom-[var(--lyra-tab)] left-0 z-50 flex w-[min(85vw,320px)] flex-col border-r border-[#F0ECE6] bg-[#FCFBF9] pt-[env(safe-area-inset-top)] transition-transform duration-200 md:static md:inset-y-auto md:bottom-auto md:z-auto md:w-72 md:translate-x-0 md:pt-0 dark:border-white/10 dark:bg-[#181625]",
           listOpen ? "translate-x-0 shadow-2xl md:shadow-none" : "-translate-x-full",
+          chatsHidden && "md:hidden",
         )}
       >
         <div className="flex items-center gap-2 p-3">
@@ -460,6 +482,15 @@ export function VegaChat({
           >
             <MessageSquarePlus className="size-4" />
             Nueva conversación
+          </button>
+          <button
+            type="button"
+            className="hidden rounded-lg p-2 text-[#5C5854] hover:bg-[#F3F0EB] md:grid dark:text-[#9B96AC] dark:hover:bg-[#221F30]"
+            onClick={() => setChatsCollapsed(true)}
+            aria-label="Minimizar conversaciones"
+            title="Minimizar conversaciones"
+          >
+            <PanelLeftClose className="size-4" />
           </button>
           <button type="button" className="rounded-lg p-2 text-[#5C5854] md:hidden" onClick={() => setListOpen(false)} aria-label="Cerrar lista">
             <X className="size-4" />
@@ -529,6 +560,22 @@ export function VegaChat({
         </header>
 
         <header className={cn("hidden items-center gap-3 px-4 py-3 md:flex", empty ? "border-b border-white/10" : "border-b border-[#F0ECE6]")}>
+          {chatsHidden ? (
+            <button
+              type="button"
+              onClick={() => setChatsCollapsed(false)}
+              className={cn(
+                "inline-flex shrink-0 items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs font-medium",
+                empty
+                  ? "border-white/15 text-white/80 hover:border-white/30 hover:bg-white/10"
+                  : "border-[#E7E2DA] text-[#1E1E24] hover:border-[#C4B5FD]",
+              )}
+              aria-label="Mostrar conversaciones"
+            >
+              <PanelLeftOpen className={cn("size-3.5", empty ? "text-[#C4B5FD]" : "text-[#7C3AED]")} />
+              Conversaciones
+            </button>
+          ) : null}
           <div className="min-w-0 flex-1">
             <p className={cn("text-sm font-semibold", empty ? "text-white" : "text-[#1E1E24]")}>Vega</p>
             <p className={cn("text-[11px]", empty ? "text-white/50" : "text-[#8A8680]")}>Listo</p>
@@ -598,7 +645,7 @@ export function VegaChat({
         <div className={cn("min-h-0 flex-1 overscroll-contain overflow-y-auto px-3 sm:px-8", empty ? "pt-3 pb-1 sm:pt-4" : "py-5 sm:py-6")}>
           {loadingChat ? <p className="text-center text-sm text-[#8A8680]">Abriendo conversación…</p> : null}
           {empty && !loadingChat ? (
-            <div className="mx-auto flex min-h-full w-full max-w-lg flex-col items-center justify-center px-1 py-6 text-center">
+            <div className={cn("mx-auto flex min-h-full w-full flex-col items-center justify-center px-1 py-6 text-center", chatsHidden ? "max-w-2xl" : "max-w-lg")}>
               <div className="relative grid size-28 place-items-center sm:size-32">
                 <span className="absolute inset-0 rounded-full bg-[radial-gradient(circle,rgba(167,139,250,0.55)_0%,transparent_68%)]" aria-hidden />
                 <span className="absolute inset-1 animate-[spin_18s_linear_infinite] rounded-full border border-dashed border-white/25" aria-hidden />
@@ -627,7 +674,7 @@ export function VegaChat({
               </div>
             </div>
           ) : null}
-          <div className="mx-auto max-w-3xl space-y-6">
+          <div className={cn("mx-auto space-y-6", column)}>
             {messages.map((message, index) =>
               message.role === "user" ? (
                 <div key={message.id} className="flex justify-end">
@@ -729,7 +776,8 @@ export function VegaChat({
         >
           <div
             className={cn(
-              "mx-auto max-w-3xl rounded-3xl border p-1.5 transition sm:rounded-2xl sm:p-2",
+              "mx-auto rounded-3xl border p-1.5 transition sm:rounded-2xl sm:p-2",
+              column,
               empty
                 ? dragging
                   ? "border-[#C4B5FD] bg-white/12 shadow-[0_0_0_4px_rgba(124,58,237,0.28)]"
@@ -856,7 +904,7 @@ export function VegaChat({
             </div>
           </div>
           {empty ? null : (
-            <p className="mx-auto mt-2 hidden max-w-3xl text-center text-[11px] text-[#A8A29E] sm:block">
+            <p className={cn("mx-auto mt-2 hidden text-center text-[11px] text-[#A8A29E] sm:block", column)}>
               Vega puede equivocarse. Revisa lo que importa antes de enviarlo.
             </p>
           )}
