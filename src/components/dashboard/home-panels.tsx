@@ -6,6 +6,7 @@ import {
   Coins,
   Crown,
   Gift,
+  Library,
   Minus,
   Plus,
   Sparkles,
@@ -171,6 +172,7 @@ export function RecentActivity({ items }: { items: HomeActivity[] }) {
 const shortcuts = [
   { href: "/dashboard/super-agent", label: "Vega", hint: "Tu super agente", icon: Crown },
   { href: "/dashboard/studio", label: "Estudio creativo", hint: "Video, imagen y voz", icon: Sparkles },
+  { href: "/dashboard/biblioteca", label: "Biblioteca", hint: "Lo creado en el estudio", icon: Library },
   { href: "/dashboard/notebook", label: "Notebook", hint: "Investiga tus fuentes", icon: BookOpen },
 ] as const;
 

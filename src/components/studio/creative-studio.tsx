@@ -285,6 +285,7 @@ export function CreativeStudio({ initialPieces = [] }: { initialPieces?: Creatio
       <div className="px-4 sm:px-6 lg:px-10">
       <CreationHistory
         pieces={pieces}
+        libraryHref="/dashboard/biblioteca"
         onOpen={(piece) => {
           setOpened(piece);
           setTab(piece.kind === "image" ? "image" : "video");
@@ -428,7 +429,27 @@ function VideoPanel({
       onReady(data.videoUrl);
       setJob(data);
       setEditing(false);
-      toast.success("Video listo. Puedes guardarlo o descargarlo.");
+      const headline = (override?.trim() || title).slice(0, 72) || "Video";
+      const saved = await persistPiece({
+        id: null,
+        kind: "video",
+        title: headline,
+        body: spoken,
+        media: data.videoUrl,
+      });
+      if (saved) {
+        setPieceId(saved.id);
+        onSaved({
+          id: saved.id,
+          area: "studio",
+          kind: "video",
+          title: headline,
+          body: spoken,
+          media: data.videoUrl,
+          createdAt: saved.createdAt,
+        });
+        toast.success("Video listo. Quedó en tu biblioteca.");
+      }
     } catch (error) {
       const message = error instanceof Error ? error.message : "No se pudo crear el video.";
       setJob({ mode: "live", provider: "lyra", status: "failed", error: message, message });
@@ -705,7 +726,26 @@ function ImagePanel({
       if (response.ok && payload.dataUrl) {
         setImageUrl(payload.dataUrl);
         setEditing(false);
-        toast.success("Imagen lista. Guárdala si quieres conservarla.");
+        const saved = await persistPiece({
+          id: null,
+          kind: "image",
+          title: headline || "Imagen",
+          body: detail,
+          media: payload.dataUrl,
+        });
+        if (saved) {
+          setPieceId(saved.id);
+          onSaved({
+            id: saved.id,
+            area: "studio",
+            kind: "image",
+            title: headline || "Imagen",
+            body: detail,
+            media: payload.dataUrl,
+            createdAt: saved.createdAt,
+          });
+          toast.success("Imagen lista. Quedó en tu biblioteca.");
+        }
         return;
       }
       toast.error(payload.error ?? "No se pudo crear la imagen con IA.");

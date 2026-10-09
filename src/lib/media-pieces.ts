@@ -45,14 +45,14 @@ function isKind(value: string): value is CreationKind {
   return creationKinds.has(value as CreationKind);
 }
 
-export async function listCreations(area: CreationArea): Promise<CreationRecord[]> {
+export async function listCreations(area: CreationArea, take = 40): Promise<CreationRecord[]> {
   const user = await getCurrentUser();
   if (!user || !process.env.DATABASE_URL) return [];
 
   const rows = await getPrisma().mediaPiece.findMany({
     where: { userId: user.id, area },
     orderBy: { createdAt: "desc" },
-    take: 40,
+    take: Math.min(Math.max(take, 1), 80),
   });
 
   return rows.flatMap((row) => {

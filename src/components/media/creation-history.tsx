@@ -1,5 +1,7 @@
 "use client";
 
+import Link from "next/link";
+
 import type { CreationRecord } from "@/lib/media-pieces";
 
 const kindLabel = {
@@ -19,14 +21,23 @@ export function CreationHistory({
   pieces,
   onOpen,
   onDelete,
+  libraryHref,
 }: {
   pieces: CreationRecord[];
   onOpen: (piece: CreationRecord) => void;
   onDelete: (piece: CreationRecord) => void;
+  libraryHref?: string;
 }) {
   return (
     <section className="rounded-2xl border border-[#E7E2DA] bg-white p-4">
-      <h2 className="text-[11px] uppercase tracking-[0.22em] text-[#8A8680]">Historial</h2>
+      <div className="flex items-center justify-between gap-3">
+        <h2 className="text-[11px] uppercase tracking-[0.22em] text-[#8A8680]">Historial</h2>
+        {libraryHref ? (
+          <Link href={libraryHref} className="text-xs font-medium text-[#7C3AED] hover:text-[#5B21B6]">
+            Ver biblioteca
+          </Link>
+        ) : null}
+      </div>
       {pieces.length === 0 ? (
         <p className="mt-3 text-sm text-[#5C5854]">Guarda una pieza y aparecerá aquí.</p>
       ) : (

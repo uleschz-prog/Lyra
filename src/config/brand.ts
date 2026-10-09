@@ -4,6 +4,7 @@ import {
   Crown,
   GraduationCap,
   Home,
+  Library,
   Network,
   Orbit,
   Sparkles,
@@ -33,6 +34,7 @@ export const brand = {
     academy: "/dashboard/academy",
     notebook: "/dashboard/notebook",
     studio: "/dashboard/studio",
+    library: "/dashboard/biblioteca",
     wallet: "/dashboard/wallet",
     protocol: "/dashboard/protocol",
   },
@@ -67,6 +69,12 @@ export const officeModes = [
         label: "Estudio creativo",
         description: "Video con imagen y sonido",
         icon: Sparkles,
+      },
+      {
+        href: "/dashboard/biblioteca",
+        label: "Biblioteca",
+        description: "Videos e imágenes del estudio",
+        icon: Library,
       },
       {
         href: "/dashboard/network",
