@@ -16,4 +16,12 @@ test("el paquete de compensación VEGA no habilita al superagente", () => {
   assert.equal(canUseVega("VEGA"), false);
   assert.equal(canUseVega("POLARIS"), false);
   assert.equal(canUseVega("LYRA_MASTER"), false);
+  assert.equal(canUseVega({ role: "MEMBER", package: "VEGA" }), false);
+});
+
+test("un admin entra y un socio Founder o Corporate también", () => {
+  assert.equal(canUseVega({ role: "ADMIN", package: "NONE" }), true);
+  assert.equal(canUseVega({ role: "MEMBER", package: "FOUNDER" }), true);
+  assert.equal(canUseVega({ role: "MEMBER", package: "CORPORATE" }), true);
+  assert.equal(canUseVega({ role: "MEMBER", package: "PRO" }), false);
 });

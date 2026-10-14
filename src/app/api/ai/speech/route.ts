@@ -1,17 +1,18 @@
 import { NextResponse } from "next/server";
 
 import { aiPricing } from "@/config/ai-pricing";
-import { aiJson, chargeAiCall, idempotencyKeyFrom, requireAiUser, withCreditHeader } from "@/lib/ai/guard";
+import { aiJson, chargeAiCall, idempotencyKeyFrom, withCreditHeader } from "@/lib/ai/guard";
 import { providerError, readJson } from "@/lib/ai/providers";
 import { isStudioVoice, studioVoices } from "@/lib/ai/voices";
+import { requireMember } from "@/lib/auth/api";
 import { readCreditBalance } from "@/lib/credits/ledger";
 
 export const maxDuration = 60;
 
 export async function POST(request: Request) {
-  const session = await requireAiUser();
-  if (!session.user) return session.response;
-  const user = session.user;
+  const guard = await requireMember();
+  if (!guard.ok) return guard.response;
+  const user = guard.user;
 
   const body = (await request.json().catch(() => null)) as {
     text?: unknown;
@@ -32,15 +33,17 @@ export async function POST(request: Request) {
 
   const apiKey = process.env.ELEVENLABS_API_KEY;
   if (!apiKey) {
+    const balance = await readCreditBalance(user.id);
     return aiJson(
       {
         mode: "preview",
         charged: 0,
+        credits: balance,
         voiceId,
         message: "La reproducción usa la voz del navegador hasta configurar ELEVENLABS_API_KEY.",
       },
       200,
-      await readCreditBalance(user.id),
+      balance,
     );
   }
 
@@ -48,7 +51,7 @@ export async function POST(request: Request) {
     userId: user.id,
     cost: aiPricing.speech,
     reason: "ai.speech",
-    description: "Voz del estudio",
+    description: "Voz · narración",
     idempotencyKey: idempotencyKeyFrom(request, body?.idempotencyKey),
     metadata: { voiceId },
     execute: async () => {
@@ -74,7 +77,7 @@ export async function POST(request: Request) {
     },
   });
 
-  if (!paid.ok) return aiJson({ error: paid.error }, paid.status, paid.balance);
+  if (!paid.ok) return aiJson({ error: paid.error, credits: paid.balance }, paid.status, paid.balance);
 
   return withCreditHeader(
     new NextResponse(paid.value, {
@@ -83,6 +86,7 @@ export async function POST(request: Request) {
         "Cache-Control": "no-store",
         "x-credit-balance": String(paid.balance),
         "x-credit-charged": String(paid.charged),
+        "X-Lyra-Credits": String(paid.balance),
       },
     }),
     paid.balance,

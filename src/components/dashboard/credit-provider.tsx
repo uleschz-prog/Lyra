@@ -9,6 +9,8 @@ type CreditContextValue = {
   totalEarnedCommissions: number;
   transactions: WalletTransaction[];
   applyServerBalance: (balance: number, transaction?: WalletTransaction | null) => void;
+  /** Muestra el saldo que devolvió el servidor y, si hubo cobro, lo agrega al historial visible. */
+  syncBalance: (credits: number | undefined, description?: string) => void;
 };
 
 const CreditContext = createContext<CreditContextValue | null>(null);
@@ -26,6 +28,7 @@ export function CreditProvider({
 }) {
   const [balance, setBalance] = useState(initialBalance);
   const [transactions, setTransactions] = useState(initialTransactions);
+
   const balanceRef = useRef(initialBalance);
 
   const applyServerBalance = useCallback((nextBalance: number, transaction?: WalletTransaction | null) => {
@@ -36,14 +39,36 @@ export function CreditProvider({
     setTransactions((current) => (current.some((item) => item.id === transaction.id) ? current : [transaction, ...current]));
   }, []);
 
+  const syncBalance = useCallback((credits: number | undefined, description?: string) => {
+    if (typeof credits !== "number" || !Number.isFinite(credits)) return;
+    const next = Math.trunc(credits);
+    const delta = next - balanceRef.current;
+    balanceRef.current = next;
+    setBalance(next);
+    if (description && delta !== 0) {
+      setTransactions((current) => [
+        {
+          id: crypto.randomUUID(),
+          description,
+          amountUsd: 0,
+          creditDelta: delta,
+          kind: delta < 0 ? "CREDIT_SPEND" : "ADJUSTMENT",
+          createdAt: new Date().toISOString(),
+        },
+        ...current,
+      ]);
+    }
+  }, []);
+
   const value = useMemo(
     () => ({
       balance,
       totalEarnedCommissions,
       transactions,
       applyServerBalance,
+      syncBalance,
     }),
-    [applyServerBalance, balance, totalEarnedCommissions, transactions],
+    [applyServerBalance, balance, syncBalance, totalEarnedCommissions, transactions],
   );
 
   return <CreditContext.Provider value={value}>{children}</CreditContext.Provider>;

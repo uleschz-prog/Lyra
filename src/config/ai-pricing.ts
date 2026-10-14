@@ -1,19 +1,18 @@
+import { creditPrices } from "@/lib/credits";
+
 /**
- * Precios de servidor. 1 crédito = 1 USD y el monto es entero.
- * El cliente no envía el precio: estas cifras y `constellationAgents.creditCost`
- * son la única fuente.
+ * Precios de servidor para las rutas HTTP de IA. 1 crédito = 1 USD, entero.
+ * El cliente no envía el precio.
  *
- * Una vista previa (sin proveedor configurado, o el video local) no cobra.
- * Vega, más adelante: el chat incluido no usa estos precios; una acción de pago
- * debita con `reason` propio y puede anotar en `metadata` las acciones otorgadas.
+ * Notebook, búsqueda y voz usan las cifras de sync-local (más altas que el 1
+ * provisional de la Fase 0). El video local no cobra. Una vista previa, cuando
+ * falta la clave del proveedor, tampoco.
  */
 export const aiPricing = {
-  builder: 1,
-  notebook: 1,
-  search: 1,
-  speech: 1,
+  notebook: creditPrices.notebook,
+  search: creditPrices.search,
+  speech: creditPrices.speech,
   video: 0,
-  whatsapp: 1,
 } as const;
 
 export type AiPriceKey = keyof typeof aiPricing;

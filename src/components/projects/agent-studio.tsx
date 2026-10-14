@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useState, useTransition } from "react";
 
 import { askProjectAgent } from "@/app/dashboard/projects/actions";
+import { useCredits } from "@/components/dashboard/credit-provider";
 import { brand } from "@/config/brand";
 import type { AgentDocument } from "@/lib/agent-document";
 
@@ -14,6 +15,7 @@ export function AgentStudio({ projectId, agent }: { projectId: string; agent: Ag
   const [error, setError] = useState("");
   const [turns, setTurns] = useState<Turn[]>([{ role: "agent", text: agent.greeting }]);
   const [pending, startTransition] = useTransition();
+  const { syncBalance } = useCredits();
 
   function send(text: string) {
     const message = text.trim();
@@ -23,6 +25,7 @@ export function AgentStudio({ projectId, agent }: { projectId: string; agent: Ag
     setTurns((current) => [...current, { role: "user", text: message }]);
     startTransition(async () => {
       const result = await askProjectAgent(projectId, message);
+      syncBalance("credits" in result ? result.credits : undefined, result.ok ? `Agente ${agent.name}` : undefined);
       if (!result.ok) {
         setError(result.error);
         return;
