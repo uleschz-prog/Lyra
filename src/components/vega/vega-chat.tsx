@@ -435,6 +435,7 @@ export function VegaChat({
               <VegaGreeting className="size-14 sm:size-16" />
               <h2 className="mt-4 text-xl font-semibold tracking-tight text-[#1E1E24] sm:text-2xl">Hola, {firstName}. ¿En qué te ayudo hoy?</h2>
               <p className="mt-2 text-sm text-[#5C5854]">Vega Bot te ayuda a vender, prospectar y organizar tu día.</p>
+              <p className="mt-1 max-w-md text-sm text-[#5C5854]">También lee el mercado en X: sentimiento, competidores, tendencias y reportes a tu correo.</p>
               <div className="mt-6 grid w-full gap-2 sm:mt-8 sm:grid-cols-2">
                 {suggestions.map((suggestion) => (
                   <button

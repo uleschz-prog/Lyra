@@ -99,6 +99,7 @@ model User {
   vegaWhatsapp       String?
   activationCodes    ActivationCode[]    @relation("ActivationOwner")
   activation         ActivationCode?     @relation("ActivationUsedBy")
+  vegaProfile        VegaProfile?
 
   @@index([sponsorId])
   @@index([rank])
@@ -476,4 +477,143 @@ model Transaction {
 
   @@index([userId, createdAt])
   @@index([walletId, createdAt])
+}
+
+enum VegaSentiment {
+  POSITIVE
+  NEGATIVE
+  NEUTRAL
+}
+
+enum VegaAlertStatus {
+  OPEN
+  ACKNOWLEDGED
+  RESOLVED
+}
+
+enum VegaReportCadence {
+  DAILY
+  WEEKLY
+}
+
+/// Ajustes de Vega por usuario. El override del presupuesto de LLM es independiente del libro de créditos.
+model VegaProfile {
+  id                  String   @id @default(cuid())
+  userId              String   @unique
+  budgetRatioOverride Float?
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+
+  user        User                 @relation(fields: [userId], references: [id], onDelete: Cascade)
+  keywords    VegaKeyword[]
+  competitors VegaCompetitor[]
+  alerts      VegaAlert[]
+  reports     VegaSavedReport[]
+  schedules   VegaReportSchedule[]
+  matches     VegaPostMatch[]
+}
+
+model VegaKeyword {
+  id        String   @id @default(cuid())
+  profileId String
+  value     String
+  createdAt DateTime @default(now())
+
+  profile VegaProfile @relation(fields: [profileId], references: [id], onDelete: Cascade)
+
+  @@unique([profileId, value])
+  @@index([value])
+}
+
+model VegaCompetitor {
+  id        String   @id @default(cuid())
+  profileId String
+  username  String
+  createdAt DateTime @default(now())
+
+  profile VegaProfile @relation(fields: [profileId], references: [id], onDelete: Cascade)
+
+  @@unique([profileId, username])
+  @@index([username])
+}
+
+model VegaAlert {
+  id          String          @id @default(cuid())
+  profileId   String
+  keyword     String
+  windowStart DateTime
+  windowEnd   DateTime
+  negativity  Float
+  threshold   Float
+  sampleSize  Int
+  status      VegaAlertStatus @default(OPEN)
+  summary     String?         @db.Text
+  createdAt   DateTime        @default(now())
+
+  profile VegaProfile @relation(fields: [profileId], references: [id], onDelete: Cascade)
+
+  @@index([profileId, createdAt])
+  @@index([profileId, keyword, status])
+}
+
+model VegaSavedReport {
+  id          String    @id @default(cuid())
+  profileId   String
+  kind        String
+  title       String
+  payload     Json
+  html        String?   @db.Text
+  periodStart DateTime?
+  periodEnd   DateTime?
+  createdAt   DateTime  @default(now())
+
+  profile VegaProfile @relation(fields: [profileId], references: [id], onDelete: Cascade)
+
+  @@index([profileId, createdAt])
+}
+
+model VegaReportSchedule {
+  id         String            @id @default(cuid())
+  profileId  String
+  cadence    VegaReportCadence
+  enabled    Boolean           @default(true)
+  lastSentAt DateTime?
+  createdAt  DateTime          @default(now())
+
+  profile VegaProfile @relation(fields: [profileId], references: [id], onDelete: Cascade)
+
+  @@unique([profileId, cadence])
+}
+
+/// Post ingerido una sola vez. La ingesta compartida reparte las coincidencias; no hay una consulta de X por usuario.
+model VegaIngestPost {
+  id         String        @id @default(cuid())
+  externalId String        @unique
+  author     String
+  text       String        @db.Text
+  hashtags   String[]
+  postedAt   DateTime
+  sentiment  VegaSentiment
+  score      Float
+  createdAt  DateTime      @default(now())
+
+  matches VegaPostMatch[]
+
+  @@index([postedAt])
+  @@index([author])
+}
+
+model VegaPostMatch {
+  id          String   @id @default(cuid())
+  postId      String
+  profileId   String
+  keywords    String[]
+  competitors String[]
+  createdAt   DateTime @default(now())
+
+  post    VegaIngestPost @relation(fields: [postId], references: [id], onDelete: Cascade)
+  profile VegaProfile    @relation(fields: [profileId], references: [id], onDelete: Cascade)
+
+  @@unique([postId, profileId])
+  @@index([profileId, createdAt])
 }
