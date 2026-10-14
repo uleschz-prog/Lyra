@@ -6,8 +6,7 @@ export type ConstellationSection =
   | "agents"
   | "notebook"
   | "creative"
-  | "wallet"
-  | "protocol";
+  | "wallet";
 
 export const sectionDesks: Record<
   ConstellationSection,
@@ -52,10 +51,5 @@ export const sectionDesks: Record<
     star: "Zeta",
     squad: "Billetera",
     line: "Dólares de comisión y créditos que alimentan la constelación.",
-  },
-  protocol: {
-    star: "Vega",
-    squad: "Protocolo",
-    line: "El agente opera USDC en Polygon Amoy y deja el rastro de cada trade.",
   },
 };

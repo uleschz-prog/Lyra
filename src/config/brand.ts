@@ -1,5 +1,4 @@
 import {
-  Activity,
   BookOpen,
   Crown,
   GraduationCap,
@@ -36,7 +35,6 @@ export const brand = {
     studio: "/dashboard/studio",
     library: "/dashboard/biblioteca",
     wallet: "/dashboard/wallet",
-    protocol: "/dashboard/protocol",
   },
 };
 
@@ -99,12 +97,6 @@ export const officeModes = [
         label: "Billetera",
         description: "Comisiones y créditos",
         icon: Wallet,
-      },
-      {
-        href: "/dashboard/protocol",
-        label: "Lyra Web3",
-        description: "Agente en Polygon Amoy",
-        icon: Activity,
       },
     ],
   },
