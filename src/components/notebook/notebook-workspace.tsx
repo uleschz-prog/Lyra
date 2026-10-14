@@ -16,6 +16,15 @@ type SourceKind = "pdf" | "link" | "note";
 type Panel = "sources" | "chat" | "studio";
 type NotebookMode = "chat" | "summary" | "quiz" | "slides" | "video";
 
+const notebookWorkLabels: Record<string, string> = {
+  chat: "Consultando las fuentes",
+  summary: "Redactando el resumen",
+  quiz: "Armando el cuestionario",
+  slides: "Diseñando el PDF",
+  video: "Escribiendo el guion del video",
+  audio: "Generando el audio",
+};
+
 type Slide = {
   kicker: string;
   title: string;
@@ -94,6 +103,7 @@ export function NotebookWorkspace({ initialPieces = [] }: { initialPieces?: Crea
   const [composerOpen, setComposerOpen] = useState(false);
   const [bar, setBar] = useState(0);
   const [barLabel, setBarLabel] = useState("");
+  const [trackedBusy, setTrackedBusy] = useState(false);
   const [editAudio, setEditAudio] = useState(false);
   const [editVideo, setEditVideo] = useState(false);
   const [editSlides, setEditSlides] = useState(false);
@@ -110,19 +120,22 @@ export function NotebookWorkspace({ initialPieces = [] }: { initialPieces?: Crea
 
   const videoBusy = videoJob?.status === "processing";
   const busy = pending !== null || videoBusy;
+  const liveLabel =
+    videoBusy && pending !== "video" ? "Montando el video" : notebookWorkLabels[pending ?? "video"];
+  if (busy !== trackedBusy) {
+    setTrackedBusy(busy);
+    setBar((current) => {
+      if (busy) return current > 0 && current < 100 ? current : 8;
+      return current > 0 && current < 100 ? 100 : current;
+    });
+  }
+  if (busy && barLabel !== liveLabel) setBarLabel(liveLabel);
 
   useEffect(() => {
-    if (!busy) return;
-    const labels: Record<string, string> = {
-      chat: "Consultando las fuentes",
-      summary: "Redactando el resumen",
-      quiz: "Armando el cuestionario",
-      slides: "Diseñando el PDF",
-      video: "Escribiendo el guion del video",
-      audio: "Generando el audio",
-    };
-    setBarLabel(videoBusy && pending !== "video" ? "Montando el video" : labels[pending ?? "video"]);
-    setBar((current) => (current > 0 && current < 100 ? current : 8));
+    if (!busy) {
+      const timer = window.setTimeout(() => setBar(0), 700);
+      return () => window.clearTimeout(timer);
+    }
     const timer = window.setInterval(() => {
       setBar((current) => {
         if (current >= 92) return 92;
@@ -132,13 +145,6 @@ export function NotebookWorkspace({ initialPieces = [] }: { initialPieces?: Crea
     }, 450);
     return () => window.clearInterval(timer);
   }, [busy, pending, videoBusy]);
-
-  useEffect(() => {
-    if (busy) return;
-    setBar((current) => (current > 0 && current < 100 ? 100 : current));
-    const timer = window.setTimeout(() => setBar(0), 700);
-    return () => window.clearTimeout(timer);
-  }, [busy]);
 
   async function consult(mode: NotebookMode, prompt: string) {
     const idempotencyKey = crypto.randomUUID();

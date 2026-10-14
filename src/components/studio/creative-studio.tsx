@@ -94,6 +94,19 @@ export function CreativeStudio({ initialPieces = [] }: { initialPieces?: Creatio
 
 type StudioImage = { id: string; name: string; url: string };
 
+const defaultVideoScript =
+  "LYRA reúne la academia y los agentes para que tu red deje de improvisar cada conversación. Empieza por una fuente, una pregunta y un siguiente paso.";
+
+function restoredVideoJob(piece: CreationRecord): VideoJob {
+  return {
+    mode: "preview",
+    provider: "lyra",
+    status: piece.media ? "completed" : "ready",
+    videoUrl: piece.media,
+    message: piece.title,
+  };
+}
+
 function VideoPanel({
   restore,
   onSaved,
@@ -103,6 +116,7 @@ function VideoPanel({
   onSaved: (piece: CreationRecord) => void;
   onRemoved: (id: string) => void;
 }) {
+  const videoRestore = restore?.kind === "video" ? restore : null;
   const [format, setFormat] = useState("9:16");
   const [duration, setDuration] = useState("30 s");
   const [look, setLook] = useState("Claro");
@@ -110,49 +124,46 @@ function VideoPanel({
   const [music, setMusic] = useState("Suave");
   const [captions, setCaptions] = useState("Con subtítulos");
   const [detail, setDetail] = useState("");
-  const [title, setTitle] = useState("Bienvenida a LYRA");
-  const [script, setScript] = useState(
-    "LYRA reúne la academia y los agentes para que tu red deje de improvisar cada conversación. Empieza por una fuente, una pregunta y un siguiente paso.",
-  );
+  const [title, setTitle] = useState(videoRestore?.title ?? "Bienvenida a LYRA");
+  const [script, setScript] = useState(videoRestore?.body ?? defaultVideoScript);
   const [images, setImages] = useState<StudioImage[]>([]);
-  const [job, setJob] = useState<VideoJob | null>(null);
+  const [job, setJob] = useState<VideoJob | null>(videoRestore ? restoredVideoJob(videoRestore) : null);
   const [pending, setPending] = useState(false);
   const [editing, setEditing] = useState(false);
   const [bar, setBar] = useState(0);
-  const [pieceId, setPieceId] = useState<string | null>(null);
+  const [pieceId, setPieceId] = useState<string | null>(videoRestore?.id ?? null);
   const { applyServerBalance } = useCredits();
   const inFlight = useRef(false);
+  const [seenRestore, setSeenRestore] = useState(videoRestore);
+  const [trackedBusy, setTrackedBusy] = useState(false);
 
   const busy = pending || job?.status === "processing";
-
-  useEffect(() => {
-    if (!restore || restore.kind !== "video") return;
-    setTitle(restore.title);
-    setScript(restore.body);
-    setPieceId(restore.id);
-    setJob({
-      mode: "preview",
-      provider: "lyra",
-      status: restore.media ? "completed" : "ready",
-      videoUrl: restore.media,
-      message: restore.title,
+  if (videoRestore !== seenRestore) {
+    setSeenRestore(videoRestore);
+    if (videoRestore) {
+      setTitle(videoRestore.title);
+      setScript(videoRestore.body);
+      setPieceId(videoRestore.id);
+      setJob(restoredVideoJob(videoRestore));
+    }
+  }
+  if (busy !== trackedBusy) {
+    setTrackedBusy(busy);
+    setBar((current) => {
+      if (busy) return current > 0 && current < 100 ? current : 8;
+      return current > 0 && current < 100 ? 100 : current;
     });
-  }, [restore]);
+  }
 
   useEffect(() => {
-    if (!busy) return;
-    setBar((current) => (current > 0 && current < 100 ? current : 8));
+    if (!busy) {
+      const timer = window.setTimeout(() => setBar(0), 700);
+      return () => window.clearTimeout(timer);
+    }
     const timer = window.setInterval(() => {
       setBar((current) => (current >= 92 ? 92 : Math.min(92, current + (current < 40 ? 6 : 2))));
     }, 450);
     return () => window.clearInterval(timer);
-  }, [busy]);
-
-  useEffect(() => {
-    if (busy) return;
-    setBar((current) => (current > 0 && current < 100 ? 100 : current));
-    const timer = window.setTimeout(() => setBar(0), 700);
-    return () => window.clearTimeout(timer);
   }, [busy]);
 
   async function generate() {
@@ -397,11 +408,22 @@ function ImagePanel({
 }) {
   const [format, setFormat] = useState("1:1");
   const [style, setStyle] = useState("Editorial");
-  const [title, setTitle] = useState("");
-  const [detail, setDetail] = useState("");
-  const [imageUrl, setImageUrl] = useState<string | null>(null);
+  const imageRestore = restore?.kind === "image" ? restore : null;
+  const [title, setTitle] = useState(imageRestore?.title ?? "");
+  const [detail, setDetail] = useState(imageRestore?.body ?? "");
+  const [imageUrl, setImageUrl] = useState<string | null>(imageRestore?.media ?? null);
   const [reference, setReference] = useState<string | null>(null);
-  const [pieceId, setPieceId] = useState<string | null>(null);
+  const [pieceId, setPieceId] = useState<string | null>(imageRestore?.id ?? null);
+  const [seenRestore, setSeenRestore] = useState(imageRestore);
+  if (imageRestore !== seenRestore) {
+    setSeenRestore(imageRestore);
+    if (imageRestore) {
+      setTitle(imageRestore.title);
+      setDetail(imageRestore.body);
+      setImageUrl(imageRestore.media);
+      setPieceId(imageRestore.id);
+    }
+  }
 
   function pickReference(files: FileList | null) {
     const file = files?.[0];
@@ -419,14 +441,6 @@ function ImagePanel({
       image.src = src;
     });
   }
-
-  useEffect(() => {
-    if (!restore || restore.kind !== "image") return;
-    setTitle(restore.title);
-    setDetail(restore.body);
-    setImageUrl(restore.media);
-    setPieceId(restore.id);
-  }, [restore]);
 
   async function create() {
     const canvas = document.createElement("canvas");
