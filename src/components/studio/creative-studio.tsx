@@ -1,12 +1,12 @@
 "use client";
 
 import { Download, Pencil, Trash2 } from "lucide-react";
-import { useEffect, useState, type ReactNode } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import { toast } from "sonner";
 
 import { discardCreation, storeCreation } from "@/app/dashboard/creations/actions";
 import { CreationHistory } from "@/components/creations/creation-history";
-import { useCredits } from "@/components/dashboard/credit-provider";
+import { readReturnedBalance, readReturnedTransaction, useCredits } from "@/components/dashboard/credit-provider";
 import { Button } from "@/components/ui/button";
 import type { CreationRecord } from "@/lib/creations";
 import { cn } from "@/lib/utils";
@@ -94,6 +94,19 @@ export function CreativeStudio({ initialPieces = [] }: { initialPieces?: Creatio
 
 type StudioImage = { id: string; name: string; url: string };
 
+const defaultVideoScript =
+  "LYRA reúne la academia y los agentes para que tu red deje de improvisar cada conversación. Empieza por una fuente, una pregunta y un siguiente paso.";
+
+function restoredVideoJob(piece: CreationRecord): VideoJob {
+  return {
+    mode: "preview",
+    provider: "lyra",
+    status: piece.media ? "completed" : "ready",
+    videoUrl: piece.media,
+    message: piece.title,
+  };
+}
+
 function VideoPanel({
   restore,
   onSaved,
@@ -103,6 +116,7 @@ function VideoPanel({
   onSaved: (piece: CreationRecord) => void;
   onRemoved: (id: string) => void;
 }) {
+  const videoRestore = restore?.kind === "video" ? restore : null;
   const [format, setFormat] = useState("9:16");
   const [duration, setDuration] = useState("30 s");
   const [look, setLook] = useState("Claro");
@@ -110,60 +124,64 @@ function VideoPanel({
   const [music, setMusic] = useState("Suave");
   const [captions, setCaptions] = useState("Con subtítulos");
   const [detail, setDetail] = useState("");
-  const [title, setTitle] = useState("Bienvenida a LYRA");
-  const [script, setScript] = useState(
-    "LYRA reúne la academia y los agentes para que tu red deje de improvisar cada conversación. Empieza por una fuente, una pregunta y un siguiente paso.",
-  );
+  const [title, setTitle] = useState(videoRestore?.title ?? "Bienvenida a LYRA");
+  const [script, setScript] = useState(videoRestore?.body ?? defaultVideoScript);
   const [images, setImages] = useState<StudioImage[]>([]);
-  const [job, setJob] = useState<VideoJob | null>(null);
+  const [job, setJob] = useState<VideoJob | null>(videoRestore ? restoredVideoJob(videoRestore) : null);
   const [pending, setPending] = useState(false);
   const [editing, setEditing] = useState(false);
   const [bar, setBar] = useState(0);
-  const [pieceId, setPieceId] = useState<string | null>(null);
+  const [pieceId, setPieceId] = useState<string | null>(videoRestore?.id ?? null);
+  const { applyServerBalance } = useCredits();
+  const inFlight = useRef(false);
+  const [seenRestore, setSeenRestore] = useState(videoRestore);
+  const [trackedBusy, setTrackedBusy] = useState(false);
 
   const busy = pending || job?.status === "processing";
-
-  useEffect(() => {
-    if (!restore || restore.kind !== "video") return;
-    setTitle(restore.title);
-    setScript(restore.body);
-    setPieceId(restore.id);
-    setJob({
-      mode: "preview",
-      provider: "lyra",
-      status: restore.media ? "completed" : "ready",
-      videoUrl: restore.media,
-      message: restore.title,
+  if (videoRestore !== seenRestore) {
+    setSeenRestore(videoRestore);
+    if (videoRestore) {
+      setTitle(videoRestore.title);
+      setScript(videoRestore.body);
+      setPieceId(videoRestore.id);
+      setJob(restoredVideoJob(videoRestore));
+    }
+  }
+  if (busy !== trackedBusy) {
+    setTrackedBusy(busy);
+    setBar((current) => {
+      if (busy) return current > 0 && current < 100 ? current : 8;
+      return current > 0 && current < 100 ? 100 : current;
     });
-  }, [restore]);
+  }
 
   useEffect(() => {
-    if (!busy) return;
-    setBar((current) => (current > 0 && current < 100 ? current : 8));
+    if (!busy) {
+      const timer = window.setTimeout(() => setBar(0), 700);
+      return () => window.clearTimeout(timer);
+    }
     const timer = window.setInterval(() => {
       setBar((current) => (current >= 92 ? 92 : Math.min(92, current + (current < 40 ? 6 : 2))));
     }, 450);
     return () => window.clearInterval(timer);
   }, [busy]);
 
-  useEffect(() => {
-    if (busy) return;
-    setBar((current) => (current > 0 && current < 100 ? 100 : current));
-    const timer = window.setTimeout(() => setBar(0), 700);
-    return () => window.clearTimeout(timer);
-  }, [busy]);
-
   async function generate() {
+    if (inFlight.current) return;
+    inFlight.current = true;
     setPending(true);
     try {
       const visual = images.length > 0 ? ` Imágenes de referencia: ${images.map((image) => image.name).join(", ")}.` : "";
       const brief = ` Formato ${format}. Duración ${duration}. Estilo ${look}. Voz ${voice}. Música ${music}. ${captions}.${detail.trim() ? ` Debe verse: ${detail.trim()}.` : ""}`;
+      const idempotencyKey = crypto.randomUUID();
       const response = await fetch("/api/ai/video", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ title, script: `${script}${brief}${visual}` }),
+        headers: { "Content-Type": "application/json", "idempotency-key": idempotencyKey },
+        body: JSON.stringify({ title, script: `${script}${brief}${visual}`, idempotencyKey }),
       });
-      const data = (await response.json()) as VideoJob;
+      const data = (await response.json()) as VideoJob & { balance?: number };
+      const balance = readReturnedBalance(response, data);
+      if (balance !== null) applyServerBalance(balance, readReturnedTransaction(data));
       if (!response.ok) {
         toast.error(data.error ?? "No se pudo preparar el video.");
         return;
@@ -190,6 +208,7 @@ function VideoPanel({
         });
       }
     } finally {
+      inFlight.current = false;
       setPending(false);
     }
   }
@@ -389,11 +408,22 @@ function ImagePanel({
 }) {
   const [format, setFormat] = useState("1:1");
   const [style, setStyle] = useState("Editorial");
-  const [title, setTitle] = useState("");
-  const [detail, setDetail] = useState("");
-  const [imageUrl, setImageUrl] = useState<string | null>(null);
+  const imageRestore = restore?.kind === "image" ? restore : null;
+  const [title, setTitle] = useState(imageRestore?.title ?? "");
+  const [detail, setDetail] = useState(imageRestore?.body ?? "");
+  const [imageUrl, setImageUrl] = useState<string | null>(imageRestore?.media ?? null);
   const [reference, setReference] = useState<string | null>(null);
-  const [pieceId, setPieceId] = useState<string | null>(null);
+  const [pieceId, setPieceId] = useState<string | null>(imageRestore?.id ?? null);
+  const [seenRestore, setSeenRestore] = useState(imageRestore);
+  if (imageRestore !== seenRestore) {
+    setSeenRestore(imageRestore);
+    if (imageRestore) {
+      setTitle(imageRestore.title);
+      setDetail(imageRestore.body);
+      setImageUrl(imageRestore.media);
+      setPieceId(imageRestore.id);
+    }
+  }
 
   function pickReference(files: FileList | null) {
     const file = files?.[0];
@@ -411,14 +441,6 @@ function ImagePanel({
       image.src = src;
     });
   }
-
-  useEffect(() => {
-    if (!restore || restore.kind !== "image") return;
-    setTitle(restore.title);
-    setDetail(restore.body);
-    setImageUrl(restore.media);
-    setPieceId(restore.id);
-  }, [restore]);
 
   async function create() {
     const canvas = document.createElement("canvas");
@@ -555,27 +577,32 @@ function wrapText(context: CanvasRenderingContext2D, text: string, x: number, y:
 }
 
 function SearchPanel() {
+  const { applyServerBalance } = useCredits();
+  const inFlight = useRef(false);
   const [query, setQuery] = useState("tendencias de academias digitales y redes de agentes");
   const [results, setResults] = useState<SearchResult[]>([]);
   const [note, setNote] = useState("Exa busca mercado y fuentes en vivo.");
   const [pending, setPending] = useState(false);
-  const { syncBalance } = useCredits();
 
   async function search() {
+    if (inFlight.current) return;
+    inFlight.current = true;
     setPending(true);
     try {
+      const idempotencyKey = crypto.randomUUID();
       const response = await fetch("/api/ai/search", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ query }),
+        headers: { "Content-Type": "application/json", "idempotency-key": idempotencyKey },
+        body: JSON.stringify({ query, idempotencyKey }),
       });
       const data = (await response.json().catch(() => ({}))) as {
         error?: string;
         message?: string;
         results?: SearchResult[];
-        credits?: number;
+        balance?: number;
       };
-      syncBalance(data.credits, response.ok ? `Búsqueda · ${query.slice(0, 40)}` : undefined);
+      const balance = readReturnedBalance(response, data);
+      if (balance !== null) applyServerBalance(balance, readReturnedTransaction(data));
       if (!response.ok) {
         toast.error(data.error ?? "No se pudo buscar.");
         return;
@@ -583,6 +610,7 @@ function SearchPanel() {
       setResults(data.results ?? []);
       setNote(data.message ?? `${data.results?.length ?? 0} resultados`);
     } finally {
+      inFlight.current = false;
       setPending(false);
     }
   }

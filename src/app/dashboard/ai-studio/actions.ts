@@ -4,6 +4,7 @@ import { constellationAgents } from "@/config/constellation";
 import { simulateAgentReply } from "@/lib/agent-reply";
 import { composioConfigured, sendWhatsappText } from "@/lib/ai/composio";
 import { userConnections } from "@/lib/ai/composio-user";
+import { whatsappDisabledMessage, whatsappSendPolicy } from "@/lib/ai/whatsapp-policy";
 import { getCurrentUser } from "@/lib/auth/profile";
 import { withCharge } from "@/lib/credits";
 import type { ChannelId } from "@/lib/types";
@@ -54,6 +55,9 @@ export async function runStudioAgent(input: {
       if (composioConfigured() && (await userConnections(user.id).catch(() => noConnections)).whatsapp) {
         const own = await sendBusinessWhatsapp(user.id, digits(destination), { text: reply });
         return own.ok ? { ok: true as const, value: true } : { ok: false as const, error: `Tu WhatsApp Business no envió el mensaje: ${own.error}` };
+      }
+      if (!whatsappSendPolicy(user.role, process.env.LYRA_WHATSAPP_ENABLED).allowed) {
+        return { ok: false as const, error: `${reply}\n\n${whatsappDisabledMessage}` };
       }
       const sent = await sendWhatsappText(digits(destination), reply);
       if (sent.sent) return { ok: true as const, value: true };

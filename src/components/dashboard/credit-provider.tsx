@@ -8,6 +8,7 @@ type CreditContextValue = {
   balance: number;
   totalEarnedCommissions: number;
   transactions: WalletTransaction[];
+  applyServerBalance: (balance: number, transaction?: WalletTransaction | null) => void;
   /** Muestra el saldo que devolvió el servidor y, si hubo cobro, lo agrega al historial visible. */
   syncBalance: (credits: number | undefined, description?: string) => void;
 };
@@ -30,11 +31,20 @@ export function CreditProvider({
 
   const balanceRef = useRef(initialBalance);
 
+  const applyServerBalance = useCallback((nextBalance: number, transaction?: WalletTransaction | null) => {
+    if (!Number.isInteger(nextBalance)) return;
+    balanceRef.current = nextBalance;
+    setBalance(nextBalance);
+    if (!transaction) return;
+    setTransactions((current) => (current.some((item) => item.id === transaction.id) ? current : [transaction, ...current]));
+  }, []);
+
   const syncBalance = useCallback((credits: number | undefined, description?: string) => {
     if (typeof credits !== "number" || !Number.isFinite(credits)) return;
-    const delta = credits - balanceRef.current;
-    balanceRef.current = credits;
-    setBalance(credits);
+    const next = Math.trunc(credits);
+    const delta = next - balanceRef.current;
+    balanceRef.current = next;
+    setBalance(next);
     if (description && delta !== 0) {
       setTransactions((current) => [
         {
@@ -55,9 +65,10 @@ export function CreditProvider({
       balance,
       totalEarnedCommissions,
       transactions,
+      applyServerBalance,
       syncBalance,
     }),
-    [balance, syncBalance, totalEarnedCommissions, transactions],
+    [applyServerBalance, balance, syncBalance, totalEarnedCommissions, transactions],
   );
 
   return <CreditContext.Provider value={value}>{children}</CreditContext.Provider>;
@@ -69,4 +80,30 @@ export function useCredits() {
     throw new Error("useCredits debe usarse dentro de CreditProvider.");
   }
   return context;
+}
+
+export function readReturnedBalance(response: Response, body: unknown) {
+  if (body && typeof body === "object" && typeof (body as { balance?: unknown }).balance === "number") {
+    const balance = (body as { balance: number }).balance;
+    return Number.isInteger(balance) ? balance : null;
+  }
+  const header = Number(response.headers.get("x-credit-balance"));
+  return Number.isInteger(header) ? header : null;
+}
+
+export function readReturnedTransaction(body: unknown): WalletTransaction | null {
+  if (!body || typeof body !== "object") return null;
+  const transaction = (body as { transaction?: unknown }).transaction;
+  if (!transaction || typeof transaction !== "object") return null;
+  const row = transaction as Partial<WalletTransaction>;
+  if (typeof row.id !== "string" || typeof row.creditDelta !== "number" || typeof row.kind !== "string") return null;
+  if (typeof row.description !== "string" || typeof row.createdAt !== "string" || typeof row.amountUsd !== "number") return null;
+  return {
+    id: row.id,
+    description: row.description,
+    amountUsd: row.amountUsd,
+    creditDelta: row.creditDelta,
+    kind: row.kind,
+    createdAt: row.createdAt,
+  };
 }

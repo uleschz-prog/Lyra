@@ -19,8 +19,11 @@ function usernameFromEmail(email: string) {
 
 export async function POST(request: Request) {
   const profile = await readOauthProfile();
-  if (!profile) {
-    return NextResponse.json({ error: "La sesión con el proveedor expiró. Vuelve a entrar." }, { status: 401 });
+  if (!profile?.emailVerified) {
+    return NextResponse.json(
+      { error: "El proveedor no verificó ese correo. Confírmalo allí antes de entrar a LYRA." },
+      { status: 403 },
+    );
   }
 
   const body = (await request.json().catch(() => null)) as { packageId?: unknown; idea?: unknown; kind?: unknown } | null;

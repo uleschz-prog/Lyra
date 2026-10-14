@@ -1,12 +1,12 @@
 "use client";
 
 import { ChevronLeft, ChevronRight, Download, FileText, Link2, Pencil, Plus, StickyNote, Trash2, X } from "lucide-react";
-import { useEffect, useId, useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 import { toast } from "sonner";
 
 import { discardCreation, storeCreation } from "@/app/dashboard/creations/actions";
 import { CreationHistory } from "@/components/creations/creation-history";
-import { useCredits } from "@/components/dashboard/credit-provider";
+import { readReturnedBalance, readReturnedTransaction, useCredits } from "@/components/dashboard/credit-provider";
 import { Button } from "@/components/ui/button";
 import type { CreationRecord } from "@/lib/creations";
 import { studioVoices } from "@/lib/ai/voices";
@@ -15,6 +15,15 @@ import { cn } from "@/lib/utils";
 type SourceKind = "pdf" | "link" | "note";
 type Panel = "sources" | "chat" | "studio";
 type NotebookMode = "chat" | "summary" | "quiz" | "slides" | "video";
+
+const notebookWorkLabels: Record<string, string> = {
+  chat: "Consultando las fuentes",
+  summary: "Redactando el resumen",
+  quiz: "Armando el cuestionario",
+  slides: "Diseñando el PDF",
+  video: "Escribiendo el guion del video",
+  audio: "Generando el audio",
+};
 
 type Slide = {
   kicker: string;
@@ -77,7 +86,6 @@ const kindLabel: Record<SourceKind, string> = {
 };
 
 export function NotebookWorkspace({ initialPieces = [] }: { initialPieces?: CreationRecord[] }) {
-  const { syncBalance } = useCredits();
   const [sources, setSources] = useState<Source[]>(initialSources);
   const [panel, setPanel] = useState<Panel>("chat");
   const [messages, setMessages] = useState<ChatMessage[]>([]);
@@ -95,11 +103,14 @@ export function NotebookWorkspace({ initialPieces = [] }: { initialPieces?: Crea
   const [composerOpen, setComposerOpen] = useState(false);
   const [bar, setBar] = useState(0);
   const [barLabel, setBarLabel] = useState("");
+  const [trackedBusy, setTrackedBusy] = useState(false);
   const [editAudio, setEditAudio] = useState(false);
   const [editVideo, setEditVideo] = useState(false);
   const [editSlides, setEditSlides] = useState(false);
   const [pieces, setPieces] = useState<CreationRecord[]>(initialPieces);
   const [pieceIds, setPieceIds] = useState<{ audio?: string; video?: string; pdf?: string }>({});
+  const { applyServerBalance } = useCredits();
+  const inFlight = useRef(false);
 
   useEffect(() => {
     return () => {
@@ -109,19 +120,22 @@ export function NotebookWorkspace({ initialPieces = [] }: { initialPieces?: Crea
 
   const videoBusy = videoJob?.status === "processing";
   const busy = pending !== null || videoBusy;
+  const liveLabel =
+    videoBusy && pending !== "video" ? "Montando el video" : notebookWorkLabels[pending ?? "video"];
+  if (busy !== trackedBusy) {
+    setTrackedBusy(busy);
+    setBar((current) => {
+      if (busy) return current > 0 && current < 100 ? current : 8;
+      return current > 0 && current < 100 ? 100 : current;
+    });
+  }
+  if (busy && barLabel !== liveLabel) setBarLabel(liveLabel);
 
   useEffect(() => {
-    if (!busy) return;
-    const labels: Record<string, string> = {
-      chat: "Consultando las fuentes",
-      summary: "Redactando el resumen",
-      quiz: "Armando el cuestionario",
-      slides: "Diseñando el PDF",
-      video: "Escribiendo el guion del video",
-      audio: "Generando el audio",
-    };
-    setBarLabel(videoBusy && pending !== "video" ? "Montando el video" : labels[pending ?? "video"]);
-    setBar((current) => (current > 0 && current < 100 ? current : 8));
+    if (!busy) {
+      const timer = window.setTimeout(() => setBar(0), 700);
+      return () => window.clearTimeout(timer);
+    }
     const timer = window.setInterval(() => {
       setBar((current) => {
         if (current >= 92) return 92;
@@ -132,30 +146,21 @@ export function NotebookWorkspace({ initialPieces = [] }: { initialPieces?: Crea
     return () => window.clearInterval(timer);
   }, [busy, pending, videoBusy]);
 
-  useEffect(() => {
-    if (busy) return;
-    setBar((current) => (current > 0 && current < 100 ? 100 : current));
-    const timer = window.setTimeout(() => setBar(0), 700);
-    return () => window.clearTimeout(timer);
-  }, [busy]);
-
   async function consult(mode: NotebookMode, prompt: string) {
+    const idempotencyKey = crypto.randomUUID();
     const response = await fetch("/api/ai/notebook", {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: { "Content-Type": "application/json", "idempotency-key": idempotencyKey },
       body: JSON.stringify({
         mode,
         question: prompt,
+        idempotencyKey,
         sources: sources.map(({ title, kind, text }) => ({ title, kind, text })),
       }),
     });
-    const data = (await response.json().catch(() => ({}))) as {
-      text?: string;
-      error?: string;
-      mode?: string;
-      credits?: number;
-    };
-    syncBalance(data.credits, response.ok ? "Notebook" : undefined);
+    const data = (await response.json().catch(() => ({}))) as { text?: string; error?: string; mode?: string; balance?: number };
+    const balance = readReturnedBalance(response, data);
+    if (balance !== null) applyServerBalance(balance, readReturnedTransaction(data));
     if (!response.ok || !data.text) {
       toast.error(data.error ?? "No se pudo consultar el notebook.");
       return null;
@@ -169,6 +174,8 @@ export function NotebookWorkspace({ initialPieces = [] }: { initialPieces?: Crea
       return;
     }
     if (mode === "chat" && !prompt.trim()) return;
+    if (inFlight.current) return;
+    inFlight.current = true;
 
     setPending(mode);
     try {
@@ -191,6 +198,7 @@ export function NotebookWorkspace({ initialPieces = [] }: { initialPieces?: Crea
         setQuestion("");
       }
     } finally {
+      inFlight.current = false;
       setPending(null);
     }
   }
@@ -200,6 +208,8 @@ export function NotebookWorkspace({ initialPieces = [] }: { initialPieces?: Crea
       toast.error("Agrega una fuente antes de armar las diapositivas.");
       return;
     }
+    if (inFlight.current) return;
+    inFlight.current = true;
     setPending("slides");
     try {
       const data = await consult("slides", "Arma la presentación con las fuentes cargadas.");
@@ -214,6 +224,7 @@ export function NotebookWorkspace({ initialPieces = [] }: { initialPieces?: Crea
       setEditSlides(false);
       void remember("pdf", next.title, JSON.stringify(next));
     } finally {
+      inFlight.current = false;
       setPending(null);
     }
   }
@@ -223,20 +234,26 @@ export function NotebookWorkspace({ initialPieces = [] }: { initialPieces?: Crea
       toast.error("Agrega una fuente antes del resumen en video.");
       return;
     }
+    if (inFlight.current) return;
+    inFlight.current = true;
     setPending("video");
     try {
       const data = await consult("video", "Escribe el guion del resumen en video.");
       if (!data?.text) return;
       setVideoScript(data.text);
+      const idempotencyKey = crypto.randomUUID();
       const response = await fetch("/api/ai/video", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", "idempotency-key": idempotencyKey },
         body: JSON.stringify({
           title: sources[0]?.title ?? "Resumen",
           script: data.text,
+          idempotencyKey,
         }),
       });
-      const job = (await response.json()) as VideoJob;
+      const job = (await response.json()) as VideoJob & { balance?: number };
+      const balance = readReturnedBalance(response, job);
+      if (balance !== null) applyServerBalance(balance, readReturnedTransaction(job));
       if (!response.ok) {
         toast.error(job.error ?? "No se pudo preparar el video.");
         return;
@@ -244,6 +261,7 @@ export function NotebookWorkspace({ initialPieces = [] }: { initialPieces?: Crea
       setVideoJob(job);
       void remember("video", sources[0]?.title ?? "Resumen", data.text, job.videoUrl ?? null);
     } finally {
+      inFlight.current = false;
       setPending(null);
     }
   }
@@ -255,18 +273,22 @@ export function NotebookWorkspace({ initialPieces = [] }: { initialPieces?: Crea
       toast.error("Genera un resumen antes de escucharlo.");
       return;
     }
+    if (inFlight.current) return;
+    inFlight.current = true;
 
     setPending("audio");
     try {
+      const idempotencyKey = crypto.randomUUID();
       const response = await fetch("/api/ai/speech", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ text: script, voiceId: studioVoices[0].id }),
+        headers: { "Content-Type": "application/json", "idempotency-key": idempotencyKey },
+        body: JSON.stringify({ text: script, voiceId: studioVoices[0].id, idempotencyKey }),
       });
       const contentType = response.headers.get("content-type") ?? "";
 
       if (contentType.includes("audio")) {
-        syncBalance(Number(response.headers.get("x-lyra-credits") ?? Number.NaN), "Voz · narración");
+        const balance = readReturnedBalance(response, null);
+        if (balance !== null) applyServerBalance(balance);
         const blob = await response.blob();
         const nextUrl = URL.createObjectURL(blob);
         setAudioUrl((current) => {
@@ -279,13 +301,9 @@ export function NotebookWorkspace({ initialPieces = [] }: { initialPieces?: Crea
         return;
       }
 
-      const data = (await response.json().catch(() => ({}))) as {
-        error?: string;
-        message?: string;
-        mode?: string;
-        credits?: number;
-      };
-      syncBalance(data.credits);
+      const data = (await response.json().catch(() => ({}))) as { error?: string; message?: string; mode?: string; balance?: number };
+      const balance = readReturnedBalance(response, data);
+      if (balance !== null) applyServerBalance(balance, readReturnedTransaction(data));
       if (!response.ok) {
         toast.error(data.error ?? "No se pudo preparar el audio.");
         return;
@@ -300,6 +318,7 @@ export function NotebookWorkspace({ initialPieces = [] }: { initialPieces?: Crea
         window.speechSynthesis.speak(utterance);
       }
     } finally {
+      inFlight.current = false;
       setPending(null);
     }
   }

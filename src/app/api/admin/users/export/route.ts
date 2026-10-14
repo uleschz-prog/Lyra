@@ -1,3 +1,4 @@
+import { canonicalBalance } from "@/lib/credits/ledger-logic";
 import { getCurrentUser } from "@/lib/auth/profile";
 import { isSuspended } from "@/lib/auth/suspension";
 import { getPrisma } from "@/lib/prisma";
@@ -25,6 +26,7 @@ export async function GET() {
       package: true,
       pendingPackage: true,
       credits: true,
+      wallet: { select: { balance: true } },
       activationCredits: true,
       walletBalance: true,
       referralCode: true,
@@ -61,7 +63,7 @@ export async function GET() {
     user.package === "NONE" ? "" : user.package,
     user.pendingPackage ?? "",
     isSuspended(user.suspendedUntil) ? "Suspendida" : user.pendingPackage ? "Pendiente de pago" : "Activa",
-    user.credits,
+    canonicalBalance(user.credits, user.wallet?.balance ?? null),
     user.activationCredits,
     user.walletBalance.toFixed(2),
     user.sponsor?.name ?? "",

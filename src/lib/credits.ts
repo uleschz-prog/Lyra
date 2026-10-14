@@ -1,7 +1,12 @@
-import { Prisma } from "@prisma/client";
-
+import { debitCredits, readCreditBalance, refundCredits } from "@/lib/credits/ledger";
 import { getPrisma } from "@/lib/prisma";
 
+/**
+ * Precios del producto que llegó con sync-local. 1 crédito = 1 USD, entero.
+ * Notebook, búsqueda y voz reemplazan el precio de 1 de la Fase 0: se conserva
+ * el de sync-local, que es el más reciente. El video local no está aquí porque
+ * no llama a un proveedor de pago.
+ */
 export const creditPrices = {
   notebook: 5,
   speech: 3,
@@ -16,25 +21,21 @@ export type Charge =
   | { ok: true; chargeId: string | null; balance: number; duplicate: boolean }
   | { ok: false; error: string; balance: number };
 
-class InsufficientCredits extends Error {}
-
-async function syncWallet(tx: Prisma.TransactionClient, userId: string) {
-  const { credits } = await tx.user.findUniqueOrThrow({ where: { id: userId }, select: { credits: true } });
-  const wallet = await tx.creditWallet.upsert({
-    where: { userId },
-    create: { userId, balance: credits },
-    update: { balance: credits },
-  });
-  return { credits, walletId: wallet.id };
+export async function currentCredits(userId: string) {
+  return readCreditBalance(userId);
 }
 
-export async function currentCredits(userId: string) {
-  const user = await getPrisma().user.findUnique({ where: { id: userId }, select: { credits: true } });
-  return user?.credits ?? 0;
+function reasonFor(key: string | undefined) {
+  if (!key) return "credits.charge";
+  if (key.endsWith(":tool") || key.startsWith("task:")) return "vega.tool";
+  if (key.startsWith("vega:")) return "vega.message";
+  if (key.startsWith("tg:") || key.startsWith("tgf:")) return "telegram.reply";
+  return "credits.charge";
 }
 
 /**
- * Descuenta créditos de forma atómica. Con `key`, la misma operación nunca se cobra dos veces.
+ * Descuenta créditos por el ledger atómico. Con `key`, la misma operación no se cobra dos veces.
+ * Un monto negativo se rechaza. Cero no escribe movimiento.
  */
 export async function chargeCredits(
   userId: string,
@@ -42,83 +43,57 @@ export async function chargeCredits(
   description: string,
   key?: string,
 ): Promise<Charge> {
-  const prisma = getPrisma();
-  const externalRef = key ? `spend:${key}` : undefined;
-  if (amount <= 0) return { ok: true, chargeId: null, balance: await currentCredits(userId), duplicate: false };
+  if (!Number.isInteger(amount) || amount < 0) {
+    return { ok: false, error: "El precio de esta operación no es válido.", balance: await currentCredits(userId) };
+  }
+  if (amount === 0) return { ok: true, chargeId: null, balance: await currentCredits(userId), duplicate: false };
 
-  if (externalRef) {
-    const existing = await prisma.transaction.findUnique({ where: { externalRef }, select: { id: true } });
-    if (existing) return { ok: true, chargeId: existing.id, balance: await currentCredits(userId), duplicate: true };
+  const externalRef = key ? `spend:${key}`.slice(0, 180) : null;
+  const debit = await debitCredits({
+    userId,
+    credits: amount,
+    externalRef,
+    reason: reasonFor(key),
+    description,
+    metadata: key ? { key } : undefined,
+  });
+
+  if (!debit.ok) {
+    return {
+      ok: false,
+      error:
+        debit.code === "insufficient"
+          ? `Necesitas ${amount} créditos y tienes ${debit.balance}. Recarga en Billetera.`
+          : "No se pudo cobrar la operación.",
+      balance: debit.balance,
+    };
   }
 
-  try {
-    return await prisma.$transaction(async (tx) => {
-      const taken = await tx.user.updateMany({
-        where: { id: userId, credits: { gte: amount } },
-        data: { credits: { decrement: amount } },
-      });
-      if (taken.count === 0) throw new InsufficientCredits();
-      const { credits, walletId } = await syncWallet(tx, userId);
-      const record = await tx.transaction.create({
-        data: {
-          userId,
-          walletId,
-          amount: 0,
-          creditDelta: -amount,
-          kind: "CREDIT_SPEND",
-          description: description.slice(0, 180),
-          externalRef,
-        },
-        select: { id: true },
-      });
-      return { ok: true as const, chargeId: record.id, balance: credits, duplicate: false };
-    });
-  } catch (error) {
-    const balance = await currentCredits(userId);
-    if (error instanceof InsufficientCredits) {
-      return { ok: false, error: `Necesitas ${amount} créditos y tienes ${balance}. Recarga en Billetera.`, balance };
-    }
-    if (externalRef && error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002") {
-      const existing = await prisma.transaction.findUnique({ where: { externalRef }, select: { id: true } });
-      return { ok: true, chargeId: existing?.id ?? null, balance, duplicate: true };
-    }
-    throw error;
-  }
+  return { ok: true, chargeId: debit.transactionId, balance: debit.balance, duplicate: debit.already };
 }
 
-/** Devuelve un cobro cuando la IA no pudo entregar. Solo se reembolsa una vez. */
+/** Devuelve un cobro cuando la IA no pudo entregar. Solo se reembolsa una vez, y solo un CREDIT_SPEND. */
 export async function refundCharge(chargeId: string | null, reason = "Reembolso: la IA no pudo responder") {
   if (!chargeId) return;
-  const prisma = getPrisma();
-  const charge = await prisma.transaction.findUnique({
+  const charge = await getPrisma().transaction.findUnique({
     where: { id: chargeId },
     select: { userId: true, creditDelta: true, kind: true },
   });
   if (!charge || charge.kind !== "CREDIT_SPEND" || charge.creditDelta >= 0) return;
-  const amount = -charge.creditDelta;
-  try {
-    await prisma.$transaction(async (tx) => {
-      await tx.user.update({ where: { id: charge.userId }, data: { credits: { increment: amount } } });
-      const { walletId } = await syncWallet(tx, charge.userId);
-      await tx.transaction.create({
-        data: {
-          userId: charge.userId,
-          walletId,
-          amount: 0,
-          creditDelta: amount,
-          kind: "ADJUSTMENT",
-          description: reason.slice(0, 180),
-          externalRef: `refund:${chargeId}`,
-        },
-      });
-    });
-  } catch (error) {
-    if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002") return;
-    throw error;
-  }
+  await refundCredits({
+    userId: charge.userId,
+    credits: -charge.creditDelta,
+    externalRef: `refund:${chargeId}`,
+    reason: "credits.refund",
+    description: reason,
+    metadata: { reverses: chargeId },
+  });
 }
 
-/** Cobra, ejecuta y reembolsa si la tarea falla o no entrega. */
+/**
+ * Cobra, ejecuta y reembolsa si la tarea falla o no entrega.
+ * Si la clave ya se cobró, no vuelve a ejecutar el trabajo.
+ */
 export async function withCharge<T>(
   input: { userId: string; amount: number; description: string; key?: string },
   run: () => Promise<{ ok: true; value: T } | { ok: false; error: string; status?: number }>,
@@ -128,6 +103,9 @@ export async function withCharge<T>(
 > {
   const charge = await chargeCredits(input.userId, input.amount, input.description, input.key);
   if (!charge.ok) return { ok: false, error: charge.error, status: 402, balance: charge.balance };
+  if (charge.duplicate) {
+    return { ok: false, error: "Esa operación ya se procesó.", status: 409, balance: charge.balance };
+  }
   try {
     const result = await run();
     if (result.ok) return { ok: true, value: result.value, balance: charge.balance };

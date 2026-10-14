@@ -66,9 +66,10 @@ export async function payCommissions(
       where: { id: line.sponsorId },
       data: { walletBalance: { increment: line.amount } },
     });
+    const owner = await tx.user.findUnique({ where: { id: line.sponsorId }, select: { credits: true } });
     const wallet = await tx.creditWallet.upsert({
       where: { userId: line.sponsorId },
-      create: { userId: line.sponsorId, balance: 0, totalEarnedCommissions: line.amount },
+      create: { userId: line.sponsorId, balance: owner?.credits ?? 0, totalEarnedCommissions: line.amount },
       update: { totalEarnedCommissions: { increment: line.amount } },
     });
     await tx.transaction.create({

@@ -14,6 +14,7 @@ const notices: Record<string, string> = {
   github: "GitHub todavía no está conectado. Crea la cuenta con tu correo.",
   apple: "Apple todavía no está conectado. Crea la cuenta con tu correo.",
   sesion: "Ese acceso expiró. Vuelve a elegir el proveedor.",
+  correo: "El proveedor no verificó ese correo. Confírmalo en Google, GitHub o Apple antes de entrar.",
 };
 
 function planFromIdea(idea: string): SignupPlanId | null {

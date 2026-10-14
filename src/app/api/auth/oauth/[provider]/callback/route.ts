@@ -26,19 +26,21 @@ async function finish(request: Request, providerName: string, code: string, stat
       `${current.origin}/api/auth/oauth/${providerName}/callback`,
     );
     await writeOauthProfile({
-      email: profile.email,
+      email: profile.email.trim().toLowerCase(),
       name: profile.name,
       provider: providerName,
       ref: saved.ref,
       idea: saved.idea,
       kind: saved.kind,
+      emailVerified: true,
     });
     back.searchParams.set("paso", "plan");
     if (saved.idea) back.searchParams.set("idea", saved.idea);
     if (saved.kind) back.searchParams.set("tipo", saved.kind);
     return NextResponse.redirect(back);
-  } catch {
-    back.searchParams.set("aviso", providerName);
+  } catch (error) {
+    const unverified = error instanceof Error && error.message.includes("confirmó");
+    back.searchParams.set("aviso", unverified ? "correo" : providerName);
     return NextResponse.redirect(back);
   }
 }

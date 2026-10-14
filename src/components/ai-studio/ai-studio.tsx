@@ -15,7 +15,7 @@ import {
   Star,
   type LucideIcon,
 } from "lucide-react";
-import { useState, useSyncExternalStore } from "react";
+import { useRef, useState, useSyncExternalStore } from "react";
 import { toast } from "sonner";
 
 import { runStudioAgent } from "@/app/dashboard/ai-studio/actions";
@@ -89,6 +89,7 @@ export function AiStudio({
   const rawLinks = useSyncExternalStore(subscribeLinks, readLinks, () => "{}");
   const links = parseLinks(rawLinks);
   const { balance, syncBalance } = useCredits();
+  const inFlight = useRef(false);
   const selected = agents.find((agent) => agent.id === selectedId) ?? null;
   const activeChannel = selected?.channels.includes(channelId) ? channelId : (selected?.channels[0] ?? "whatsapp");
   const channel = channels.find((item) => item.id === activeChannel) ?? channels[0];
@@ -124,7 +125,7 @@ export function AiStudio({
   }
 
   async function send() {
-    if (!selected || pending) return;
+    if (!selected || pending || inFlight.current) return;
     const note = draft.trim();
     if (!note) return;
 
@@ -138,32 +139,36 @@ export function AiStudio({
     const agent = selected;
     const channelName = activeChannel;
     const destination = linkedHandle;
+    inFlight.current = true;
     appendMessage(agent.id, { id: crypto.randomUUID(), role: "user", content: note });
     setDraft("");
     setPending(true);
 
-    const result = await runStudioAgent({ agentId: agent.id, note, channel: channelName, destination }).catch(() => ({
-      ok: false as const,
-      error: "No se pudo ejecutar el agente. Intenta de nuevo.",
-      credits: undefined,
-      connectUrl: null,
-    }));
-    syncBalance(result.credits, result.ok ? `${agent.name}: ${note.slice(0, 60)}` : undefined);
+    try {
+      const result = await runStudioAgent({ agentId: agent.id, note, channel: channelName, destination }).catch(() => ({
+        ok: false as const,
+        error: "No se pudo ejecutar el agente. Intenta de nuevo.",
+        credits: undefined,
+        connectUrl: null,
+      }));
+      syncBalance(result.credits, result.ok ? `${agent.name}: ${note.slice(0, 60)}` : undefined);
 
-    if (!result.ok) {
-      const content = result.connectUrl
-        ? `Conecta WhatsApp al proyecto Lira y vuelve a ejecutar:\n${result.connectUrl}`
-        : result.error;
-      appendMessage(agent.id, { id: crypto.randomUUID(), role: "assistant", content });
-      toast.error("El agente no terminó", { description: result.error });
+      if (!result.ok) {
+        const content = result.connectUrl
+          ? `Conecta WhatsApp al proyecto Lira y vuelve a ejecutar:\n${result.connectUrl}`
+          : result.error;
+        appendMessage(agent.id, { id: crypto.randomUUID(), role: "assistant", content });
+        toast.error("El agente no terminó", { description: result.error });
+        return;
+      }
+
+      if (result.sent) toast.success("Mensaje enviado por WhatsApp", { description: destination });
+      else toast.success("Borrador listo", { description: `${agent.creditCost} créditos · ${agent.star}` });
+      appendMessage(agent.id, { id: crypto.randomUUID(), role: "assistant", content: result.content });
+    } finally {
+      inFlight.current = false;
       setPending(false);
-      return;
     }
-
-    if (result.sent) toast.success("Mensaje enviado por WhatsApp", { description: destination });
-    else toast.success("Borrador listo", { description: `${agent.creditCost} créditos · ${agent.star}` });
-    appendMessage(agent.id, { id: crypto.randomUUID(), role: "assistant", content: result.content });
-    setPending(false);
   }
 
   const ctaClass =

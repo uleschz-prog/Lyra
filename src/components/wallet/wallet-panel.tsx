@@ -19,6 +19,7 @@ const kindLabel: Record<TransactionKind, string> = {
   CREDIT_SPEND: "Consumo",
   ADJUSTMENT: "Ajuste",
   REBUY: "Recompra",
+  CREDIT_REFUND: "Reembolso",
 };
 
 export function WalletPanel() {

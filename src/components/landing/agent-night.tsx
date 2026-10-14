@@ -39,8 +39,8 @@ export function AgentNight() {
   useEffect(() => {
     const motion = window.matchMedia("(prefers-reduced-motion: reduce)");
     if (motion.matches) {
-      setStep(thread.length);
-      return;
+      const timer = window.setTimeout(() => setStep(thread.length), 0);
+      return () => window.clearTimeout(timer);
     }
     const timer = window.setInterval(() => {
       setStep((current) => (current >= thread.length ? 1 : current + 1));

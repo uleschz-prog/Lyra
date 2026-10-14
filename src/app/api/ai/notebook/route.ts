@@ -1,9 +1,9 @@
-import { NextResponse } from "next/server";
-
+import { aiPricing } from "@/config/ai-pricing";
+import { aiJson, chargeAiCall, idempotencyKeyFrom } from "@/lib/ai/guard";
 import { geminiCredentials } from "@/lib/ai/generate";
 import { providerError, readJson } from "@/lib/ai/providers";
 import { requireMember } from "@/lib/auth/api";
-import { creditPrices, withCharge } from "@/lib/credits";
+import { readCreditBalance } from "@/lib/credits/ledger";
 
 export const maxDuration = 60;
 
@@ -16,6 +16,14 @@ type SourceInput = {
 };
 
 const modes = new Set<NotebookMode>(["chat", "summary", "quiz", "slides", "video"]);
+
+const notebookLabels: Record<NotebookMode, string> = {
+  chat: "consulta",
+  summary: "resumen",
+  quiz: "preguntas",
+  slides: "presentación",
+  video: "guion",
+};
 
 const instructions: Record<NotebookMode, string> = {
   chat: "Responde en español y cita el título de la fuente entre corchetes. Si la respuesta no está en las fuentes, dilo en una frase y no inventes datos.",
@@ -44,9 +52,7 @@ function clean(value: string, max: number) {
 
 function previewAnswer(mode: NotebookMode, question: string, sources: SourceInput[]) {
   const titles = sources.map((source) => source.title).join(", ");
-  const excerpts = sources
-    .map((source) => `${source.title}: ${clean(source.text, 280)}`)
-    .join("\n");
+  const excerpts = sources.map((source) => `${source.title}: ${clean(source.text, 280)}`).join("\n");
 
   if (mode === "summary") {
     return `Resumen de trabajo sobre ${titles}.\n\n${sources
@@ -86,9 +92,7 @@ function previewAnswer(mode: NotebookMode, question: string, sources: SourceInpu
   if (mode === "quiz") {
     return sources
       .slice(0, 4)
-      .map((source, index) => {
-        return `${index + 1}. ¿Qué aporta «${source.title}» a la investigación?\nRespuesta: ${clean(source.text, 180)}`;
-      })
+      .map((source, index) => `${index + 1}. ¿Qué aporta «${source.title}» a la investigación?\nRespuesta: ${clean(source.text, 180)}`)
       .join("\n\n");
   }
 
@@ -99,16 +103,18 @@ function previewAnswer(mode: NotebookMode, question: string, sources: SourceInpu
 export async function POST(request: Request) {
   const guard = await requireMember();
   if (!guard.ok) return guard.response;
+  const user = guard.user;
 
   const body = (await request.json().catch(() => null)) as {
     mode?: unknown;
     question?: unknown;
     sources?: unknown;
+    idempotencyKey?: unknown;
   } | null;
 
   const mode = body?.mode;
   if (typeof mode !== "string" || !modes.has(mode as NotebookMode)) {
-    return NextResponse.json({ error: "Modo de notebook no válido." }, { status: 400 });
+    return aiJson({ error: "Modo de notebook no válido." }, 400, user.credits);
   }
 
   const notebookMode = mode as NotebookMode;
@@ -116,10 +122,7 @@ export async function POST(request: Request) {
   const sources = Array.isArray(body?.sources) ? body.sources.filter(isSource).slice(0, 12) : [];
 
   if (sources.length === 0) {
-    return NextResponse.json(
-      { error: "Agrega al menos una fuente antes de consultar." },
-      { status: 400 },
-    );
+    return aiJson({ error: "Agrega al menos una fuente antes de consultar." }, 400, user.credits);
   }
 
   const prepared = sources.map((source) => ({
@@ -130,66 +133,77 @@ export async function POST(request: Request) {
 
   const { apiKey, model } = geminiCredentials();
   if (!apiKey) {
-    return NextResponse.json({
-      mode: "preview",
-      model: "gemini-2.5-flash",
-      text: previewAnswer(notebookMode, question, prepared),
-    });
+    const balance = await readCreditBalance(user.id);
+    return aiJson(
+      {
+        mode: "preview",
+        model: "gemini-2.5-flash",
+        charged: 0,
+        credits: balance,
+        text: previewAnswer(notebookMode, question, prepared),
+      },
+      200,
+      balance,
+    );
   }
 
-  const corpus = prepared
-    .map((source) => `# ${source.title} (${source.kind})\n${source.text}`)
-    .join("\n\n");
+  const corpus = prepared.map((source) => `# ${source.title} (${source.kind})\n${source.text}`).join("\n\n");
 
-  const result = await withCharge(
-    { userId: guard.user.id, amount: creditPrices.notebook, description: `Notebook · ${notebookLabels[notebookMode]}` },
-    () => askGemini(apiKey, model, notebookMode, corpus, question),
-  );
-  if (!result.ok) return NextResponse.json({ error: result.error, credits: result.balance }, { status: result.status });
-
-  return NextResponse.json({ mode: "live", model, text: result.value, credits: result.balance });
-}
-
-const notebookLabels: Record<NotebookMode, string> = {
-  chat: "consulta",
-  summary: "resumen",
-  quiz: "preguntas",
-  slides: "presentación",
-  video: "guion",
-};
-
-async function askGemini(apiKey: string, model: string, notebookMode: NotebookMode, corpus: string, question: string) {
-  const response = await fetch(
-    `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`,
-    {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "x-goog-api-key": apiKey,
-      },
-      body: JSON.stringify({
-        systemInstruction: { parts: [{ text: instructions[notebookMode] }] },
-        contents: [
-          {
-            role: "user",
-            parts: [
+  const paid = await chargeAiCall({
+    userId: user.id,
+    cost: aiPricing.notebook,
+    reason: "ai.notebook",
+    description: `Notebook · ${notebookLabels[notebookMode]}`,
+    idempotencyKey: idempotencyKeyFrom(request, body?.idempotencyKey),
+    metadata: { mode: notebookMode },
+    execute: async () => {
+      const response = await fetch(
+        `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "x-goog-api-key": apiKey,
+          },
+          body: JSON.stringify({
+            systemInstruction: { parts: [{ text: instructions[notebookMode] }] },
+            contents: [
               {
-                text: `${corpus}\n\nConsulta:\n${question || "Trabaja con todas las fuentes cargadas."}`,
+                role: "user",
+                parts: [
+                  {
+                    text: `${corpus}\n\nConsulta:\n${question || "Trabaja con todas las fuentes cargadas."}`,
+                  },
+                ],
               },
             ],
-          },
-        ],
-        generationConfig: { temperature: 0.4 },
-      }),
+            generationConfig: { temperature: 0.4 },
+          }),
+        },
+      );
+
+      const payload = await readJson(response);
+      if (!response.ok) throw new Error(providerError(payload, "Gemini no pudo responder."));
+      const text = extractGeminiText(payload);
+      if (!text) throw new Error("Gemini devolvió una respuesta vacía.");
+      return text;
     },
+  });
+
+  if (!paid.ok) return aiJson({ error: paid.error, credits: paid.balance }, paid.status, paid.balance);
+
+  return aiJson(
+    {
+      mode: "live",
+      model,
+      charged: paid.charged,
+      transaction: paid.transaction,
+      text: paid.value,
+      credits: paid.balance,
+    },
+    200,
+    paid.balance,
   );
-
-  const payload = await readJson(response);
-  if (!response.ok) return { ok: false as const, error: providerError(payload, "Gemini no pudo responder.") };
-
-  const text = extractGeminiText(payload);
-  if (!text) return { ok: false as const, error: "Gemini devolvió una respuesta vacía." };
-  return { ok: true as const, value: text };
 }
 
 function extractGeminiText(payload: unknown) {
@@ -201,9 +215,7 @@ function extractGeminiText(payload: unknown) {
   return content.parts
     .map((part) => {
       if (!part || typeof part !== "object") return "";
-      return typeof (part as { text?: unknown }).text === "string"
-        ? (part as { text: string }).text
-        : "";
+      return typeof (part as { text?: unknown }).text === "string" ? (part as { text: string }).text : "";
     })
     .join("")
     .trim();
