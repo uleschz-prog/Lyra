@@ -19,6 +19,8 @@ export const viewport: Viewport = {
   width: "device-width",
   initialScale: 1,
   viewportFit: "cover",
+  interactiveWidget: "resizes-content",
+  themeColor: "#FFFFFF",
 };
 
 export const metadata: Metadata = {
@@ -27,6 +29,7 @@ export const metadata: Metadata = {
     template: `%s · ${brand.name}`,
   },
   description: brand.slogan,
+  appleWebApp: { capable: true, title: brand.name, statusBarStyle: "default" },
 };
 
 export default function RootLayout({ children }: LayoutProps<"/">) {

@@ -6,6 +6,7 @@ import {
   Home,
   Network,
   Orbit,
+  Send,
   Sparkles,
   Wallet,
 } from "lucide-react";
@@ -103,6 +104,12 @@ export const officeModes = [
         label: "Super agente",
         description: "Lyra vende y cobra por ti",
         icon: Crown,
+      },
+      {
+        href: "/dashboard/telegram",
+        label: "Telegram",
+        description: "Tu bot atiende prospectos",
+        icon: Send,
       },
     ],
   },

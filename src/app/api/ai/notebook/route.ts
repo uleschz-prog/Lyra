@@ -1,7 +1,8 @@
 import { aiPricing } from "@/config/ai-pricing";
-import { aiJson, chargeAiCall, idempotencyKeyFrom, requireAiUser } from "@/lib/ai/guard";
+import { aiJson, chargeAiCall, idempotencyKeyFrom } from "@/lib/ai/guard";
 import { geminiCredentials } from "@/lib/ai/generate";
 import { providerError, readJson } from "@/lib/ai/providers";
+import { requireMember } from "@/lib/auth/api";
 import { readCreditBalance } from "@/lib/credits/ledger";
 
 export const maxDuration = 60;
@@ -15,6 +16,14 @@ type SourceInput = {
 };
 
 const modes = new Set<NotebookMode>(["chat", "summary", "quiz", "slides", "video"]);
+
+const notebookLabels: Record<NotebookMode, string> = {
+  chat: "consulta",
+  summary: "resumen",
+  quiz: "preguntas",
+  slides: "presentación",
+  video: "guion",
+};
 
 const instructions: Record<NotebookMode, string> = {
   chat: "Responde en español y cita el título de la fuente entre corchetes. Si la respuesta no está en las fuentes, dilo en una frase y no inventes datos.",
@@ -43,9 +52,7 @@ function clean(value: string, max: number) {
 
 function previewAnswer(mode: NotebookMode, question: string, sources: SourceInput[]) {
   const titles = sources.map((source) => source.title).join(", ");
-  const excerpts = sources
-    .map((source) => `${source.title}: ${clean(source.text, 280)}`)
-    .join("\n");
+  const excerpts = sources.map((source) => `${source.title}: ${clean(source.text, 280)}`).join("\n");
 
   if (mode === "summary") {
     return `Resumen de trabajo sobre ${titles}.\n\n${sources
@@ -85,9 +92,7 @@ function previewAnswer(mode: NotebookMode, question: string, sources: SourceInpu
   if (mode === "quiz") {
     return sources
       .slice(0, 4)
-      .map((source, index) => {
-        return `${index + 1}. ¿Qué aporta «${source.title}» a la investigación?\nRespuesta: ${clean(source.text, 180)}`;
-      })
+      .map((source, index) => `${index + 1}. ¿Qué aporta «${source.title}» a la investigación?\nRespuesta: ${clean(source.text, 180)}`)
       .join("\n\n");
   }
 
@@ -96,9 +101,9 @@ function previewAnswer(mode: NotebookMode, question: string, sources: SourceInpu
 }
 
 export async function POST(request: Request) {
-  const session = await requireAiUser();
-  if (!session.user) return session.response;
-  const user = session.user;
+  const guard = await requireMember();
+  if (!guard.ok) return guard.response;
+  const user = guard.user;
 
   const body = (await request.json().catch(() => null)) as {
     mode?: unknown;
@@ -128,27 +133,27 @@ export async function POST(request: Request) {
 
   const { apiKey, model } = geminiCredentials();
   if (!apiKey) {
+    const balance = await readCreditBalance(user.id);
     return aiJson(
       {
         mode: "preview",
         model: "gemini-2.5-flash",
         charged: 0,
+        credits: balance,
         text: previewAnswer(notebookMode, question, prepared),
       },
       200,
-      await readCreditBalance(user.id),
+      balance,
     );
   }
 
-  const corpus = prepared
-    .map((source) => `# ${source.title} (${source.kind})\n${source.text}`)
-    .join("\n\n");
+  const corpus = prepared.map((source) => `# ${source.title} (${source.kind})\n${source.text}`).join("\n\n");
 
   const paid = await chargeAiCall({
     userId: user.id,
     cost: aiPricing.notebook,
     reason: "ai.notebook",
-    description: `Notebook · ${notebookMode}`,
+    description: `Notebook · ${notebookLabels[notebookMode]}`,
     idempotencyKey: idempotencyKeyFrom(request, body?.idempotencyKey),
     metadata: { mode: notebookMode },
     execute: async () => {
@@ -185,7 +190,7 @@ export async function POST(request: Request) {
     },
   });
 
-  if (!paid.ok) return aiJson({ error: paid.error }, paid.status, paid.balance);
+  if (!paid.ok) return aiJson({ error: paid.error, credits: paid.balance }, paid.status, paid.balance);
 
   return aiJson(
     {
@@ -194,6 +199,7 @@ export async function POST(request: Request) {
       charged: paid.charged,
       transaction: paid.transaction,
       text: paid.value,
+      credits: paid.balance,
     },
     200,
     paid.balance,
@@ -209,9 +215,7 @@ function extractGeminiText(payload: unknown) {
   return content.parts
     .map((part) => {
       if (!part || typeof part !== "object") return "";
-      return typeof (part as { text?: unknown }).text === "string"
-        ? (part as { text: string }).text
-        : "";
+      return typeof (part as { text?: unknown }).text === "string" ? (part as { text: string }).text : "";
     })
     .join("")
     .trim();

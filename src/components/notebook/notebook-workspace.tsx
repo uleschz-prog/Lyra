@@ -158,7 +158,7 @@ export function NotebookWorkspace({ initialPieces = [] }: { initialPieces?: Crea
         sources: sources.map(({ title, kind, text }) => ({ title, kind, text })),
       }),
     });
-    const data = (await response.json()) as { text?: string; error?: string; mode?: string; balance?: number };
+    const data = (await response.json().catch(() => ({}))) as { text?: string; error?: string; mode?: string; balance?: number };
     const balance = readReturnedBalance(response, data);
     if (balance !== null) applyServerBalance(balance, readReturnedTransaction(data));
     if (!response.ok || !data.text) {
@@ -301,7 +301,7 @@ export function NotebookWorkspace({ initialPieces = [] }: { initialPieces?: Crea
         return;
       }
 
-      const data = (await response.json()) as { error?: string; message?: string; mode?: string; balance?: number };
+      const data = (await response.json().catch(() => ({}))) as { error?: string; message?: string; mode?: string; balance?: number };
       const balance = readReturnedBalance(response, data);
       if (balance !== null) applyServerBalance(balance, readReturnedTransaction(data));
       if (!response.ok) {

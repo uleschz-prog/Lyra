@@ -595,7 +595,7 @@ function SearchPanel() {
         headers: { "Content-Type": "application/json", "idempotency-key": idempotencyKey },
         body: JSON.stringify({ query, idempotencyKey }),
       });
-      const data = (await response.json()) as {
+      const data = (await response.json().catch(() => ({}))) as {
         error?: string;
         message?: string;
         results?: SearchResult[];

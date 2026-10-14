@@ -1,5 +1,6 @@
-import { aiJson, chargeAiCall, idempotencyKeyFrom, requireAiUser } from "@/lib/ai/guard";
 import { aiPricing } from "@/config/ai-pricing";
+import { aiJson, chargeAiCall, idempotencyKeyFrom } from "@/lib/ai/guard";
+import { requireMember } from "@/lib/auth/api";
 
 export const maxDuration = 60;
 
@@ -15,9 +16,9 @@ function scenesFromScript(script: string) {
 }
 
 export async function POST(request: Request) {
-  const session = await requireAiUser();
-  if (!session.user) return session.response;
-  const user = session.user;
+  const guard = await requireMember();
+  if (!guard.ok) return guard.response;
+  const user = guard.user;
 
   const body = (await request.json().catch(() => null)) as {
     title?: unknown;
@@ -49,6 +50,6 @@ export async function POST(request: Request) {
     }),
   });
 
-  if (!paid.ok) return aiJson({ error: paid.error }, paid.status, paid.balance);
-  return aiJson({ ...paid.value, charged: paid.charged }, 200, paid.balance);
+  if (!paid.ok) return aiJson({ error: paid.error, credits: paid.balance }, paid.status, paid.balance);
+  return aiJson({ ...paid.value, charged: paid.charged, credits: paid.balance }, 200, paid.balance);
 }

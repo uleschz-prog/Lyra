@@ -18,8 +18,9 @@ import {
 import { useRef, useState, useSyncExternalStore } from "react";
 import { toast } from "sonner";
 
+import { runStudioAgent } from "@/app/dashboard/ai-studio/actions";
 import { agentIcons } from "@/components/ai-studio/agent-icons";
-import { readReturnedTransaction, useCredits } from "@/components/dashboard/credit-provider";
+import { useCredits } from "@/components/dashboard/credit-provider";
 import { channels, masterPrompt } from "@/config/constellation";
 import { formatCredits } from "@/lib/format";
 import type { ChannelId, DemoAgent } from "@/lib/types";
@@ -87,7 +88,7 @@ export function AiStudio({
   const [threads, setThreads] = useState<Record<string, ChatMessage[]>>({});
   const rawLinks = useSyncExternalStore(subscribeLinks, readLinks, () => "{}");
   const links = parseLinks(rawLinks);
-  const { balance, applyServerBalance } = useCredits();
+  const { balance, syncBalance } = useCredits();
   const inFlight = useRef(false);
   const selected = agents.find((agent) => agent.id === selectedId) ?? null;
   const activeChannel = selected?.channels.includes(channelId) ? channelId : (selected?.channels[0] ?? "whatsapp");
@@ -138,47 +139,32 @@ export function AiStudio({
     const agent = selected;
     const channelName = activeChannel;
     const destination = linkedHandle;
-    const idempotencyKey = crypto.randomUUID();
     inFlight.current = true;
     appendMessage(agent.id, { id: crypto.randomUUID(), role: "user", content: note });
     setDraft("");
     setPending(true);
 
     try {
-      const response = await fetch("/api/ai/agent", {
-        method: "POST",
-        headers: { "Content-Type": "application/json", "idempotency-key": idempotencyKey },
-        body: JSON.stringify({
-          agentId: agent.id,
-          note,
-          channel: channelName,
-          destination: destination ?? "",
-          idempotencyKey,
-        }),
-      });
-      const payload = (await response.json().catch(() => null)) as {
-        error?: string;
-        reply?: string;
-        sent?: boolean;
-        charged?: number;
-        balance?: number;
-        transaction?: unknown;
-      } | null;
-      if (typeof payload?.balance === "number") {
-        applyServerBalance(payload.balance, readReturnedTransaction(payload));
-      }
-      if (payload?.reply) {
-        appendMessage(agent.id, { id: crypto.randomUUID(), role: "assistant", content: payload.reply });
-      }
-      if (!response.ok || !payload?.reply) {
-        toast.error(payload?.error ?? "No se pudo ejecutar el agente.");
+      const result = await runStudioAgent({ agentId: agent.id, note, channel: channelName, destination }).catch(() => ({
+        ok: false as const,
+        error: "No se pudo ejecutar el agente. Intenta de nuevo.",
+        credits: undefined,
+        connectUrl: null,
+      }));
+      syncBalance(result.credits, result.ok ? `${agent.name}: ${note.slice(0, 60)}` : undefined);
+
+      if (!result.ok) {
+        const content = result.connectUrl
+          ? `Conecta WhatsApp al proyecto Lira y vuelve a ejecutar:\n${result.connectUrl}`
+          : result.error;
+        appendMessage(agent.id, { id: crypto.randomUUID(), role: "assistant", content });
+        toast.error("El agente no terminó", { description: result.error });
         return;
       }
-      if (payload.sent) {
-        toast.success("Mensaje enviado por WhatsApp", { description: destination });
-      } else if (payload.charged) {
-        toast.success("Borrador listo", { description: `${payload.charged} créditos · ${agent.star}` });
-      }
+
+      if (result.sent) toast.success("Mensaje enviado por WhatsApp", { description: destination });
+      else toast.success("Borrador listo", { description: `${agent.creditCost} créditos · ${agent.star}` });
+      appendMessage(agent.id, { id: crypto.randomUUID(), role: "assistant", content: result.content });
     } finally {
       inFlight.current = false;
       setPending(false);
