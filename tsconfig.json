@@ -34,7 +34,6 @@
     "node_modules",
     "hardhat.config.ts",
     "test",
-    "scripts/deploy-lyra-autonomous.ts",
     "typechain-types",
     "artifacts",
     "cache"

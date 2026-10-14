@@ -4,8 +4,6 @@ import { configVariable, defineConfig } from "hardhat/config";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
-import { AMOY_CHAIN_ID, AMOY_DEFAULT_RPC_URL } from "./config/amoy.js";
-
 dotenv.config({ quiet: true });
 
 const root = path.dirname(fileURLToPath(import.meta.url));
@@ -28,28 +26,6 @@ export default defineConfig({
       type: "edr-simulated",
       chainType: "l1",
       chainId: 31337,
-    },
-    // Nodo local con el chainId de Amoy, para escuchar eventos sin la testnet.
-    amoyNode: {
-      type: "edr-simulated",
-      chainType: "generic",
-      chainId: AMOY_CHAIN_ID,
-    },
-    localhost: {
-      type: "http",
-      chainType: "generic",
-      chainId: AMOY_CHAIN_ID,
-      url: "http://127.0.0.1:8545",
-      accounts: "remote",
-    },
-    polygonAmoy: {
-      type: "http",
-      chainType: "generic",
-      chainId: AMOY_CHAIN_ID,
-      url: configVariable("POLYGON_AMOY_RPC_URL", {
-        default: AMOY_DEFAULT_RPC_URL,
-      }),
-      ...(privateKey ? { accounts: [configVariable("PRIVATE_KEY")] } : {}),
     },
     polygonMainnet: {
       type: "http",
