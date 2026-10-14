@@ -3,6 +3,7 @@ import Link from "next/link";
 
 import { AgentNight } from "@/components/landing/agent-night";
 import { getCurrentUser } from "@/lib/auth/profile";
+import { canUseVega } from "@/lib/vega/access";
 
 export const metadata: Metadata = {
   title: "Super agente",
@@ -15,15 +16,22 @@ const powers = [
   { title: "Coordina", text: "Dirige a tus agentes para que cada cliente reciba seguimiento." },
 ];
 
+const market = [
+  { title: "Sentimiento", text: "Clasifica cada post en local y solo llama al modelo si el tono negativo cruza el umbral." },
+  { title: "Competidores", text: "Resume la semana de las cuentas que vigilas y la compara en un informe." },
+  { title: "Tendencias", text: "Detecta hashtags cuyas menciones se aceleran entre dos ventanas." },
+  { title: "Reportes", text: "El diario y el semanal llegan a tu correo. Cualquier otro envío te pide confirmación." },
+];
+
 export default async function SuperAgentPage() {
   const user = await getCurrentUser();
-  const active = user?.package === "FOUNDER";
+  const active = canUseVega(user?.package);
 
   return (
     <div className="mx-auto max-w-5xl space-y-8">
       <header className="text-center">
         <p className="text-[11px] font-medium tracking-[0.22em] text-[#7C3AED] uppercase">
-          {active ? "Activo con Founder" : "Exclusivo Founder"}
+          {active ? "Activo en tu plan" : "Exclusivo Founder y Corporate"}
         </p>
         <h1 className="mt-3 text-3xl font-semibold tracking-tight text-[#1E1E24] sm:text-4xl">Lyra superagente</h1>
         <p className="mx-auto mt-3 max-w-xl text-sm leading-relaxed text-[#5C5854]">
@@ -40,6 +48,18 @@ export default async function SuperAgentPage() {
         ))}
       </ul>
 
+      <section className="space-y-3">
+        <h2 className="text-lg font-semibold tracking-tight text-[#1E1E24]">Inteligencia de mercado</h2>
+        <ul className="grid gap-3 sm:grid-cols-2">
+          {market.map((item) => (
+            <li key={item.title} className="rounded-2xl border border-[#E7E2DA] bg-white p-5">
+              <p className="text-sm font-medium text-[#1E1E24]">{item.title}</p>
+              <p className="mt-2 text-sm leading-relaxed text-[#5C5854]">{item.text}</p>
+            </li>
+          ))}
+        </ul>
+      </section>
+
       <section className="rounded-3xl border border-[#E7E2DA] bg-white px-4 py-8 sm:px-8">
         <AgentNight />
       </section>
@@ -51,7 +71,7 @@ export default async function SuperAgentPage() {
           </Link>
         ) : (
           <Link href="/dashboard/plan" className="inline-flex rounded-full bg-[#7C3AED] px-6 py-3 text-sm font-medium text-white">
-            Activar con Founder
+            Ver planes
           </Link>
         )}
       </div>

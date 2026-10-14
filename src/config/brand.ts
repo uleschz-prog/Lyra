@@ -101,7 +101,7 @@ export const officeModes = [
       {
         href: "/dashboard/super-agent",
         label: "Super agente",
-        description: "Lyra vende y cobra por ti",
+        description: "Vende, cobra y lee el mercado",
         icon: Crown,
       },
     ],

@@ -5,7 +5,7 @@ import { getCurrentUser } from "@/lib/auth/profile";
 import { debitCredits, readCreditBalance, refundCredits } from "@/lib/credits/ledger";
 import type { AuthProfile, WalletTransaction } from "@/lib/types";
 
-type AiUser = Pick<AuthProfile, "id" | "role" | "package" | "credits">;
+type AiUser = Pick<AuthProfile, "id" | "role" | "package" | "credits" | "email">;
 
 export async function requireAiUser(): Promise<{ user: AiUser; response: null } | { user: null; response: NextResponse }> {
   const user = await getCurrentUser();
