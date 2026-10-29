@@ -24,9 +24,31 @@ export default async function AcademyPage({
   const marketplaceCourses = await getPrisma().course.findMany({
     where: { status: "PUBLISHED", creatorId: { not: null } },
     orderBy: [{ publishedAt: "desc" }, { createdAt: "desc" }],
-    include: {
+    select: {
+      id: true,
+      title: true,
+      description: true,
+      videoUrl: true,
+      price: true,
+      currency: true,
+      pricingType: true,
+      coverImageUrl: true,
       creator: { select: { name: true } },
-      lessons: { where: { isPublished: true }, select: { id: true } },
+      lessons: {
+        where: { isPublished: true },
+        orderBy: [{ position: "asc" }, { id: "asc" }],
+        select: { id: true, videoUrl: true },
+      },
+      modules: {
+        orderBy: [{ position: "asc" }, { id: "asc" }],
+        select: {
+          lessons: {
+            where: { isPublished: true },
+            orderBy: [{ position: "asc" }, { id: "asc" }],
+            select: { id: true, videoUrl: true },
+          },
+        },
+      },
       enrollments: {
         where: {
           studentId: user.id,
@@ -53,9 +75,20 @@ export default async function AcademyPage({
       currency: course.currency,
       pricingType: course.pricingType,
       creatorName: course.creator?.name ?? "Creador de Lyra",
-      lessonCount: course.lessons.length,
+      lessonCount: course.lessons.length + course.modules.reduce((total, module) => total + module.lessons.length, 0),
+      previewVideoUrl:
+        course.modules.flatMap((module) => module.lessons).find((lesson) => lesson.videoUrl)?.videoUrl ??
+        course.lessons.find((lesson) => lesson.videoUrl)?.videoUrl ??
+        course.videoUrl,
+      coverImageUrl: course.coverImageUrl,
       enrolled,
-      progress: course.lessons.length ? Math.round((completed / course.lessons.length) * 100) : 0,
+      progress: course.lessons.length || course.modules.some((module) => module.lessons.length)
+        ? Math.round(
+            (completed /
+              (course.lessons.length + course.modules.reduce((total, module) => total + module.lessons.length, 0))) *
+              100,
+          )
+        : 0,
     };
   });
 
@@ -63,8 +96,8 @@ export default async function AcademyPage({
     <>
       <PageHeader
         eyebrow="Academia"
-        title="Formación"
-        description="Todos los cursos están abiertos con cualquier membresía."
+        title="Marketplace de cursos"
+        description="Descubre cursos gratuitos y de pago de la comunidad. Desliza para explorar."
         section="academy"
       />
       {query.pago === "ok" ? (
@@ -88,7 +121,13 @@ export default async function AcademyPage({
         </p>
       ) : null}
       <MarketplaceCourseCatalog courses={courseCards} />
-      <CourseCatalog courses={courses} />
+      <section className="mb-10">
+        <div className="mb-4">
+          <p className="text-sm text-[#8A8680]">Biblioteca LYRA</p>
+          <h2 className="mt-1 text-2xl font-semibold text-[#1E1E24]">Cursos gratuitos</h2>
+        </div>
+        <CourseCatalog courses={courses} />
+      </section>
     </>
   );
 }
