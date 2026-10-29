@@ -10,7 +10,6 @@ import {
   compensationPlan,
   getPackage,
   signupPlans,
-  type PackageId,
   type SignupPlanId,
 } from "@/config/compensation-plan";
 import { estimateInvitationEarnings, type MemberPlanView } from "@/lib/compensation/engine";
@@ -18,9 +17,9 @@ import { formatCredits, formatUsd } from "@/lib/format";
 import type { PlanSpec } from "@/config/compensation-plan";
 
 const planVoice = {
-  STARTED: "Los mismos servicios. Cobras Órbita en 2 niveles y entras con 150 créditos.",
-  PRO: "Los mismos servicios. Cobras Órbita en 4 niveles y entras con 300 créditos.",
-  FOUNDER: "Los mismos servicios. Cobras Órbita en 6 niveles y entras con 1,000 créditos.",
+  STARTED: "150 créditos y 40 segundos de video por ciclo. Cobras Órbita en 2 niveles.",
+  PRO: "300 créditos y 140 segundos de video por ciclo. Cobras Órbita en 4 niveles.",
+  FOUNDER: "1,000 créditos y 360 segundos de video por ciclo. Cobras Órbita en 6 niveles.",
 } as const;
 
 const percent = (value: number) => `${Math.round(value * 100)}%`;
@@ -77,7 +76,7 @@ export function PlanWorkspace({ plan }: { plan: MemberPlanView }) {
       <section>
         <h2 className="text-lg font-bold tracking-tight text-[#1E1E24]">Los tres paquetes</h2>
         <p className="mt-2 max-w-2xl text-sm leading-6 text-[#5C5854]">
-          Inicio entra con $29 y 150 créditos, Negocio con $99 y 300, y Pro con $249 y 1,000. Todos incluyen los mismos servicios. La diferencia es hasta qué nivel cobras Órbita y cuántos créditos recibes.
+          Inicio entra con $29, 150 créditos y 40 segundos de video; Negocio con $99, 300 créditos y 140 segundos; Pro con $249, 1,000 créditos y 360 segundos. El cupo de video se renueva cada 30 días, separado de los créditos.
         </p>
         <div className="mt-6 grid items-stretch gap-4 md:grid-cols-2 xl:grid-cols-3">
           {signupPlans.map((planPackage: PlanSpec) => {

@@ -59,7 +59,7 @@ export function parseMetaWebhook(raw: unknown): { messages: WhatsappInbound[]; s
 }
 
 const stopWords =
-  /^(stop|baja|cancelar|unsubscribe|no me escribas( más| mas)?|ya no (me )?escribas|no quiero (recibir )?(más |mas )?mensajes)[\s.!]*$/i;
+  /^(\/?stop|baja|cancelar|unsubscribe|no me escribas( más| mas)?|ya no (me )?escribas|no quiero (recibir )?(más |mas )?mensajes)[\s.!]*$/i;
 
 export function isWhatsappOptOut(text: string) {
   return stopWords.test(text.trim());

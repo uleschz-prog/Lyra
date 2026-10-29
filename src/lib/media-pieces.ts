@@ -1,5 +1,6 @@
 import { getCurrentUser } from "@/lib/auth/profile";
 import { getPrisma } from "@/lib/prisma";
+import { isPrivateVideoBlobUrl } from "@/lib/studio/blob-url";
 
 export type CreationArea = "notebook" | "studio";
 export type CreationKind =
@@ -64,7 +65,10 @@ export async function listCreations(area: CreationArea, take = 40): Promise<Crea
         kind: row.kind,
         title: row.title,
         body: row.body,
-        media: row.media,
+        media:
+          row.kind === "video" && isPrivateVideoBlobUrl(row.media)
+            ? `/api/library/video?pieceId=${encodeURIComponent(row.id)}`
+            : row.media,
         createdAt: row.createdAt.toISOString(),
       },
     ];
@@ -88,7 +92,7 @@ export async function saveCreation(input: {
       kind: input.kind,
       title: input.title.trim().slice(0, 120) || "Pieza",
       body: input.body.slice(0, 20000),
-      media: input.media ? input.media.slice(0, 2_000_000) : null,
+      ...(input.media === undefined ? {} : { media: input.media ? input.media.slice(0, 2_000_000) : null }),
     },
     select: { id: true, createdAt: true },
   });
@@ -111,7 +115,7 @@ export async function updateCreation(input: {
     data: {
       title: input.title.trim().slice(0, 120) || "Pieza",
       body: input.body.slice(0, 20000),
-      media: input.media ? input.media.slice(0, 2_000_000) : null,
+      ...(input.media === undefined ? {} : { media: input.media ? input.media.slice(0, 2_000_000) : null }),
     },
   });
   if (result.count === 0) return null;

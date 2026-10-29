@@ -1,35 +1,21 @@
 "use client";
 
+import { useRouter } from "next/navigation";
 import { useState } from "react";
-import { createWalletClient, custom, erc20Abi, getAddress, isAddress, zeroAddress, type EIP1193Provider } from "viem";
-import { polygon } from "viem/chains";
 
 import { reportUsdtPayment, startCheckout, startUsdtOrder } from "@/app/dashboard/wallet/actions";
 import { signupPlans, type SignupPlanId } from "@/config/compensation-plan";
-import { membershipPackageId, polygonUsdcAddress } from "@/config/membership";
-import { lyraMembershipAbi } from "@/lib/payments/membership-abi";
-import { pickMetaMask, readInjectedEthereum, walletErrorMessage } from "@/lib/protocol/metamask";
-
-const polygonRpc = "https://polygon-bor-rpc.publicnode.com";
 
 const methods = [
   { id: "mp", title: "Tarjeta", detail: "Mercado Pago" },
   { id: "usdt", title: "USDT TRC20", detail: "Transferencia" },
-  { id: "metamask", title: "MetaMask", detail: "USDC en Polygon" },
   { id: "promo", title: "Código promocional", detail: "Activa al momento" },
 ] as const;
 
 type Method = (typeof methods)[number]["id"];
 
-export function PayMembership({
-  wallet,
-  sponsor,
-  membership,
-}: {
-  wallet: string | null;
-  sponsor: string | null;
-  membership: string;
-}) {
+export function PayMembership() {
+  const router = useRouter();
   const [packageId, setPackageId] = useState<SignupPlanId>("PRO");
   const [method, setMethod] = useState<Method | null>(null);
   const [error, setError] = useState("");
@@ -39,7 +25,6 @@ export function PayMembership({
   const [copied, setCopied] = useState(false);
   const [usdtReported, setUsdtReported] = useState(false);
   const [usdtOrder, setUsdtOrder] = useState<{ orderId: string; companyWallet: string; amountUsd: number } | null>(null);
-  const [linkedWallet, setLinkedWallet] = useState(wallet);
 
   const plan = signupPlans.find((item) => item.id === packageId) ?? signupPlans[1];
 
@@ -112,105 +97,6 @@ export function PayMembership({
     setUsdtReported(true);
   }
 
-  async function payMetaMask() {
-    setError("");
-    const provider = pickMetaMask([], readInjectedEthereum());
-    if (!membership) {
-      if (provider) {
-        setPending("metamask");
-        try {
-          await linkWallet(provider);
-        } catch (caught) {
-          setPending(null);
-          setError(walletErrorMessage(caught));
-          return;
-        }
-        setPending(null);
-      }
-      setError("El cobro en USDC se activa cuando el contrato esté publicado en Polygon. Mientras, puedes pagar con Mercado Pago.");
-      return;
-    }
-    if (!provider) {
-      setError("Abre esta página en el navegador donde instalaste MetaMask.");
-      return;
-    }
-    setPending("metamask");
-    try {
-      const account = await linkWallet(provider);
-      await choosePlan();
-      const client = createWalletClient({ account, chain: polygon, transport: custom(provider) });
-      const membershipAddress = getAddress(membership);
-      const usdc = getAddress(polygonUsdcAddress);
-      const price = BigInt(plan.price) * BigInt(1_000_000);
-      const publicRead = await import("viem").then(({ createPublicClient, http }) =>
-        createPublicClient({ chain: polygon, transport: http(polygonRpc) }),
-      );
-      const allowance = await publicRead.readContract({
-        address: usdc,
-        abi: erc20Abi,
-        functionName: "allowance",
-        args: [account, membershipAddress],
-      });
-      if (allowance < price) {
-        const approval = await client.writeContract({
-          address: usdc,
-          abi: erc20Abi,
-          functionName: "approve",
-          args: [membershipAddress, price],
-          account,
-          chain: polygon,
-        });
-        await publicRead.waitForTransactionReceipt({ hash: approval });
-      }
-      const sponsorAddress = sponsor ? getAddress(sponsor) : zeroAddress;
-      const hash = await client.writeContract({
-        address: membershipAddress,
-        abi: lyraMembershipAbi,
-        functionName: "buy",
-        args: [membershipPackageId(packageId), sponsorAddress],
-        account,
-        chain: polygon,
-      });
-      const response = await fetch("/api/payments/usdc", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ hash }),
-      });
-      const payload = (await response.json().catch(() => null)) as { error?: string } | null;
-      if (!response.ok) {
-        setPending(null);
-        setError(payload?.error ?? "Polygon confirmó el pago, pero LYRA no pudo activar la cuenta.");
-        return;
-      }
-      window.location.href = "/dashboard";
-    } catch (caught) {
-      setPending(null);
-      setError(walletErrorMessage(caught));
-    }
-  }
-
-  async function linkWallet(provider: EIP1193Provider) {
-    await ensurePolygon(provider);
-    const accounts = (await provider.request({ method: "eth_requestAccounts" })) as string[];
-    const account = accounts[0];
-    if (!account || !isAddress(account)) {
-      throw new Error("MetaMask no entregó una dirección.");
-    }
-    const address = getAddress(account);
-    if (linkedWallet && getAddress(linkedWallet) === address) return address;
-    const response = await fetch("/api/wallet/polygon", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ address }),
-    });
-    const payload = (await response.json().catch(() => null)) as { error?: string; address?: string } | null;
-    if (!response.ok || !payload?.address) {
-      throw new Error(payload?.error ?? "No se pudo guardar la wallet.");
-    }
-    setLinkedWallet(payload.address);
-    return address;
-  }
-
   async function payPromo() {
     const code = promoCode.trim();
     if (code.length < 4) {
@@ -231,7 +117,7 @@ export function PayMembership({
         setError(payload?.error ?? "No se pudo aplicar el código.");
         return;
       }
-      window.location.href = "/dashboard";
+      router.push("/dashboard");
     } catch {
       setPending(null);
       setError("No se pudo aplicar el código.");
@@ -354,17 +240,6 @@ export function PayMembership({
         </div>
       ) : null}
 
-      {method === "metamask" ? (
-        <button
-          type="button"
-          onClick={() => void payMetaMask()}
-          disabled={pending !== null}
-          className="mt-5 h-12 w-full rounded-md bg-[#312F2F] text-sm font-medium text-white disabled:opacity-60"
-        >
-          {pending === "metamask" ? "Confirmando en MetaMask…" : `Pagar $${plan.price} con MetaMask`}
-        </button>
-      ) : null}
-
       {method === "promo" ? (
         <div className="mt-5 space-y-3">
           <label className="block text-sm font-medium text-[#1E1E24]">
@@ -389,26 +264,4 @@ export function PayMembership({
       ) : null}
     </div>
   );
-}
-
-async function ensurePolygon(provider: EIP1193Provider) {
-  const chainId = "0x89";
-  try {
-    await provider.request({ method: "wallet_switchEthereumChain", params: [{ chainId }] });
-  } catch (error) {
-    const code = typeof error === "object" && error && "code" in error ? Number(error.code) : 0;
-    if (code !== 4902) throw error;
-    await provider.request({
-      method: "wallet_addEthereumChain",
-      params: [
-        {
-          chainId,
-          chainName: "Polygon",
-          nativeCurrency: { name: "POL", symbol: "POL", decimals: 18 },
-          rpcUrls: [polygonRpc],
-          blockExplorerUrls: ["https://polygonscan.com"],
-        },
-      ],
-    });
-  }
 }

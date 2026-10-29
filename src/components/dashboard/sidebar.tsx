@@ -13,6 +13,7 @@ import type { AuthProfile } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
 function isActive(href: string, pathname: string) {
+  if (href === "/dashboard/notebook") return pathname === href;
   if (href === brand.links.dashboard) {
     return pathname === href;
   }

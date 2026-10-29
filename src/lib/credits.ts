@@ -1,16 +1,9 @@
-import { Prisma } from "@prisma/client";
+import { Prisma } from "@/generated/prisma/client";
 
 import { getPrisma } from "@/lib/prisma";
+import { creditPrices } from "@/lib/credits/prices";
 
-export const creditPrices = {
-  notebook: 5,
-  image: 5,
-  speech: 3,
-  search: 2,
-  vegaMessage: 1,
-  vegaTool: 3,
-  botReply: 1,
-} as const;
+export { creditPrices };
 
 export type Charge =
   | { ok: true; chargeId: string | null; balance: number; duplicate: boolean }

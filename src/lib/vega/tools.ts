@@ -1,5 +1,6 @@
 import { runUserTool } from "@/lib/ai/composio-user";
 import { searchWeb, type WebResult } from "@/lib/ai/search";
+import { submitHiggsfieldImage } from "@/lib/ai/higgsfield-image";
 import { appToolNames, appTools, executeAppAction, runAppTool, type AppDraft } from "@/lib/vega/app-tools";
 import {
   commandAllowlist,
@@ -37,7 +38,7 @@ export type ActionPayload = EmailDraft | EventDraft | WhatsappDraft | AppDraft |
 export type EmailDraft = { to: string; cc?: string[]; subject: string; body: string };
 export type WhatsappDraft = { phone?: string; name?: string; text: string };
 export type CommandDraft = { commandId: string; label: string };
-export type ImageDraft = { prompt: string; size?: string; dataUrl?: string };
+export type ImageDraft = { prompt: string; size?: string; dataUrl?: string; requestId?: string; statusUrl?: string };
 export type VideoDraft = {
   title: string;
   script: string;
@@ -378,7 +379,7 @@ function limited(data: unknown) {
 export type ToolOutcome =
   | { kind: "result"; response: Record<string, unknown>; status: string; sources?: WebResult[] }
   | { kind: "action"; action: ActionKind; payload: ActionPayload; summary: string }
-  | { kind: "delivery"; action: ActionKind; payload: ActionPayload; summary: string; modelNote: string }
+  | { kind: "delivery"; action: ActionKind; payload: ActionPayload; summary: string; modelNote: string; status?: "running" | "done" }
   | { kind: "invalid"; response: Record<string, unknown> };
 
 export async function runVegaTool(userId: string, name: string, args: Record<string, unknown>): Promise<ToolOutcome> {
@@ -639,18 +640,24 @@ export async function runVegaTool(userId: string, name: string, args: Record<str
     const prompt = text(args.descripcion, 1000);
     if (prompt.length < 4) return { kind: "invalid", response: { error: "Describe la imagen con un poco más de detalle." } };
     const size = text(args.tamano, 20);
-    const orientation = size === "horizontal" ? "Una imagen panorámica, " : size === "vertical" ? "Una imagen vertical, " : "";
-    const generated = await generateImage(`${orientation}${prompt}`, size).catch(() => ({
+    const submitted = await submitHiggsfieldImage(prompt, size).catch(() => ({
       ok: false as const,
-      error: "El proveedor de imagen no respondió.",
+      error: "No pudimos enviar la solicitud de imagen a Higgsfield.",
     }));
-    if (!generated.ok) return { kind: "invalid", response: { error: generated.error } };
+    if (!submitted.ok) return { kind: "invalid", response: { error: submitted.error } };
     return {
       kind: "delivery",
       action: "create_image",
-      payload: { prompt, ...(size ? { size } : {}), dataUrl: generated.dataUrl },
-      summary: "Imagen lista",
-      modelNote: "La imagen ya se ve en el chat y se puede descargar. No pidas confirmación ni describas el archivo. Ofrece un siguiente paso útil, como usarla en un sitio o en un video.",
+      payload: {
+        prompt,
+        ...(size ? { size } : {}),
+        requestId: submitted.submission.requestId,
+        statusUrl: submitted.submission.statusUrl,
+      },
+      summary: "Generando imagen",
+      modelNote:
+        "Higgsfield aceptó la solicitud y la imagen se está generando en segundo plano. Di que está en proceso, no afirmes que ya quedó. La imagen aparecerá aquí automáticamente.",
+      status: "running",
     };
   }
 

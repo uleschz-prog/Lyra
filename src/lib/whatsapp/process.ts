@@ -1,4 +1,4 @@
-import type { Prisma } from "@prisma/client";
+import type { Prisma } from "@/generated/prisma/client";
 
 import { chargeCredits, creditPrices, refundCharge } from "@/lib/credits";
 import { getPrisma } from "@/lib/prisma";
@@ -9,7 +9,8 @@ import { decideAction } from "@/lib/vega/decide";
 import { prepareVegaTurn, runVegaTurn } from "@/lib/vega/turn";
 import { normalizePhone } from "@/lib/whatsapp/crypto";
 import { isWhatsappOptOut, type WhatsappInbound } from "@/lib/whatsapp/parse";
-import { sendWhatsappText, splitWhatsappText } from "@/lib/whatsapp/send";
+import { sendMetaWhatsapp } from "@/lib/whatsapp/meta-business";
+import { splitWhatsappText } from "@/lib/whatsapp/send";
 
 const CHAT_BURST = 8;
 const BOT_BURST = 30;
@@ -32,28 +33,12 @@ function plainReply(text: string) {
   return text.replace(/\*\*(.+?)\*\*/g, "$1").trim();
 }
 
-/** Busca la conexión por phone_number_id; si no existe, la crea para la cuenta administradora. */
+/** Solo se procesan números asociados explícitamente a una cuenta LYRA. */
 export async function resolveConnection(phoneNumberId: string): Promise<WhatsappConnection | null> {
-  const prisma = getPrisma();
-  const existing = await prisma.whatsappConnection.findUnique({ where: { phoneNumberId }, select: connectionSelect });
-  if (existing) return existing;
-  const admin = await prisma.user.findFirst({
-    where: { role: "ADMIN" },
-    orderBy: { createdAt: "asc" },
-    select: { id: true, name: true, vegaWhatsapp: true },
+  return getPrisma().whatsappConnection.findFirst({
+    where: { phoneNumberId, status: "active", accessTokenEncrypted: { not: null } },
+    select: connectionSelect,
   });
-  if (!admin) return null;
-  const created = await prisma.whatsappConnection
-    .create({
-      data: {
-        userId: admin.id,
-        phoneNumberId,
-        ownerPhone: normalizePhone(admin.vegaWhatsapp) || normalizePhone(process.env.WHATSAPP_OWNER_PHONE) || null,
-      },
-      select: connectionSelect,
-    })
-    .catch(() => null);
-  return created;
 }
 
 function actionSummary(kind: string, payload: unknown) {
@@ -68,19 +53,16 @@ function actionSummary(kind: string, payload: unknown) {
 async function handleOwner(connection: WhatsappConnection, inbound: WhatsappInbound): Promise<string> {
   const user = connection.user;
   if (!canUseVega(user)) {
-    await sendWhatsappText(connection.phoneNumberId, inbound.from, "Para platicar con Vega desde WhatsApp activa una membresía.");
+    await sendMetaWhatsapp(connection.userId, inbound.from, { text: "Para platicar con Vega desde WhatsApp activa una membresía." });
     return "owner-no-vega";
   }
-  const ownerChat = await getPrisma().whatsappChat.findUnique({
-    where: { connectionId_phone: { connectionId: connection.id, phone: inbound.from } },
-    select: { id: true, lastPendingActionId: true },
-  });
+  const ownerChat = await ensureOwnerChat(connection, inbound.from);
 
   const decision = inbound.text.trim().toLowerCase();
-  if (ownerChat?.lastPendingActionId && (decision === "confirmar" || decision === "cancelar")) {
+  if (ownerChat.lastPendingActionId && (decision === "confirmar" || decision === "cancelar")) {
     const decided = await decideAction(user.id, ownerChat.lastPendingActionId, decision === "confirmar");
     await getPrisma().whatsappChat.update({ where: { id: ownerChat.id }, data: { lastPendingActionId: null } });
-    await sendWhatsappText(connection.phoneNumberId, inbound.from, decided.message);
+    await sendMetaWhatsapp(connection.userId, inbound.from, { text: decided.message });
     return "owner-decided";
   }
 
@@ -97,7 +79,7 @@ async function handleOwner(connection: WhatsappConnection, inbound: WhatsappInbo
       "Canal: WhatsApp. Responde en texto plano breve, sin tablas ni markdown. Si preparas una acción, te confirmarán escribiendo «confirmar» o «cancelar».",
   });
   if (!prepared.ok) {
-    if (prepared.status !== 409) await sendWhatsappText(connection.phoneNumberId, inbound.from, prepared.error);
+    if (prepared.status !== 409) await sendMetaWhatsapp(connection.userId, inbound.from, { text: prepared.error });
     return "owner-error";
   }
 
@@ -110,17 +92,17 @@ async function handleOwner(connection: WhatsappConnection, inbound: WhatsappInbo
   const reply = result.content || errorText;
   if (reply) {
     for (const chunk of splitWhatsappText(plainReply(reply))) {
-      await sendWhatsappText(connection.phoneNumberId, inbound.from, chunk);
+      await sendMetaWhatsapp(connection.userId, inbound.from, { text: chunk });
     }
   }
   for (const action of pendingActions) {
-    await sendWhatsappText(
-      connection.phoneNumberId,
+    await sendMetaWhatsapp(
+      connection.userId,
       inbound.from,
-      `${actionSummary(action.kind, action.payload)}\n\nResponde «confirmar» para ejecutarla o «cancelar» para descartarla.`,
+      { text: `${actionSummary(action.kind, action.payload)}\n\nResponde «confirmar» para ejecutarla o «cancelar» para descartarla.` },
     );
     await getPrisma().whatsappChat.update({
-      where: { id: ownerChat?.id ?? (await ensureOwnerChat(connection, inbound.from)).id },
+      where: { id: ownerChat.id },
       data: { lastPendingActionId: action.id },
     });
   }
@@ -131,16 +113,25 @@ async function ensureOwnerChat(connection: WhatsappConnection, phone: string) {
   const prisma = getPrisma();
   return prisma.whatsappChat.upsert({
     where: { connectionId_phone: { connectionId: connection.id, phone } },
-    create: { userId: connection.userId, connectionId: connection.id, phone, name: "Socio" },
-    update: {},
-    select: { id: true },
+    create: { userId: connection.userId, connectionId: connection.id, phone, name: "Socio", lastInboundAt: new Date() },
+    update: { lastInboundAt: new Date() },
+    select: { id: true, lastPendingActionId: true },
   });
 }
 
 async function notifyOwner(connection: WhatsappConnection, text: string) {
   const owner = connection.ownerPhone ?? normalizePhone(connection.user.vegaWhatsapp);
   if (!owner) return;
-  await sendWhatsappText(connection.phoneNumberId, owner, text);
+  const ownerChat = await getPrisma().whatsappChat.findUnique({
+    where: { connectionId_phone: { connectionId: connection.id, phone: owner } },
+    select: { lastInboundAt: true, optedOutAt: true },
+  });
+  if (
+    !ownerChat?.lastInboundAt
+    || ownerChat.optedOutAt
+    || Date.now() - ownerChat.lastInboundAt.getTime() >= 24 * 60 * 60_000
+  ) return;
+  await sendMetaWhatsapp(connection.userId, owner, { text });
 }
 
 async function applyEffects(connection: WhatsappConnection, chat: { id: string; phone: string; name: string | null }, effects: AgentEffect[]) {
@@ -162,7 +153,21 @@ async function applyEffects(connection: WhatsappConnection, chat: { id: string; 
       stop = true;
       await prisma.whatsappChat.update({ where: { id: chat.id }, data: { automation: "closed" } });
     } else if (effect.type === "followup") {
-      // Seguimientos programados: fase 2 de WhatsApp.
+      const consent = await prisma.whatsappChat.findUnique({
+        where: { id: chat.id },
+        select: { consentAt: true, optedOutAt: true, lastInboundAt: true },
+      });
+      const delayMs = effect.delay === "1h" ? 60 * 60_000 : effect.delay === "24h" ? 24 * 60 * 60_000 : 3 * 24 * 60 * 60_000;
+      const withinWindow = Boolean(consent?.lastInboundAt && Date.now() + delayMs - consent.lastInboundAt.getTime() < 24 * 60 * 60_000);
+      const restriction = !consent?.consentAt || consent.optedOutAt
+        ? "no hay consentimiento registrado vigente"
+        : !withinWindow
+          ? "el envío quedaría fuera de la ventana de 24 horas y requiere una plantilla aprobada"
+          : "la programación automática del agente no está habilitada";
+      await notifyOwner(
+        connection,
+        `Vega identificó un posible seguimiento (${effect.delay}) para ${chat.name ?? chat.phone}: ${effect.reason}. No se envió automáticamente porque ${restriction}. Revisa la conversación y prográmalo desde LYRA si corresponde.`,
+      );
     }
   }
   return { stop };
@@ -184,8 +189,11 @@ async function handleProspect(connection: WhatsappConnection, inbound: WhatsappI
   await prisma.whatsappMessage.update({ where: { id: messageRowId }, data: { chatRowId: chat.id } });
 
   if (isWhatsappOptOut(inbound.text)) {
-    await prisma.whatsappChat.update({ where: { id: chat.id }, data: { optedOutAt: now, automation: "paused_by_contact" } });
-    await sendWhatsappText(connection.phoneNumberId, inbound.from, "Listo, ya no recibirás mensajes automáticos.");
+    await prisma.whatsappChat.update({
+      where: { id: chat.id },
+      data: { optedOutAt: now, consentAt: null, consentSource: null, automation: "paused_by_contact" },
+    });
+    await sendMetaWhatsapp(connection.userId, inbound.from, { text: "Listo, ya no recibirás mensajes automáticos." });
     return "opt-out";
   }
   if (existing?.optedOutAt) return "opted-out";
@@ -239,7 +247,7 @@ async function handleProspect(connection: WhatsappConnection, inbound: WhatsappI
   }
   let delivered = true;
   for (const chunk of splitWhatsappText(generated.text)) {
-    const sent = await sendWhatsappText(connection.phoneNumberId, chat.phone, chunk);
+    const sent = await sendMetaWhatsapp(connection.userId, chat.phone, { text: chunk });
     if (!sent.ok) {
       await prisma.whatsappMessage.create({
         data: { userId: connection.userId, connectionId: connection.id, chatRowId: chat.id, direction: "outbound", senderType: "agent", text: chunk, status: "failed", error: sent.error.slice(0, 300) },

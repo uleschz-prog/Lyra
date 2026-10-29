@@ -1,8 +1,9 @@
 "use client";
 
 import { ArrowUp, Download, Paperclip, Pencil, Save, Sparkles, Trash2, Upload } from "lucide-react";
-import { useEffect, useRef, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import { toast } from "sonner";
+import { upload } from "@vercel/blob/client";
 
 import { discardCreation, reviseCreation, storeCreation } from "@/app/dashboard/studio/actions";
 import { CreationHistory } from "@/components/media/creation-history";
@@ -17,6 +18,15 @@ import {
   TemplateCard,
 } from "@/components/studio/studio-pieces";
 import type { CreationRecord } from "@/lib/media-pieces";
+import { assembleVideoSequence, supportsVideoAudioAssembly } from "@/lib/studio/assemble-video";
+import {
+  videoModelOptions,
+  videoDurationOptions,
+  type VideoModel,
+  type VideoDuration,
+  type VideoGenerationState,
+} from "@/lib/studio/video-generation-shared";
+import { videoQuotaDurationOptions, videoQuotaReservationSeconds } from "@/lib/studio/video-quota-shared";
 import { cn } from "@/lib/utils";
 
 const mediaLimit = 1_900_000;
@@ -26,12 +36,15 @@ type StudioTab = "video" | "image" | "search";
 type VideoJob = {
   mode: "preview" | "live";
   provider: "lyra";
-  status: "ready" | "processing" | "completed" | "failed";
+  status: "ready" | "processing" | "assembling" | "completed" | "failed";
   jobId?: string;
+  generationId?: string;
   videoUrl?: string | null;
   message?: string;
   scenes?: { index: number; line: string }[];
   error?: string;
+  completedSegments?: number;
+  segmentCount?: number;
 };
 
 type SearchResult = {
@@ -45,15 +58,20 @@ async function persistPiece(input: {
   kind: "video" | "image";
   title: string;
   body: string;
-  media: string;
+  media?: string;
 }) {
-  if (input.media.length > mediaLimit) {
+  if ((input.media?.length ?? 0) > mediaLimit) {
     toast.error("La pieza es demasiado grande para guardarla. Prueba 15 segundos.");
     return null;
   }
   try {
     if (input.id) {
-      const revised = await reviseCreation({ id: input.id, title: input.title, body: input.body, media: input.media });
+      const revised = await reviseCreation({
+        id: input.id,
+        title: input.title,
+        body: input.body,
+        ...(input.media === undefined ? {} : { media: input.media }),
+      });
       if (!revised) {
         toast.error("No se pudo actualizar la pieza.");
         return null;
@@ -65,7 +83,7 @@ async function persistPiece(input: {
       kind: input.kind,
       title: input.title,
       body: input.body,
-      media: input.media,
+      ...(input.media === undefined ? {} : { media: input.media }),
     });
     if (!saved) {
       toast.error("No se pudo guardar la pieza.");
@@ -117,16 +135,42 @@ const backdrop = [
 
 type StudioBrief = { id: number; tab: StudioTab; text: string };
 
-export function CreativeStudio({ initialPieces = [] }: { initialPieces?: CreationRecord[] }) {
+export function CreativeStudio({
+  initialPieces = [],
+  initialVideoGeneration = null,
+  initialVideoQuotaSeconds = 0,
+}: {
+  initialPieces?: CreationRecord[];
+  initialVideoGeneration?: VideoGenerationState | null;
+  initialVideoQuotaSeconds?: number;
+}) {
   const [tab, setTab] = useState<StudioTab>("video");
   const [pieces, setPieces] = useState<CreationRecord[]>(initialPieces);
   const [opened, setOpened] = useState<CreationRecord | null>(null);
   const [draft, setDraft] = useState("");
-  const [quality, setQuality] = useState<"4K" | "1080p">("4K");
+  const [videoDuration, setVideoDuration] = useState<VideoDuration>(30);
+  const [videoModel, setVideoModel] = useState<VideoModel>("wan-3.0");
+  const [videoQuotaSeconds, setVideoQuotaSeconds] = useState(initialVideoQuotaSeconds);
   const [brief, setBrief] = useState<StudioBrief | null>(null);
   const [reel, setReel] = useState<string | null>(null);
   const scriptRef = useRef<HTMLInputElement>(null);
   const stage = stages[tab];
+  const updateVideoQuota = useCallback((seconds: number) => {
+    setVideoQuotaSeconds(seconds);
+    const available = videoQuotaDurationOptions(seconds, videoModel);
+    setVideoDuration((current) => available.includes(current) ? current : (available[0] ?? 30) as VideoDuration);
+  }, [videoModel]);
+  const changeVideoModel = useCallback((model: VideoModel) => {
+    setVideoModel(model);
+    const available = videoQuotaDurationOptions(videoQuotaSeconds, model);
+    setVideoDuration((current) => available.includes(current) ? current : (available[0] ?? 30) as VideoDuration);
+  }, [videoQuotaSeconds]);
+  const savePiece = useCallback((piece: CreationRecord) => {
+    setPieces((current) => [piece, ...current.filter((item) => item.id !== piece.id)]);
+  }, []);
+  const removePiece = useCallback((id: string) => {
+    setPieces((current) => current.filter((piece) => piece.id !== id));
+  }, []);
 
   function launch(text = draft) {
     const next = text.trim();
@@ -188,23 +232,6 @@ export function CreativeStudio({ initialPieces = [] }: { initialPieces?: Creatio
               })}
             </div>
             <div className="px-4 pt-4 sm:px-5">
-              {tab === "video" ? (
-                <div className="mb-3 flex gap-2">
-                  {(["4K", "1080p"] as const).map((option) => (
-                    <button
-                      key={option}
-                      type="button"
-                      onClick={() => setQuality(option)}
-                      className={cn(
-                        "rounded-full border px-3 py-1 text-xs font-medium",
-                        quality === option ? "border-[#7C3AED] bg-[#7C3AED] text-white" : "border-[#E7E2DA] text-[#5C5854]",
-                      )}
-                    >
-                      {option === "4K" ? "4K" : "HD 1080p"}
-                    </button>
-                  ))}
-                </div>
-              ) : null}
               <div className="flex flex-wrap gap-2">
                 {ideas[tab].map((idea) => (
                   <button
@@ -217,6 +244,46 @@ export function CreativeStudio({ initialPieces = [] }: { initialPieces?: Creatio
                   </button>
                 ))}
               </div>
+              {tab === "video" ? (
+                <div className="mt-3 space-y-3" aria-label="Cupo y opciones de video">
+                  <p className="text-xs text-[#5C5854]">Cupo disponible: {videoQuotaSeconds} s. Se renueva con la membresía y no consume créditos.</p>
+                  <div className="flex flex-wrap gap-2">
+                    {videoModelOptions.map((option) => (
+                      <button
+                        key={option.id}
+                        type="button"
+                        aria-pressed={videoModel === option.id}
+                        onClick={() => changeVideoModel(option.id)}
+                        className={cn(
+                          "rounded-full border px-3 py-1 text-xs transition-colors",
+                          videoModel === option.id ? "border-[#7C3AED] bg-[#7C3AED] text-white" : "border-[#DDD6FE] bg-white text-[#5B21B6] hover:border-[#7C3AED]",
+                        )}
+                      >
+                        {option.name}{option.multiplier > 1 ? " · 1.36× cupo" : " · económico"}
+                      </button>
+                    ))}
+                  </div>
+                  <div className="flex flex-wrap gap-2">
+                    {videoQuotaDurationOptions(videoQuotaSeconds, videoModel).map((option) => (
+                    <button
+                      key={option}
+                      type="button"
+                      aria-pressed={videoDuration === option}
+                      onClick={() => setVideoDuration(option as VideoDuration)}
+                      className={cn(
+                        "rounded-full border px-3 py-1 text-xs transition-colors",
+                        videoDuration === option
+                          ? "border-[#7C3AED] bg-[#7C3AED] text-white"
+                          : "border-[#DDD6FE] bg-white text-[#5B21B6] hover:border-[#7C3AED]",
+                      )}
+                    >
+                      {option >= 60 ? `${Math.floor(option / 60)} min${option % 60 ? ` ${option % 60} s` : ""}` : `${option} s`}
+                      {" · "}usa {videoQuotaReservationSeconds(option, videoModel)} s de cupo
+                    </button>
+                  ))}
+                  </div>
+                </div>
+              ) : null}
               <label htmlFor="studio-prompt" className="sr-only">
                 Describe lo que quieres crear
               </label>
@@ -250,7 +317,7 @@ export function CreativeStudio({ initialPieces = [] }: { initialPieces?: Creatio
                 <Paperclip className="size-4" />
                 Guion
               </button>
-              <button type="submit" className="inline-flex items-center gap-2 rounded-xl bg-[#7C3AED] px-4 py-2.5 text-sm font-medium text-white hover:bg-[#6D28D9]">
+              <button type="submit" disabled={tab === "video" && videoQuotaDurationOptions(videoQuotaSeconds, videoModel).length === 0} className="inline-flex items-center gap-2 rounded-xl bg-[#7C3AED] px-4 py-2.5 text-sm font-medium text-white hover:bg-[#6D28D9] disabled:opacity-50">
                 {stage.action}
                 <ArrowUp className="size-4" />
               </button>
@@ -264,18 +331,24 @@ export function CreativeStudio({ initialPieces = [] }: { initialPieces?: Creatio
           <VideoPanel
             restore={opened}
             brief={brief}
-            quality={quality}
+            initialGeneration={initialVideoGeneration}
+            videoQuotaSeconds={videoQuotaSeconds}
+            onQuotaChange={updateVideoQuota}
+            model={videoModel}
+            onModelChange={changeVideoModel}
+            durationSeconds={videoDuration}
+            onDurationChange={setVideoDuration}
             onReady={setReel}
-            onSaved={(piece) => setPieces((current) => [piece, ...current.filter((item) => item.id !== piece.id)])}
-            onRemoved={(id) => setPieces((current) => current.filter((piece) => piece.id !== id))}
+            onSaved={savePiece}
+            onRemoved={removePiece}
           />
         </div>
         <div className={tab === "image" ? undefined : "hidden"}>
           <ImagePanel
             restore={opened}
             brief={brief}
-            onSaved={(piece) => setPieces((current) => [piece, ...current.filter((item) => item.id !== piece.id)])}
-            onRemoved={(id) => setPieces((current) => current.filter((piece) => piece.id !== id))}
+            onSaved={savePiece}
+            onRemoved={removePiece}
           />
         </div>
         <div className={tab === "search" ? undefined : "hidden"}>
@@ -300,56 +373,74 @@ export function CreativeStudio({ initialPieces = [] }: { initialPieces?: Creatio
   );
 }
 
-async function waitForPremium(jobId: string) {
-  const deadline = Date.now() + 240_000;
-  while (Date.now() < deadline) {
-    await new Promise((resolve) => setTimeout(resolve, 4000));
-    const response = await fetch(`/api/ai/video?jobId=${encodeURIComponent(jobId)}`);
-    const payload = (await response.json().catch(() => ({}))) as { status?: string; error?: string; videoUrl?: string };
-    if (payload.status === "completed") return payload.videoUrl ?? `/api/ai/video?jobId=${encodeURIComponent(jobId)}&play=1`;
-    if (!response.ok || payload.status === "failed" || payload.status === "cancelled" || payload.status === "expired") {
-      throw new Error(payload.error ?? "No se pudo terminar el anuncio.");
+async function waitForGeneration(
+  generationId: string,
+  onProgress: (generation: VideoGenerationState) => void,
+  onQuotaChange: (seconds: number) => void,
+  onCredits: (credits: number) => void,
+) {
+  while (true) {
+    await new Promise((resolve) => setTimeout(resolve, 7000));
+    let response: Response;
+    try {
+      response = await fetch(`/api/ai/video?generationId=${encodeURIComponent(generationId)}`);
+    } catch {
+      continue;
     }
+    const generation = (await response.json().catch(() => null)) as VideoGenerationState | null;
+    if (!generation) continue;
+    if (typeof generation.quotaRemainingSeconds === "number") onQuotaChange(generation.quotaRemainingSeconds);
+    if (typeof generation.credits === "number") onCredits(generation.credits);
+    if (generation.status === "failed") throw new Error(generation.error ?? "No se pudo terminar el video.");
+    if (response.status === 404) throw new Error("No se encontró la generación.");
+    if (generation.status === "assembling" || generation.status === "completed") return generation;
+    onProgress(generation);
   }
-  throw new Error("El render sigue en curso. Vuelve a pedirlo en un momento.");
 }
-
-type StudioImage = { id: string; name: string; url: string };
 
 function VideoPanel({
   restore,
   brief,
-  quality,
+  initialGeneration,
+  videoQuotaSeconds,
+  onQuotaChange,
+  model,
+  onModelChange,
+  durationSeconds,
+  onDurationChange,
   onReady,
   onSaved,
   onRemoved,
 }: {
   restore: CreationRecord | null;
   brief: StudioBrief | null;
-  quality: "4K" | "1080p";
+  initialGeneration: VideoGenerationState | null;
+  videoQuotaSeconds: number;
+  onQuotaChange: (seconds: number) => void;
+  model: VideoModel;
+  onModelChange: (model: VideoModel) => void;
+  durationSeconds: VideoDuration;
+  onDurationChange: (duration: VideoDuration) => void;
   onReady: (url: string) => void;
   onSaved: (piece: CreationRecord) => void;
   onRemoved: (id: string) => void;
 }) {
   const [format, setFormat] = useState("16:9");
-  const [duration, setDuration] = useState("8 s");
-  const [look, setLook] = useState("cine");
-  const [detail, setDetail] = useState("");
   const [title, setTitle] = useState("");
   const [script, setScript] = useState("");
-  const [images, setImages] = useState<StudioImage[]>([]);
   const [job, setJob] = useState<VideoJob | null>(null);
   const [pending, setPending] = useState(false);
   const [editing, setEditing] = useState(false);
   const [bar, setBar] = useState(0);
   const [pieceId, setPieceId] = useState<string | null>(null);
-  const [activeTemplate, setActiveTemplate] = useState<string | null>(null);
+  const [generationId, setGenerationId] = useState<string | null>(null);
   const [restoredId, setRestoredId] = useState<string | null>(null);
-  const qualityRef = useRef(quality);
-  qualityRef.current = quality;
   const launched = useRef(0);
-
-  const busy = pending || job?.status === "processing";
+  const resumedGeneration = useRef<string | null>(null);
+  const generateRef = useRef<(override?: string) => Promise<void>>(async () => undefined);
+  const finishGenerationRef = useRef<(id: string, initial?: VideoGenerationState) => Promise<void>>(async () => undefined);
+  const { syncBalance } = useCredits();
+  const busy = pending || job?.status === "processing" || job?.status === "assembling";
   const locked = Boolean(job?.videoUrl) && !editing;
 
   if (restore && restore.kind === "video" && restore.id !== restoredId) {
@@ -389,21 +480,126 @@ function VideoPanel({
     };
   }, [busy]);
 
-  useEffect(() => {
-    if (!brief || brief.tab !== "video" || brief.id === launched.current) return;
-    launched.current = brief.id;
-    setTitle(brief.text.slice(0, 72));
-    setScript(brief.text);
-    setLook("cine");
-    setFormat("16:9");
-    void generate(brief.text);
-  }, [brief]);
+  const showSavedVideo = useCallback((piece: CreationRecord) => {
+    const libraryPiece = { ...piece, media: `/api/library/video?pieceId=${encodeURIComponent(piece.id)}` };
+    setGenerationId(null);
+    setPieceId(libraryPiece.id);
+    setTitle(libraryPiece.title);
+    setScript(libraryPiece.body);
+    setJob({
+      mode: "live",
+      provider: "lyra",
+      status: "completed",
+      videoUrl: libraryPiece.media,
+      message: "Video guardado en tu biblioteca.",
+    });
+    setEditing(false);
+    onReady(libraryPiece.media ?? "");
+    onSaved(libraryPiece);
+    toast.success("Video listo. Quedó guardado en tu biblioteca.");
+  }, [onReady, onSaved]);
 
-  async function generate(override?: string) {
-    setPending(true);
-    setJob({ mode: "live", provider: "lyra", status: "processing", message: "Rodando el anuncio con Veo…" });
+  const reportGenerationFailure = useCallback(async (id: string, reason: string) => {
     try {
-      const spoken = [override?.trim() || script.trim(), detail.trim()].filter(Boolean).join(" ");
+      const response = await fetch("/api/ai/video", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "fail", generationId: id, error: reason }),
+      });
+      const payload = (await response.json().catch(() => ({}))) as { quotaRemainingSeconds?: number; credits?: number };
+      if (!response.ok) {
+        toast.error("No se pudo confirmar el reembolso. La generación sigue registrada para reintentarla.");
+        return;
+      }
+      if (typeof payload.quotaRemainingSeconds === "number") onQuotaChange(payload.quotaRemainingSeconds);
+      if (typeof payload.credits === "number") syncBalance(payload.credits);
+    } catch {
+      toast.error("No se pudo confirmar el reembolso. La generación sigue registrada para reintentarla.");
+    }
+  }, [onQuotaChange, syncBalance]);
+
+  const finishGeneration = useCallback(async (id: string, initial?: VideoGenerationState) => {
+    try {
+      let ready = initial;
+      if (!ready || (ready.status !== "assembling" && ready.status !== "completed")) {
+        ready = await waitForGeneration(
+          id,
+          (progress) => {
+            setJob({
+              mode: "live",
+              provider: "lyra",
+              status: "processing",
+              generationId: id,
+              completedSegments: progress.completedSegments,
+              segmentCount: progress.segmentCount,
+              message: `Generando segmento ${Math.min(progress.completedSegments + 1, progress.segmentCount)} de ${progress.segmentCount}…`,
+            });
+          },
+          onQuotaChange,
+          (credits) => syncBalance(credits),
+        );
+      }
+
+      if (ready.status === "completed" && ready.piece) {
+        showSavedVideo(ready.piece);
+        return;
+      }
+      if (ready.status !== "assembling") throw new Error("El video aún no está listo para ensamblarse.");
+
+      setJob({
+        mode: "live",
+        provider: "lyra",
+        status: "assembling",
+        generationId: id,
+        completedSegments: ready.segmentCount,
+        segmentCount: ready.segmentCount,
+        message: "Creando la narración, mezclando el sonido y guardando el video…",
+      });
+      const narrationResponse = await fetch("/api/ai/video/narration", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ generationId: id }),
+      });
+      if (!narrationResponse.ok) {
+        const payload = (await narrationResponse.json().catch(() => ({}))) as { error?: string };
+        throw new Error(payload.error ?? "No se pudo crear la narración del video.");
+      }
+      const assembled = await assembleVideoSequence(ready.segmentUrls, ready.format, await narrationResponse.blob());
+      const extension = assembled.type.includes("mp4") ? "mp4" : "webm";
+      const blob = await upload(`lyra-videos/${id}.${extension}`, assembled, {
+        access: "private",
+        contentType: extension === "webm" ? "video/webm" : "video/mp4",
+        handleUploadUrl: "/api/ai/video/upload",
+        clientPayload: JSON.stringify({ generationId: id }),
+        multipart: assembled.size > 5_000_000,
+      });
+      const response = await fetch("/api/ai/video", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "finalize", generationId: id, mediaUrl: blob.url }),
+      });
+      const payload = (await response.json().catch(() => ({}))) as { error?: string; piece?: CreationRecord | null };
+      if (!response.ok || !payload.piece) throw new Error(payload.error ?? "No se pudo guardar el video en la biblioteca.");
+      showSavedVideo(payload.piece);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "No se pudo ensamblar el video.";
+      await reportGenerationFailure(id, message);
+      setGenerationId(null);
+      setJob({ mode: "live", provider: "lyra", status: "failed", error: message, message });
+      toast.error(message);
+    } finally {
+      setPending(false);
+    }
+  }, [onQuotaChange, reportGenerationFailure, showSavedVideo, syncBalance]);
+
+  const generate = useCallback(async (override?: string) => {
+    setPending(true);
+    setJob({ mode: "live", provider: "lyra", status: "processing", message: "Iniciando el video…" });
+    try {
+      if (!supportsVideoAudioAssembly()) {
+        throw new Error("Tu navegador no puede crear videos con sonido. Usa Chrome, Edge o Firefox actualizado.");
+      }
+      const spoken = override?.trim() || script.trim();
       const response = await fetch("/api/ai/video", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -411,57 +607,80 @@ function VideoPanel({
           title: override?.slice(0, 72) || title,
           script: spoken,
           format: override ? "16:9" : format,
-          styleId: "cine",
-          duration: "8 s",
-          captions: false,
-          quality: qualityRef.current,
+          durationSeconds,
+          model,
+          requestKey: crypto.randomUUID(),
         }),
       });
-      const payload = (await response.json()) as VideoJob & { jobId?: string; error?: string };
-      if (!response.ok) throw new Error(payload.error ?? "No se pudo crear el video.");
-      let data: VideoJob | null = null;
-      if (payload.status === "processing" && payload.jobId) {
-        setJob({ ...payload, provider: "lyra", status: "processing", message: payload.message ?? "Rodando el anuncio…" });
-        const videoUrl = await waitForPremium(payload.jobId);
-        data = { ...payload, provider: "lyra", status: "completed", videoUrl, message: "Anuncio listo." };
-      } else if (payload.videoUrl) data = payload;
-      if (!data?.videoUrl) throw new Error(payload.error ?? "El modelo no devolvió el video.");
-      onReady(data.videoUrl);
-      setJob(data);
-      setEditing(false);
-      const headline = (override?.trim() || title).slice(0, 72) || "Video";
-      const saved = await persistPiece({
-        id: null,
-        kind: "video",
-        title: headline,
-        body: spoken,
-        media: data.videoUrl,
+      const payload = (await response.json().catch(() => ({}))) as VideoGenerationState & { error?: string };
+      if (typeof payload.quotaRemainingSeconds === "number") onQuotaChange(payload.quotaRemainingSeconds);
+      if (!response.ok) throw new Error(payload.error ?? "No se pudo iniciar el video.");
+      if (typeof payload.id !== "string" || payload.id.length === 0) throw new Error("No se recibió el identificador de la generación.");
+      setGenerationId(payload.id);
+      setTitle((override?.trim() || title).slice(0, 72) || "Video");
+      setScript(spoken);
+      setJob({
+        mode: "live",
+        provider: "lyra",
+        status: "processing",
+        generationId: payload.id,
+        completedSegments: payload.completedSegments,
+        segmentCount: payload.segmentCount,
+        message: `Generando segmento 1 de ${payload.segmentCount}…`,
       });
-      if (saved) {
-        setPieceId(saved.id);
-        onSaved({
-          id: saved.id,
-          area: "studio",
-          kind: "video",
-          title: headline,
-          body: spoken,
-          media: data.videoUrl,
-          createdAt: saved.createdAt,
-        });
-        toast.success("Video listo. Quedó en tu biblioteca.");
-      }
+      await finishGeneration(payload.id, payload);
     } catch (error) {
       const message = error instanceof Error ? error.message : "No se pudo crear el video.";
+      if (generationId) await reportGenerationFailure(generationId, message);
       setJob({ mode: "live", provider: "lyra", status: "failed", error: message, message });
       toast.error(message);
     } finally {
       setPending(false);
     }
-  }
+  }, [durationSeconds, format, finishGeneration, generationId, model, onQuotaChange, reportGenerationFailure, script, title]);
+  useEffect(() => {
+    generateRef.current = generate;
+    finishGenerationRef.current = finishGeneration;
+  }, [generate, finishGeneration]);
+
+  useEffect(() => {
+    if (!brief || brief.tab !== "video" || brief.id === launched.current) return;
+    launched.current = brief.id;
+    setTitle(brief.text.slice(0, 72));
+    setScript(brief.text);
+    setFormat("16:9");
+    void generateRef.current(brief.text);
+  }, [brief]);
+
+  useEffect(() => {
+    if (!initialGeneration || resumedGeneration.current === initialGeneration.id) return;
+    resumedGeneration.current = initialGeneration.id;
+    setGenerationId(initialGeneration.id);
+    setTitle(initialGeneration.title);
+    setScript(initialGeneration.script);
+    setFormat(initialGeneration.format);
+    onDurationChange(videoDurationOptions.find((duration) => duration === initialGeneration.durationSeconds) ?? 30);
+    if (initialGeneration.model === "wan-3.0" || initialGeneration.model === "wan-3.0-prime") onModelChange(initialGeneration.model);
+    setPending(true);
+    setJob({
+      mode: "live",
+      provider: "lyra",
+      status: initialGeneration.status === "assembling" ? "assembling" : "processing",
+      generationId: initialGeneration.id,
+      completedSegments: initialGeneration.completedSegments,
+      segmentCount: initialGeneration.segmentCount,
+      message: "Retomando la creación del video…",
+    });
+    void finishGenerationRef.current(initialGeneration.id, initialGeneration);
+  }, [initialGeneration, onDurationChange, onModelChange]);
 
   async function saveVideo() {
     if (!job?.videoUrl) {
       toast.error("Crea el video antes de guardarlo.");
+      return;
+    }
+    if (!pieceId) {
+      toast.error("No se encontró el video guardado para actualizar.");
       return;
     }
     const saved = await persistPiece({
@@ -469,7 +688,6 @@ function VideoPanel({
       kind: "video",
       title,
       body: script,
-      media: job.videoUrl,
     });
     if (!saved) return;
     setPieceId(saved.id);
@@ -485,21 +703,13 @@ function VideoPanel({
     toast.success(pieceId ? "Video actualizado." : "Video guardado.");
   }
 
-  function addImages(files: FileList | null) {
-    if (!files) return;
-    const next = Array.from(files)
-      .filter((file) => file.type.startsWith("image/"))
-      .slice(0, 6)
-      .map((file) => ({ id: crypto.randomUUID(), name: file.name, url: URL.createObjectURL(file) }));
-    setImages((current) => [...current, ...next].slice(0, 6));
-  }
-
   function removePiece() {
     if (pieceId) {
       void discardCreation(pieceId);
       onRemoved(pieceId);
     }
     setPieceId(null);
+    setGenerationId(null);
     setJob(null);
     setEditing(false);
   }
@@ -516,7 +726,7 @@ function VideoPanel({
       const href = URL.createObjectURL(blob);
       const link = document.createElement("a");
       link.href = href;
-      const extension = job.videoUrl.startsWith("data:video/webm") ? "webm" : "mp4";
+      const extension = blob.type.includes("webm") ? "webm" : "mp4";
       link.download = `${title.slice(0, 40) || "video-lyra"}.${extension}`;
       link.click();
       URL.revokeObjectURL(href);
@@ -538,7 +748,7 @@ function VideoPanel({
           <div className="flex items-center justify-between text-sm">
             <p className="flex items-center gap-1.5">
               <Sparkles className="h-3.5 w-3.5 text-[#C4B5FD]" aria-hidden />
-              Rodando el anuncio
+              {job?.message ?? "Creando video"}
             </p>
             <p className="tabular-nums text-[#C4B5FD]">{Math.round(bar)}%</p>
           </div>
@@ -554,43 +764,87 @@ function VideoPanel({
           <p className="max-w-md text-center text-sm leading-6 text-white/70">
             {job?.status === "failed"
               ? job.message
-              : pending || job?.status === "processing"
-                ? "Veo está rodando el clip. El video aparece aquí cuando el archivo está listo."
-                : "Escribe el anuncio arriba. Aquí se reproduce el video, con imagen y audio."}
+              : pending || job?.status === "processing" || job?.status === "assembling"
+                ? job?.message ?? "LYRA está generando el video. Aparecerá aquí cuando el archivo esté listo."
+                : "Escribe el anuncio arriba. Aquí se reproduce el video con imagen y movimiento."}
           </p>
         )}
       </div>
-      <div className={cn("flex flex-wrap items-center justify-between gap-3 px-5 pb-5", locked && "pointer-events-none opacity-60")}>
-        <div className="flex gap-2">
-          {(["16:9", "9:16", "1:1"] as const).map((option) => (
+      <div className={cn("space-y-4 px-5 pb-5", locked && "pointer-events-none opacity-60")}>
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div className="flex gap-2">
+            {(["16:9", "9:16", "1:1"] as const).map((option) => (
+              <button
+                key={option}
+                type="button"
+                onClick={() => setFormat(option)}
+                className={cn("rounded-full px-3 py-1.5 text-sm", format === option ? "bg-white text-[#0B0A10]" : "bg-white/10 text-white")}
+              >
+                {option}
+              </button>
+            ))}
+          </div>
+          {job?.videoUrl ? (
+            <PieceActions
+              editing={editing}
+              onDownload={() => void downloadVideo()}
+              onSave={() => void saveVideo()}
+              onEdit={() => setEditing((current) => !current)}
+              onDelete={removePiece}
+            />
+          ) : (
             <button
-              key={option}
               type="button"
-              onClick={() => setFormat(option)}
-              className={cn("rounded-full px-3 py-1.5 text-sm", format === option ? "bg-white text-[#0B0A10]" : "bg-white/10 text-white")}
+              disabled={pending || script.trim().length < 12}
+              onClick={() => void generate()}
+              className="rounded-full bg-white px-4 py-2 text-sm font-medium text-[#0B0A10] disabled:opacity-40"
             >
-              {option}
+              {pending ? "Creando…" : `Crear video · ${durationSeconds} s de cupo`}
             </button>
-          ))}
+          )}
         </div>
-        {job?.videoUrl ? (
-          <PieceActions
-            editing={editing}
-            onDownload={() => void downloadVideo()}
-            onSave={() => void saveVideo()}
-            onEdit={() => setEditing((current) => !current)}
-            onDelete={removePiece}
-          />
-        ) : (
-          <button
-            type="button"
-            disabled={pending || script.trim().length < 12}
-            onClick={() => void generate()}
-            className="rounded-full bg-white px-4 py-2 text-sm font-medium text-[#0B0A10] disabled:opacity-40"
-          >
-            {pending ? "Rodando…" : "Crear video"}
-          </button>
-        )}
+        {!job?.videoUrl ? (
+          <div className="space-y-3">
+            <p className="text-xs text-white/70">Cupo disponible: {videoQuotaSeconds} s. No consume créditos.</p>
+            <div className="flex flex-wrap gap-2" aria-label="Modelo de video">
+              {videoModelOptions.map((option) => (
+                <button
+                  key={option.id}
+                  type="button"
+                  aria-pressed={model === option.id}
+                  disabled={busy}
+                  onClick={() => onModelChange(option.id)}
+                  className={cn(
+                    "rounded-full border px-3 py-1.5 text-xs transition-colors disabled:opacity-50",
+                    model === option.id ? "border-[#C4B5FD] bg-[#7C3AED] text-white" : "border-white/20 bg-white/10 text-white hover:bg-white/20",
+                  )}
+                >
+                  {option.name}{option.multiplier > 1 ? " · 1.36× cupo" : " · económico"}
+                </button>
+              ))}
+            </div>
+            <div className="flex flex-wrap gap-2" aria-label="Duración del video">
+            {videoQuotaDurationOptions(videoQuotaSeconds, model).map((option) => (
+              <button
+                key={option}
+                type="button"
+                aria-pressed={durationSeconds === option}
+                disabled={busy}
+                onClick={() => onDurationChange(option as VideoDuration)}
+                className={cn(
+                  "rounded-full border px-3 py-1.5 text-xs transition-colors disabled:opacity-50",
+                  durationSeconds === option
+                    ? "border-[#C4B5FD] bg-[#7C3AED] text-white"
+                    : "border-white/20 bg-white/10 text-white hover:bg-white/20",
+                )}
+              >
+                {option >= 60 ? `${Math.floor(option / 60)} min${option % 60 ? ` ${option % 60} s` : ""}` : `${option} s`}
+                {" · "}usa {videoQuotaReservationSeconds(option, model)} s de cupo
+              </button>
+            ))}
+            </div>
+          </div>
+        ) : null}
       </div>
     </section>
   );

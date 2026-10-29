@@ -41,10 +41,7 @@ yarn-error.log*
 *.tsbuildinfo
 next-env.d.ts
 
-# hardhat
-/artifacts
-/cache
-/typechain-types
+/src/generated/prisma
 
 # Documentos internos de negocio e inversionistas (no subir al repo público)
 /docs/*

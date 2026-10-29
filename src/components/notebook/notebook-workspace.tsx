@@ -126,7 +126,11 @@ const prompts: Record<Exclude<StudioId, "audio" | "video"> | "brief", string> = 
   table: "Compara las fuentes en una tabla.",
 };
 
-export function NotebookWorkspace({ initialPieces = [] }: { initialPieces?: CreationRecord[] }) {
+export function NotebookWorkspace({
+  initialPieces = [],
+}: {
+  initialPieces?: CreationRecord[];
+}) {
   const { syncBalance } = useCredits();
   const searchRef = useRef<HTMLInputElement>(null);
   const [notebookTitle, setNotebookTitle] = useState("Cuaderno sin título");
@@ -169,18 +173,28 @@ export function NotebookWorkspace({ initialPieces = [] }: { initialPieces?: Crea
 
   useEffect(() => {
     if (!busy) return;
-    setBar((current) => (current > 0 && current < 100 ? current : 8));
+    const startFrame = window.requestAnimationFrame(() => {
+      setBar((current) => (current > 0 && current < 100 ? current : 8));
+    });
     const timer = window.setInterval(() => {
       setBar((current) => (current >= 92 ? 92 : Math.min(92, current + (current < 40 ? 6 : 2))));
     }, 450);
-    return () => window.clearInterval(timer);
+    return () => {
+      window.cancelAnimationFrame(startFrame);
+      window.clearInterval(timer);
+    };
   }, [busy]);
 
   useEffect(() => {
     if (busy) return;
-    setBar((current) => (current > 0 && current < 100 ? 100 : current));
+    const finishFrame = window.requestAnimationFrame(() => {
+      setBar((current) => (current > 0 && current < 100 ? 100 : current));
+    });
     const timer = window.setTimeout(() => setBar(0), 700);
-    return () => window.clearTimeout(timer);
+    return () => {
+      window.cancelAnimationFrame(finishFrame);
+      window.clearTimeout(timer);
+    };
   }, [busy]);
 
   function show(next: Center) {

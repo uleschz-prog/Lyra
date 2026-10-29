@@ -6,7 +6,7 @@ export const creditUsd = 1;
 /**
  * Planes de entrada de LYRA.
  * Inicio $29 · Negocio $99 · Pro $249.
- * Todos incluyen los mismos servicios. Cambian los créditos y hasta qué nivel de Órbita se cobra.
+ * Todos incluyen los mismos servicios. Cambian los créditos, el cupo de video y hasta qué nivel de Órbita se cobra.
  */
 export type PlanSpec = {
   id: string;
@@ -32,9 +32,10 @@ export const signupPlans: readonly PlanSpec[] = [
   {
     id: "STARTED",
     label: "Inicio",
-    subtitle: "150 créditos y Órbita hasta el nivel 2",
+    subtitle: "150 créditos, 40 s de video por ciclo y Órbita hasta el nivel 2",
     points: [
       "150 créditos de entrada",
+      "40 segundos de video por ciclo de 30 días",
       "Cobras Órbita hasta el nivel 2 (20% y 10%)",
       ...sharedServices,
       "Recarga desde $19 al mes siguiente",
@@ -47,9 +48,10 @@ export const signupPlans: readonly PlanSpec[] = [
   {
     id: "PRO",
     label: "Negocio",
-    subtitle: "300 créditos y Órbita hasta el nivel 4",
+    subtitle: "300 créditos, 140 s de video por ciclo y Órbita hasta el nivel 4",
     points: [
       "300 créditos de entrada",
+      "140 segundos de video por ciclo de 30 días",
       "Cobras Órbita hasta el nivel 4",
       ...sharedServices,
       "Recarga desde $49 al mes siguiente",
@@ -62,9 +64,10 @@ export const signupPlans: readonly PlanSpec[] = [
   {
     id: "FOUNDER",
     label: "Pro",
-    subtitle: "1,000 créditos y Órbita en los 6 niveles",
+    subtitle: "1,000 créditos, 360 s de video por ciclo y Órbita en los 6 niveles",
     points: [
       "1,000 créditos de entrada",
+      "360 segundos de video por ciclo de 30 días",
       "Cobras Órbita en los 6 niveles, hasta el 50%",
       "Con la renovación de $99 participas del 10% de las ventas del mes",
       ...sharedServices,

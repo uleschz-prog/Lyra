@@ -28,10 +28,11 @@ async function downloadPiece(piece: CreationRecord) {
     const response = await fetch(piece.media);
     if (!response.ok) throw new Error("sin archivo");
     const blob = await response.blob();
+    const extension = piece.kind === "video" ? (blob.type.includes("webm") ? "webm" : "mp4") : fallback;
     const href = URL.createObjectURL(blob);
     const link = document.createElement("a");
     link.href = href;
-    link.download = `${piece.title.slice(0, 40) || "pieza-lyra"}.${fallback}`;
+    link.download = `${piece.title.slice(0, 40) || "pieza-lyra"}.${extension}`;
     link.click();
     URL.revokeObjectURL(href);
   } catch {
@@ -137,7 +138,7 @@ export function StudioLibrary({ initialPieces }: { initialPieces: CreationRecord
                 <span className="relative block aspect-video bg-[#100818]">
                   {piece.kind === "image" && piece.media ? (
                     <img src={piece.media} alt="" className="h-full w-full object-cover" />
-                  ) : piece.kind === "video" && piece.media ? (
+                  ) : piece.kind === "video" && piece.media && !piece.media.startsWith("/api/library/video?") ? (
                     <video src={piece.media} muted playsInline preload="metadata" className="h-full w-full object-cover" />
                   ) : (
                     <span className="grid h-full place-items-center text-white/50">

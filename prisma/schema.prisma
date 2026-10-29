@@ -1,10 +1,10 @@
 generator client {
-  provider = "prisma-client-js"
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
 }
 
 datasource db {
   provider = "postgresql"
-  url      = env("DATABASE_URL")
 }
 
 enum Role {
@@ -42,6 +42,33 @@ enum TransactionKind {
   REBUY
   PAYOUT
   USDT_ORDER
+}
+
+enum AcademyCourseStatus {
+  DRAFT
+  PUBLISHED
+  ARCHIVED
+}
+
+enum AcademyPricingType {
+  FREE
+  ONE_TIME
+  MONTHLY
+}
+
+enum AcademyEnrollmentStatus {
+  ACTIVE
+  EXPIRED
+  CANCELLED
+}
+
+enum AcademyPaymentStatus {
+  CREATED
+  PENDING
+  APPROVED
+  REJECTED
+  CANCELLED
+  REFUNDED
 }
 
 /// Parámetros de configuración global de la app (p. ej. wallet USDT de la empresa).
@@ -99,6 +126,9 @@ model User {
   sponsorId            String?
   referralCode         String       @unique
   credits              Int          @default(0)
+  videoQuotaSeconds    Int          @default(0)
+  videoQuotaExpiresAt  DateTime?
+  videoQuotaCycleId    String?
   walletBalance        Float        @default(0)
   isSubscriptionExempt Boolean      @default(false)
   activationCredits    Int          @default(0)
@@ -118,6 +148,8 @@ model User {
   wallet             CreditWallet?
   transactions       Transaction[]
   mediaPieces        MediaPiece[]
+  videoGenerations   VideoGeneration[]
+  whatsappSchedules  WhatsappScheduledMessage[]
   vegaChats          VegaConversation[]
   vegaActions        VegaAction[]
   vegaMemories       VegaMemory[]
@@ -125,7 +157,6 @@ model User {
   vegaWhatsappBlocks VegaWhatsappBlock[]
   vegaWhatsapp       String?
   usdtTrc20          String?
-  polygonWallet        String?      @unique
   activationCodes    ActivationCode[]    @relation("ActivationOwner")
   activation         ActivationCode?     @relation("ActivationUsedBy")
   vegaProfile        UserProfile?
@@ -134,6 +165,13 @@ model User {
   usdtOrders         UsdtOrder[]
   promoCreated       PromoCode[]         @relation("PromoOwner")
   promoUses          PromoCodeUse[]      @relation("PromoUser")
+  creatorAccount     CreatorAccount?
+  academyCourses     Course[]             @relation("CourseCreator")
+  courseEnrollments  CourseEnrollment[]   @relation("EnrollmentStudent")
+  academyPurchases   AcademyTransaction[] @relation("AcademyBuyer")
+  academySales       AcademyTransaction[] @relation("AcademyCreator")
+  lessonComments     LessonComment[]
+  academyOAuthStates AcademyOAuthState[]
 
   @@index([sponsorId])
   @@index([rank])
@@ -176,6 +214,11 @@ model WhatsappConnection {
   id            String    @id @default(cuid())
   userId        String    @unique
   phoneNumberId String    @unique
+  wabaId        String?
+  businessId    String?
+  displayPhoneNumber String?
+  accessTokenEncrypted String? @db.Text
+  tokenExpiresAt DateTime?
   instructions  String    @default("") @db.Text
   ownerPhone    String?   @unique
   status        String    @default("active")
@@ -188,6 +231,7 @@ model WhatsappConnection {
   user     User              @relation(fields: [userId], references: [id], onDelete: Cascade)
   chats    WhatsappChat[]
   messages WhatsappMessage[]
+  scheduledMessages WhatsappScheduledMessage[]
 }
 
 /// Estado de un contacto que escribe al WhatsApp Business del socio.
@@ -205,11 +249,14 @@ model WhatsappChat {
   lastPendingActionId String?
   lastInboundAt       DateTime?
   optedOutAt          DateTime?
+  consentAt           DateTime?
+  consentSource       String?
   createdAt           DateTime  @default(now())
   updatedAt           DateTime  @updatedAt
 
   connection WhatsappConnection @relation(fields: [connectionId], references: [id], onDelete: Cascade)
   messages   WhatsappMessage[]
+  scheduledMessages WhatsappScheduledMessage[]
 
   @@unique([connectionId, phone])
   @@index([userId, updatedAt])
@@ -222,6 +269,7 @@ model WhatsappMessage {
   connectionId String
   chatRowId    String?
   waMessageId  String?  @unique
+  scheduledMessageId String? @unique
   direction    String
   senderType   String
   text         String   @db.Text
@@ -231,8 +279,39 @@ model WhatsappMessage {
 
   connection WhatsappConnection @relation(fields: [connectionId], references: [id], onDelete: Cascade)
   chat       WhatsappChat?      @relation(fields: [chatRowId], references: [id], onDelete: Cascade)
+  scheduledMessage WhatsappScheduledMessage? @relation(fields: [scheduledMessageId], references: [id], onDelete: SetNull)
 
   @@index([chatRowId, createdAt])
+}
+
+/// Mensaje individual con consentimiento registrado y envío diferido.
+model WhatsappScheduledMessage {
+  id            String   @id @default(cuid())
+  userId        String
+  connectionId  String
+  chatRowId     String
+  recipientPhone String
+  kind          String   @default("text")
+  text          String?  @db.Text
+  templateName  String?
+  language      String?
+  variables     Json?
+  consentConfirmed Boolean @default(false)
+  runAt         DateTime
+  status        String   @default("scheduled")
+  error         String?
+  waMessageId   String?
+  createdAt     DateTime @default(now())
+  sentAt        DateTime?
+  updatedAt     DateTime @updatedAt
+
+  user       User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  connection WhatsappConnection @relation(fields: [connectionId], references: [id], onDelete: Cascade)
+  chat       WhatsappChat      @relation(fields: [chatRowId], references: [id], onDelete: Cascade)
+  message    WhatsappMessage?
+
+  @@index([status, runAt])
+  @@index([userId, status, runAt])
 }
 
 /// Código prepagado con créditos de activación. La cuenta que lo usa no genera puntos.
@@ -385,35 +464,246 @@ model MediaPiece {
   title     String
   body      String   @db.Text
   media     String?  @db.Text
+  videoGenerationId String? @unique
   createdAt DateTime @default(now())
 
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user             User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  videoGeneration  VideoGeneration? @relation(fields: [videoGenerationId], references: [id], onDelete: SetNull)
 
   @@index([userId, area, createdAt])
 }
 
+model VideoGeneration {
+  id                String   @id @default(cuid())
+  userId            String
+  activeUserId      String?  @unique
+  requestKey        String
+  chargeId          String?  @unique
+  provider          String   @default("openrouter")
+  model             String   @default("x-ai/grok-imagine-video-1.5-lite")
+  title             String
+  script            String   @db.Text
+  format            String
+  durationSeconds   Int
+  quotaReservedSeconds Int @default(0)
+  estimatedCostUsd Float @default(0)
+  segmentCount      Int
+  segmentDurations  Json     @default("[]")
+  completedSegments Int      @default(0)
+  segmentJobIds     Json     @default("[]")
+  segmentStatusUrls Json     @default("[]")
+  segmentVideoUrls  Json     @default("[]")
+  currentJobId      String?
+  currentStatusUrl  String?
+  quotaCycleId      String?
+  status            String   @default("starting")
+  error             String?  @db.Text
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  user      User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  mediaPiece MediaPiece?
+
+  @@unique([userId, requestKey])
+  @@index([userId, status, createdAt])
+}
+
 model Course {
-  id              String   @id @default(cuid())
+  id              String              @id @default(cuid())
+  creatorId       String?
+  slug            String?             @unique
   title           String
-  description     String
+  description     String              @db.Text
   videoUrl        String?
-  rankRequirement Rank     @default(ASTRA)
-  createdAt       DateTime @default(now())
-  lessons         Lesson[]
+  coverImageUrl   String?
+  price           Decimal             @default(0) @db.Decimal(12, 2)
+  currency        String              @default("MXN")
+  pricingType     AcademyPricingType  @default(FREE)
+  status          AcademyCourseStatus @default(DRAFT)
+  publishedAt     DateTime?
+  rankRequirement Rank                @default(ASTRA)
+  createdAt       DateTime            @default(now())
+  updatedAt       DateTime            @updatedAt
+
+  creator      User?                 @relation("CourseCreator", fields: [creatorId], references: [id], onDelete: SetNull)
+  modules      CourseModule[]
+  lessons      Lesson[]
+  enrollments  CourseEnrollment[]
+  transactions AcademyTransaction[]
+
+  @@index([creatorId, status, updatedAt])
+  @@index([status, publishedAt])
 }
 
 model Lesson {
-  id              String @id @default(cuid())
+  id              String   @id @default(cuid())
   courseId        String
+  moduleId        String?
   title           String
-  description     String
+  description     String   @db.Text
+  content         String?  @db.Text
   videoUrl        String
-  rankRequirement Rank   @default(ASTRA)
-  position        Int    @default(0)
+  durationSeconds Int      @default(0)
+  isPreview       Boolean  @default(false)
+  isPublished     Boolean  @default(false)
+  rankRequirement Rank     @default(ASTRA)
+  position        Int      @default(0)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
 
-  course Course @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  course       Course                 @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  module       CourseModule?          @relation(fields: [moduleId], references: [id], onDelete: SetNull)
+  attachments  LessonAttachment[]
+  comments     LessonComment[]
+  progressRows LessonProgress[]
 
   @@index([courseId, position])
+  @@index([moduleId, position])
+}
+
+model CreatorAccount {
+  id                   String   @id @default(cuid())
+  userId               String   @unique
+  provider             String   @default("mercadopago")
+  sellerId             String
+  siteId               String?
+  accessTokenEncrypted String   @db.Text
+  refreshTokenEncrypted String? @db.Text
+  tokenExpiresAt       DateTime?
+  status               String   @default("connected")
+  connectedAt          DateTime @default(now())
+  updatedAt            DateTime @updatedAt
+
+  user         User                  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  transactions AcademyTransaction[]
+
+  @@index([status])
+}
+
+model AcademyOAuthState {
+  id                   String    @id @default(cuid())
+  userId               String
+  stateHash            String    @unique
+  codeVerifierEncrypted String   @db.Text
+  expiresAt            DateTime
+  consumedAt           DateTime?
+  createdAt            DateTime  @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, expiresAt])
+}
+
+model CourseModule {
+  id        String   @id @default(cuid())
+  courseId  String
+  title     String
+  position  Int      @default(0)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  course  Course   @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  lessons Lesson[]
+
+  @@index([courseId, position])
+}
+
+model CourseEnrollment {
+  id                   String                  @id @default(cuid())
+  courseId             String
+  studentId            String
+  status               AcademyEnrollmentStatus @default(ACTIVE)
+  enrolledAt           DateTime                @default(now())
+  expiresAt            DateTime?
+  purchaseTransactionId String?                 @unique
+  createdAt            DateTime                @default(now())
+  updatedAt            DateTime                @updatedAt
+
+  course             Course               @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  student            User                 @relation("EnrollmentStudent", fields: [studentId], references: [id], onDelete: Cascade)
+  purchaseTransaction AcademyTransaction? @relation("EnrollmentPurchase", fields: [purchaseTransactionId], references: [id], onDelete: SetNull)
+  progress            LessonProgress[]
+
+  @@unique([courseId, studentId])
+  @@index([studentId, status, updatedAt])
+  @@index([courseId, status])
+}
+
+model LessonProgress {
+  id           String    @id @default(cuid())
+  enrollmentId String
+  lessonId     String
+  completedAt  DateTime?
+  updatedAt    DateTime  @updatedAt
+
+  enrollment CourseEnrollment @relation(fields: [enrollmentId], references: [id], onDelete: Cascade)
+  lesson     Lesson           @relation(fields: [lessonId], references: [id], onDelete: Cascade)
+
+  @@unique([enrollmentId, lessonId])
+  @@index([lessonId])
+}
+
+model LessonAttachment {
+  id        String   @id @default(cuid())
+  lessonId  String
+  title     String
+  fileUrl   String   @db.Text
+  mimeType  String?
+  position  Int      @default(0)
+  createdAt DateTime @default(now())
+
+  lesson Lesson @relation(fields: [lessonId], references: [id], onDelete: Cascade)
+
+  @@index([lessonId, position])
+}
+
+model LessonComment {
+  id        String   @id @default(cuid())
+  lessonId  String
+  userId    String
+  body      String   @db.Text
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  lesson Lesson @relation(fields: [lessonId], references: [id], onDelete: Cascade)
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([lessonId, createdAt])
+}
+
+model AcademyTransaction {
+  id                       String                @id @default(cuid())
+  courseId                 String
+  buyerId                  String
+  creatorId                String
+  creatorAccountId         String
+  externalReference        String                @unique
+  gatewayPreferenceId      String?               @unique
+  gatewayPaymentId         String?               @unique
+  totalAmount              Decimal               @db.Decimal(12, 2)
+  lyraFee7Percent          Decimal               @db.Decimal(12, 2)
+  creatorPayout93Percent   Decimal               @db.Decimal(12, 2)
+  gatewayFee               Decimal?              @db.Decimal(12, 2)
+  currency                 String
+  feeRate                  Decimal               @default(0.07) @db.Decimal(5, 4)
+  paymentGateway           String                @default("mercadopago")
+  paymentGatewayStatus     AcademyPaymentStatus @default(CREATED)
+  gatewayStatusDetail      String?
+  checkoutUrl              String?               @db.Text
+  paidAt                   DateTime?
+  refundedAt               DateTime?
+  createdAt                DateTime              @default(now())
+  updatedAt                DateTime              @updatedAt
+
+  course         Course             @relation(fields: [courseId], references: [id], onDelete: Restrict)
+  buyer          User               @relation("AcademyBuyer", fields: [buyerId], references: [id], onDelete: Restrict)
+  creator        User               @relation("AcademyCreator", fields: [creatorId], references: [id], onDelete: Restrict)
+  creatorAccount CreatorAccount     @relation(fields: [creatorAccountId], references: [id], onDelete: Restrict)
+  enrollment     CourseEnrollment?  @relation("EnrollmentPurchase")
+
+  @@index([courseId, paymentGatewayStatus, createdAt])
+  @@index([creatorId, paymentGatewayStatus, paidAt])
+  @@index([buyerId, paymentGatewayStatus, createdAt])
 }
 
 model CreditWallet {

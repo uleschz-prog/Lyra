@@ -6,6 +6,7 @@ import {
   CreditCard,
   FileText,
   Image as ImageIcon,
+  LoaderCircle,
   Mail,
   Megaphone,
   MessageCircle,
@@ -15,7 +16,7 @@ import {
   X,
   type LucideIcon,
 } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 
 import { decideVegaAction } from "@/app/dashboard/super-agent/actions";
@@ -131,10 +132,82 @@ export function ActionCard({
     return <ProjectCard project={action.payload as ProjectDraft} onSuggest={onSuggest} />;
   }
   if (action.kind === "create_video") return <MediaCard video={action.payload as VideoDraft} />;
+  if (action.kind === "create_image" && action.status === "running" && (action.payload as ImageDraft).requestId) {
+    return <ImageGenerationCard action={action} onChange={onChange} />;
+  }
   if (action.kind === "create_image" && (action.payload as ImageDraft).dataUrl) {
     return <MediaCard image={action.payload as ImageDraft} />;
   }
   return <ConfirmCard action={action} onChange={onChange} />;
+}
+
+function ImageGenerationCard({
+  action,
+  onChange,
+}: {
+  action: VegaActionView;
+  onChange: (action: VegaActionView, message: string) => void;
+}) {
+  const draft = action.payload as ImageDraft;
+  const onChangeRef = useRef(onChange);
+
+  useEffect(() => {
+    onChangeRef.current = onChange;
+  }, [onChange]);
+
+  useEffect(() => {
+    if (!draft.requestId) return;
+    let cancelled = false;
+    let timer: ReturnType<typeof setTimeout>;
+    let transientFailures = 0;
+
+    const poll = async () => {
+      try {
+        const response = await fetch(`/api/vega/image?actionId=${encodeURIComponent(action.id)}`, {
+          cache: "no-store",
+        });
+        if (cancelled) return;
+        const payload = (await response.json().catch(() => ({}))) as { action?: VegaActionView; error?: string };
+        if (!response.ok || !payload.action) {
+          const error = payload.error ?? "No se pudo consultar la imagen.";
+          onChangeRef.current({ ...action, status: "failed", result: error }, error);
+          return;
+        }
+        transientFailures = 0;
+        if (payload.action.status !== "running") {
+          const message = payload.action.result ?? "La imagen terminó de procesarse.";
+          onChangeRef.current(payload.action, message);
+          return;
+        }
+        timer = setTimeout(() => void poll(), 2500);
+      } catch {
+        if (cancelled) return;
+        transientFailures += 1;
+        if (transientFailures >= 5) {
+          const error = "Se perdió la conexión mientras consultábamos la imagen. Intenta pedirla de nuevo.";
+          onChangeRef.current({ ...action, status: "failed", result: error }, error);
+          return;
+        }
+        timer = setTimeout(() => void poll(), 4000);
+      }
+    };
+
+    void poll();
+    return () => {
+      cancelled = true;
+      if (timer) clearTimeout(timer);
+    };
+  }, [action, draft.requestId]);
+
+  return (
+    <div className="mt-3 flex items-center gap-3 rounded-2xl border border-[#E7E2DA] bg-[#FCFBF9] px-4 py-4">
+      <LoaderCircle className="size-5 shrink-0 animate-spin text-[#7C3AED]" />
+      <div>
+        <p className="text-sm font-medium text-[#252525]">Generando imagen con Higgsfield</p>
+        <p className="text-xs text-[#8A8680]">Aparecerá aquí en cuanto termine.</p>
+      </div>
+    </div>
+  );
 }
 
 function ConfirmCard({
@@ -159,7 +232,9 @@ function ConfirmCard({
       : command
         ? `Comando del servidor: ${command.label}`
         : image
-          ? "Imagen lista para generar"
+          ? action.status === "failed"
+            ? "No se pudo generar la imagen"
+            : "Imagen lista para generar"
           : "Evento listo para tu Google Calendar";
   const confirmLabel = app
     ? app.confirm

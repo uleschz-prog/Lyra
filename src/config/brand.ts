@@ -4,6 +4,7 @@ import {
   GraduationCap,
   Home,
   Library,
+  MessageCircle,
   Network,
   Orbit,
   Sparkles,
@@ -35,6 +36,7 @@ export const brand = {
     studio: "/dashboard/studio",
     library: "/dashboard/biblioteca",
     wallet: "/dashboard/wallet",
+    whatsapp: "/dashboard/whatsapp",
   },
 };
 
@@ -55,6 +57,12 @@ export const officeModes = [
         label: "Vega",
         description: "Tu super agente",
         icon: Crown,
+      },
+      {
+        href: "/dashboard/whatsapp",
+        label: "WhatsApp",
+        description: "Bandeja y seguimientos Business",
+        icon: MessageCircle,
       },
       {
         href: "/dashboard/notebook",

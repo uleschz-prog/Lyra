@@ -97,7 +97,7 @@ export default function HomePage() {
                 tu plan
               </h2>
               <p className="mt-8 max-w-sm text-xl leading-snug text-[#1E1E24] sm:text-2xl dark:text-[#C7C3D4]">
-                Inicio entra con $29 y 150 créditos, Negocio con $99 y 300, y Pro con $249 y 1,000. Todos incluyen los mismos servicios. Un crédito equivale a $1.
+                Inicio entra con $29, 150 créditos y 40 segundos de video; Negocio con $99, 300 créditos y 140 segundos; Pro con $249, 1,000 créditos y 360 segundos. El cupo de video se renueva cada 30 días y es independiente de los créditos.
               </p>
               <div className="mt-10 flex flex-1 items-center justify-center lg:mt-12">
                 <VegaMascot className="h-52 w-52 drop-shadow-[0_28px_48px_rgba(124,58,237,0.35)] sm:h-64 sm:w-64 lg:h-80 lg:w-80" />

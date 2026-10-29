@@ -1,11 +1,13 @@
-import { Prisma } from "@prisma/client";
+import { Prisma } from "@/generated/prisma/client";
 
-import { getPackage, isFounderPackage, isSignupPlanId, rebuyCredits } from "@/config/compensation-plan";
+import { getPackage, isFounderPackage, isSignupPlanId, rebuyCredits, toPackageType } from "@/config/compensation-plan";
 import { rebuyPaidFilter } from "@/lib/compensation/activity";
 import { payCommissions } from "@/lib/compensation/payout";
 import { activateMembership } from "@/lib/payments/activate";
 import { getMercadoPagoPayment, type MpPurpose } from "@/lib/payments/mercadopago";
 import { getPrisma } from "@/lib/prisma";
+import { upgradeDifferenceUsd } from "@/lib/payments/upgrade";
+import { grantVideoQuota } from "@/lib/studio/video-quotas";
 
 export type FulfillResult =
   | { ok: true; purpose: MpPurpose; credits: number; already: boolean; packageLabel?: string }
@@ -29,7 +31,14 @@ export async function fulfillMercadoPago(paymentId: string): Promise<FulfillResu
   const userId = payment.metadata?.lyra_user;
   const usd = Number(payment.metadata?.lyra_usd);
   const total = Number(payment.metadata?.lyra_total);
-  if ((purpose !== "rebuy" && purpose !== "credits" && purpose !== "signup") || !userId || !(usd > 0)) {
+  if (
+    (purpose !== "rebuy" && purpose !== "credits" && purpose !== "signup" && purpose !== "upgrade") ||
+    !userId ||
+    !Number.isFinite(usd) ||
+    usd <= 0 ||
+    !Number.isFinite(total) ||
+    total <= 0
+  ) {
     return { ok: false, status: "invalid", error: "Ese pago no corresponde a LYRA." };
   }
   if (payment.transaction_amount + 0.01 < total) {
@@ -43,7 +52,7 @@ export async function fulfillMercadoPago(paymentId: string): Promise<FulfillResu
   }
   const user = await prisma.user.findUnique({
     where: { id: userId },
-    select: { id: true, name: true, sponsorId: true, package: true, pendingPackage: true },
+    select: { id: true, name: true, sponsorId: true, package: true, pendingPackage: true, credits: true },
   });
   if (!user) return { ok: false, status: "invalid", error: "La cuenta de ese pago ya no existe." };
 
@@ -59,6 +68,40 @@ export async function fulfillMercadoPago(paymentId: string): Promise<FulfillResu
         activateMembership(tx, user, packageId, { description: `Inscripción ${plan.label} · Mercado Pago`, externalRef }),
       );
       return { ok: true, purpose, credits: plan.credits, already: false, packageLabel: plan.label };
+    }
+
+    if (purpose === "upgrade") {
+      const packageId = payment.metadata?.lyra_package ?? "";
+      const difference = isSignupPlanId(packageId) ? upgradeDifferenceUsd(user.package, packageId) : null;
+      if (!difference || difference <= 0 || Math.abs(usd - difference) > 0.01) {
+        return { ok: false, status: "invalid", error: "El monto del upgrade no coincide con el paquete de destino." };
+      }
+      const plan = getPackage(packageId);
+      await prisma.$transaction(async (tx) => {
+        const wallet = await tx.creditWallet.upsert({
+          where: { userId: user.id },
+          create: { userId: user.id, balance: user.credits },
+          update: {},
+        });
+        await tx.user.update({
+          where: { id: user.id },
+          data: { package: toPackageType(packageId), pendingPackage: null },
+        });
+        await tx.transaction.create({
+          data: {
+            userId: user.id,
+            walletId: wallet.id,
+            amount: usd,
+            creditDelta: 0,
+            kind: "CREDIT_PURCHASE",
+            description: `Upgrade a ${plan.label} · Mercado Pago`,
+            externalRef,
+          },
+        });
+        await grantVideoQuota(tx, user.id, packageId);
+        await payCommissions(tx, user, usd, "purchase");
+      });
+      return { ok: true, purpose, credits: 0, already: false, packageLabel: plan.label };
     }
 
     const founder = isFounderPackage(user.package);
@@ -90,6 +133,7 @@ export async function fulfillMercadoPago(paymentId: string): Promise<FulfillResu
           externalRef,
         },
       });
+      if (purpose === "rebuy") await grantVideoQuota(tx, user.id, user.package);
       if (firstRebuy || purpose === "credits") await payCommissions(tx, user, usd, "rebuy");
     });
     return { ok: true, purpose, credits, already: false };

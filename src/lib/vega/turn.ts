@@ -1,4 +1,4 @@
-import type { Prisma } from "@prisma/client";
+import type { Prisma } from "@/generated/prisma/client";
 
 import { composioConfigured } from "@/lib/ai/composio";
 import { userConnections } from "@/lib/ai/composio-user";
@@ -185,6 +185,8 @@ export async function runVegaTurn(turn: VegaTurn, emit: (event: VegaEvent) => vo
   let reply = "";
   let failed = false;
   let toolCharged = false;
+  let toolChargeId: string | null = null;
+  let paidToolSucceeded = false;
   const sources: WebResult[] = [];
   const actionIds: string[] = [];
   const statuses: string[] = [];
@@ -245,14 +247,22 @@ export async function runVegaTurn(turn: VegaTurn, emit: (event: VegaEvent) => vo
             continue;
           }
           toolCharged = true;
+          toolChargeId = extra.duplicate ? null : extra.chargeId;
           emit({ t: "credits", v: extra.balance });
         }
 
         emit({ t: "status", v: statusLabel(call.name) });
-        const outcome = await runVegaTool(userId, call.name, call.args ?? {}).catch(() => ({
-          kind: "invalid" as const,
-          response: { error: "La herramienta falló. Intenta de otra forma o avisa al socio." },
-        }));
+        const outcome = await runVegaTool(userId, call.name, call.args ?? {}).catch((error: unknown) => {
+          console.error("[Vega tool] execution failed", {
+            tool: call.name,
+            errorType: error instanceof Error ? error.name : typeof error,
+          });
+          return {
+            kind: "invalid" as const,
+            response: { error: "La herramienta falló. Intenta de otra forma o avisa al socio." },
+          };
+        });
+        if (!freeTools.has(call.name) && outcome.kind !== "invalid") paidToolSucceeded = true;
 
         if (outcome.kind === "result") {
           statuses.push(outcome.status);
@@ -272,7 +282,7 @@ export async function runVegaTurn(turn: VegaTurn, emit: (event: VegaEvent) => vo
               conversationId: chatId,
               kind: outcome.action,
               payload: outcome.payload as unknown as Prisma.InputJsonValue,
-              status: "done",
+              status: outcome.status ?? "done",
               result: outcome.summary,
             },
             select: { id: true, kind: true, payload: true, status: true, result: true },
@@ -342,8 +352,13 @@ export async function runVegaTurn(turn: VegaTurn, emit: (event: VegaEvent) => vo
       }
       current = next;
     }
-  } catch {
+  } catch (error) {
+    console.error("[Vega turn] failed", error instanceof Error ? error.name : typeof error);
     failed = true;
+  }
+
+  if (toolChargeId && !paidToolSucceeded) {
+    await refundCharge(toolChargeId, "Reembolso: Vega no pudo completar la herramienta");
   }
 
   const content = reply.trim() || (actionIds.length ? "Te dejé la acción lista para que la confirmes." : "");

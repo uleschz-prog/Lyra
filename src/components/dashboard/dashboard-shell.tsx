@@ -1,6 +1,6 @@
 "use client";
 
-import { Bot, Home, Menu, Users, Wallet, X } from "lucide-react";
+import { Bot, Home, Menu, MessageCircle, Users, Wallet, X } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useState, type ReactNode } from "react";
@@ -15,6 +15,7 @@ import { cn } from "@/lib/utils";
 const tabs = [
   { href: "/dashboard", label: "Inicio", icon: Home },
   { href: "/dashboard/super-agent", label: "Vega", icon: Bot },
+  { href: "/dashboard/whatsapp", label: "WhatsApp", icon: MessageCircle },
   { href: "/dashboard/wallet", label: "Billetera", icon: Wallet },
   { href: "/dashboard/network", label: "Red", icon: Users },
 ] as const;

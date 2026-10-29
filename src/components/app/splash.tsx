@@ -16,16 +16,19 @@ export function Splash() {
   const [phase, setPhase] = useState<Phase>("visible");
 
   useEffect(() => {
+    const hide = () => {
+      const frame = window.requestAnimationFrame(() => setPhase("hidden"));
+      return () => window.cancelAnimationFrame(frame);
+    };
+
     try {
       if (sessionStorage.getItem(STORAGE_KEY) === "1") {
-        setPhase("hidden");
-        return;
+        return hide();
       }
       sessionStorage.setItem(STORAGE_KEY, "1");
     } catch {
       // sessionStorage no disponible: no dejamos una capa encima del contenido.
-      setPhase("hidden");
-      return;
+      return hide();
     }
 
     const fadingTimer = setTimeout(() => setPhase("fading"), VISIBLE_MS);

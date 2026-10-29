@@ -1,4 +1,4 @@
-import type { Prisma } from "@prisma/client";
+import type { Prisma } from "@/generated/prisma/client";
 
 import { compensationPlan, getPackage, isPackageId, type PackageId } from "@/config/compensation-plan";
 import { monthStart, nextMonthStart, paysOwnWay } from "@/lib/compensation/activity";

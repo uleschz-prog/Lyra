@@ -156,7 +156,10 @@ export function VegaChat({
   }, [messages, files, links]);
 
   useEffect(() => {
-    setTank((current) => Math.max(current, balance, creditAllowance));
+    const frame = window.requestAnimationFrame(() => {
+      setTank((current) => Math.max(current, balance, creditAllowance));
+    });
+    return () => window.cancelAnimationFrame(frame);
   }, [balance, creditAllowance]);
 
   useEffect(() => {
@@ -168,11 +171,14 @@ export function VegaChat({
   }, [justConnected]);
 
   useEffect(() => {
-    try {
-      if (sessionStorage.getItem("lyra-vega-chats") === "0") setChatsHidden(true);
-    } catch {
-      /* modo privado */
-    }
+    const frame = window.requestAnimationFrame(() => {
+      try {
+        if (sessionStorage.getItem("lyra-vega-chats") === "0") setChatsHidden(true);
+      } catch {
+        /* modo privado */
+      }
+    });
+    return () => window.cancelAnimationFrame(frame);
   }, []);
 
   function setChatsCollapsed(hidden: boolean) {

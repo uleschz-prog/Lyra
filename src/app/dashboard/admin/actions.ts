@@ -2,7 +2,7 @@
 
 import { randomBytes } from "node:crypto";
 
-import { Prisma } from "@prisma/client";
+import { Prisma } from "@/generated/prisma/client";
 import bcrypt from "bcryptjs";
 import { revalidatePath } from "next/cache";
 
@@ -18,6 +18,7 @@ import { getCurrentUser } from "@/lib/auth/profile";
 import { INDEFINITE_YEAR } from "@/lib/auth/suspension";
 import { payCommissions } from "@/lib/compensation/payout";
 import { activateMembership } from "@/lib/payments/activate";
+import { grantVideoQuota } from "@/lib/studio/video-quotas";
 import { setCompanyUsdtWallet as persistCompanyWallet } from "@/lib/payments/usdt";
 import { trongridReady, verifyUsdtTransfer } from "@/lib/payments/usdt-verify";
 import { getPrisma } from "@/lib/prisma";
@@ -170,9 +171,12 @@ export async function changePackage(id: string, packageId: string): Promise<Resu
   if (!user) return { ok: false, error: "Esa cuenta ya no existe." };
   if (user.package === packageId) return { ok: false, error: "La cuenta ya tiene ese paquete." };
 
-  await getPrisma().user.update({
-    where: { id },
-    data: { package: toPackageType(packageId), pendingPackage: null },
+  await getPrisma().$transaction(async (tx) => {
+    await tx.user.update({
+      where: { id },
+      data: { package: toPackageType(packageId), pendingPackage: null },
+    });
+    await grantVideoQuota(tx, id, packageId);
   });
   done();
   return { ok: true, package: packageId };
@@ -261,6 +265,7 @@ export async function approveUsdtOrder(orderId: string): Promise<Result> {
           description: `Recompra del mes · USDT TRC20 · ${order.trxHash}`,
         },
       });
+      await grantVideoQuota(tx, user.id, user.package);
       await payCommissions(
         tx,
         { id: user.id, name: user.name, sponsorId: user.sponsorId, package: user.package },
@@ -301,9 +306,12 @@ export async function approveUsdtOrder(orderId: string): Promise<Result> {
     const target = match?.[1]?.toUpperCase();
     if (!target || !isSignupPlanId(target)) return { ok: false, error: "No se pudo identificar el paquete de destino del upgrade." };
     if (user.package === target) return { ok: false, error: "El usuario ya tiene ese paquete." };
-    await prisma.user.update({
-      where: { id: user.id },
-      data: { package: toPackageType(target), pendingPackage: null },
+    await prisma.$transaction(async (tx) => {
+      await tx.user.update({
+        where: { id: user.id },
+        data: { package: toPackageType(target), pendingPackage: null },
+      });
+      await grantVideoQuota(tx, user.id, target);
     });
   } else {
     return { ok: false, error: "El propósito de la orden no es válido." };

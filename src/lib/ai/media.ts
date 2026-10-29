@@ -1,5 +1,5 @@
-import { geminiCredentials } from "@/lib/ai/generate";
 import { providerError, readJson } from "@/lib/ai/providers";
+import { generateHiggsfieldImage } from "@/lib/ai/higgsfield-image";
 
 export type StillResult = { ok: true; dataUrl: string; note: string } | { ok: false; error: string };
 export type ClipResult =
@@ -9,19 +9,7 @@ export type ClipResult =
 
 export type VideoQuality = "4K" | "1080p";
 
-const fallbackImageModels = ["gemini-3.1-flash-image", "gemini-2.5-flash-image"];
 const textVideoModels = new Set(["gen4.5", "veo3", "veo3.1", "veo3.1_fast", "seedance2"]);
-
-export function imageModels() {
-  const chosen = process.env.GEMINI_IMAGE_MODEL?.trim();
-  return [...new Set([chosen, ...fallbackImageModels].filter((model): model is string => Boolean(model)))];
-}
-
-export function aspectHint(size?: string) {
-  if (size === "horizontal" || size === "16:9") return "Formato horizontal 16:9.";
-  if (size === "vertical" || size === "9:16") return "Formato vertical 9:16.";
-  return "Formato cuadrado 1:1.";
-}
 
 export function runwayRatio(format?: string) {
   if (format === "16:9" || format === "horizontal") return "1280:720";
@@ -35,61 +23,8 @@ export function runwayCredentials() {
   return { apiKey, model };
 }
 
-function dataUrl(mime: string, data: string) {
-  return `data:${mime || "image/png"};base64,${data}`;
-}
-
-function readImageBlock(value: unknown): { mime: string; data: string } | null {
-  if (!value || typeof value !== "object") return null;
-  const block = value as {
-    data?: unknown;
-    mime_type?: unknown;
-    mimeType?: unknown;
-    inlineData?: { data?: unknown; mimeType?: unknown };
-    image?: unknown;
-  };
-  if (block.inlineData && typeof block.inlineData.data === "string" && block.inlineData.data.length > 40) {
-    const mime = typeof block.inlineData.mimeType === "string" ? block.inlineData.mimeType : "image/png";
-    return { mime, data: block.inlineData.data };
-  }
-  if (typeof block.data === "string" && block.data.length > 40) {
-    const mime =
-      typeof block.mime_type === "string" ? block.mime_type : typeof block.mimeType === "string" ? block.mimeType : "image/png";
-    return { mime, data: block.data };
-  }
-  if (block.image) return readImageBlock(block.image);
-  return null;
-}
-
-export function imageFromPayload(payload: unknown): { mime: string; data: string } | null {
-  const direct = readImageBlock(payload);
-  if (direct) return direct;
-  if (!payload || typeof payload !== "object") return null;
-  const record = payload as Record<string, unknown>;
-  for (const key of ["output_image", "outputImage"]) {
-    const found = readImageBlock(record[key]);
-    if (found) return found;
-  }
-  const steps = record.steps;
-  if (Array.isArray(steps)) {
-    for (const step of steps) {
-      const found = readImageBlock(step) ?? (step && typeof step === "object" ? readImageBlock((step as { content?: unknown }).content) : null);
-      if (found) return found;
-    }
-  }
-  const candidates = record.candidates;
-  if (!Array.isArray(candidates)) return null;
-  const parts = (candidates[0] as { content?: { parts?: unknown } } | undefined)?.content?.parts;
-  if (!Array.isArray(parts)) return null;
-  for (const part of parts) {
-    const found = readImageBlock(part);
-    if (found) return found;
-  }
-  return null;
-}
-
 export function openRouterVideoModel() {
-  return process.env.OPENROUTER_VIDEO_MODEL?.trim() || "google/veo-3.1";
+  return process.env.OPENROUTER_VIDEO_MODEL?.trim() || "x-ai/grok-imagine-video-1.5-lite";
 }
 
 export function openRouterJob(payload: unknown) {
@@ -117,57 +52,8 @@ export function runwayOutputUrl(payload: unknown) {
   return null;
 }
 
-async function requestStill(apiKey: string, model: string, prompt: string): Promise<StillResult | { retry: true; error: string }> {
-  const headers = { "Content-Type": "application/json", "x-goog-api-key": apiKey };
-  const interactions = await fetch("https://generativelanguage.googleapis.com/v1beta/interactions", {
-    method: "POST",
-    headers,
-    body: JSON.stringify({ model, input: [{ type: "text", text: prompt }] }),
-  });
-  const first = await readJson(interactions);
-  if (interactions.ok) {
-    const image = imageFromPayload(first);
-    if (image) return { ok: true, dataUrl: dataUrl(image.mime, image.data), note: `Imagen generada con ${model}.` };
-  } else if (interactions.status === 401 || interactions.status === 403) {
-    return { ok: false, error: providerError(first, "La clave de imagen no tiene permiso.") };
-  }
-
-  const content = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`, {
-    method: "POST",
-    headers,
-    body: JSON.stringify({
-      contents: [{ role: "user", parts: [{ text: prompt }] }],
-      generationConfig: { responseModalities: ["TEXT", "IMAGE"] },
-    }),
-  });
-  const second = await readJson(content);
-  if (content.status === 401 || content.status === 403) {
-    return { ok: false, error: providerError(second, "La clave de imagen no tiene permiso.") };
-  }
-  if (!content.ok) {
-    return { retry: true, error: providerError(second, "El proveedor de imagen no pudo responder.") };
-  }
-  const image = imageFromPayload(second);
-  if (!image) return { retry: true, error: "El proveedor no devolvió una imagen. Intenta con otra descripción." };
-  return { ok: true, dataUrl: dataUrl(image.mime, image.data), note: `Imagen generada con ${model}.` };
-}
-
 export async function generateStill(prompt: string, size?: string): Promise<StillResult> {
-  const { apiKey } = geminiCredentials();
-  if (!apiKey) return { ok: false, error: "La generación de imágenes no está configurada en el servidor." };
-
-  const full = `${prompt.trim()}\n${aspectHint(size)}`;
-  let last = "El proveedor no devolvió una imagen.";
-  for (const model of imageModels()) {
-    const result = await requestStill(apiKey, model, full).catch(() => ({
-      retry: true as const,
-      error: "El proveedor de imagen no respondió.",
-    }));
-    if ("ok" in result) return result;
-    last = result.error;
-    if (!result.retry) return { ok: false, error: result.error };
-  }
-  return { ok: false, error: last };
+  return generateHiggsfieldImage(prompt, size);
 }
 
 async function waitForRunway(apiKey: string, id: string, waitMs: number) {
@@ -232,6 +118,31 @@ function openRouterAspect(format?: string) {
 
 function openRouterSeconds(model: string) {
   return model.includes("seedance") ? 10 : 8;
+}
+
+export async function submitOpenRouterVideoSegment(input: {
+  prompt: string;
+  format: string;
+}): Promise<{ ok: true; jobId: string } | { ok: false; error: string }> {
+  const apiKey = process.env.OPENROUTER_API_KEY?.trim() || "";
+  if (!apiKey) return { ok: false, error: "OpenRouter no está configurado." };
+
+  const response = await fetch("https://openrouter.ai/api/v1/videos", {
+    method: "POST",
+    headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
+    body: JSON.stringify({
+      model: openRouterVideoModel(),
+      prompt: input.prompt.slice(0, 1800),
+      resolution: "480p",
+      duration: 15,
+      aspect_ratio: openRouterAspect(input.format),
+      generate_audio: true,
+    }),
+  });
+  const payload = await readJson(response);
+  const job = openRouterJob(payload);
+  if ((response.ok || response.status === 202) && job) return { ok: true, jobId: job.id };
+  return { ok: false, error: providerError(payload, "OpenRouter no aceptó el segmento de video.") };
 }
 
 async function openRouterClip(

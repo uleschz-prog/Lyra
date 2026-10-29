@@ -1,6 +1,6 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { metaSignature, newVerifyToken, normalizePhone, verifyMetaSignature } from "@/lib/whatsapp/crypto";
+import { decryptWhatsappToken, encryptWhatsappToken, metaSignature, newVerifyToken, normalizePhone, verifyMetaSignature } from "@/lib/whatsapp/crypto";
 import { isWhatsappOptOut, parseMetaWebhook } from "@/lib/whatsapp/parse";
 import { splitWhatsappText } from "@/lib/whatsapp/send";
 
@@ -55,9 +55,20 @@ describe("webhook de Meta", () => {
 
   it("detecta la baja y normaliza teléfonos", () => {
     expect(isWhatsappOptOut("stop")).toBe(true);
+    expect(isWhatsappOptOut("/stop")).toBe(true);
     expect(isWhatsappOptOut("No quiero recibir más mensajes")).toBe(true);
     expect(isWhatsappOptOut("hola")).toBe(false);
     expect(normalizePhone("+52 155 1234 5678")).toBe("5215512345678");
+  });
+
+  it("cifra tokens de Meta y rechaza claves diferentes", () => {
+    vi.stubEnv("WHATSAPP_TOKEN_ENCRYPTION_KEY", "11".repeat(32));
+    const encrypted = encryptWhatsappToken("meta-access-token");
+    expect(encrypted).not.toContain("meta-access-token");
+    expect(decryptWhatsappToken(encrypted)).toBe("meta-access-token");
+
+    vi.stubEnv("WHATSAPP_TOKEN_ENCRYPTION_KEY", "22".repeat(32));
+    expect(() => decryptWhatsappToken(encrypted)).toThrow();
   });
 
   it("divide textos largos en burbujas", () => {
@@ -67,4 +78,8 @@ describe("webhook de Meta", () => {
     for (const chunk of chunks) expect(chunk.length).toBeLessThanOrEqual(4096);
     expect(newVerifyToken()).toMatch(/^lyra_[a-f0-9]{32}$/);
   });
+});
+
+afterEach(() => {
+  vi.unstubAllEnvs();
 });
