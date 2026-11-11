@@ -15,6 +15,7 @@ import {
 } from "@/config/compensation-plan";
 import { rebuyPaidFilter } from "@/lib/compensation/activity";
 import { payCommissions } from "@/lib/compensation/payout";
+import { creditCredits } from "@/lib/credits/ledger";
 import { activateMembership } from "@/lib/payments/activate";
 import { getMercadoPagoPayment, type MpPurpose } from "@/lib/payments/mercadopago";
 import { getPrisma } from "@/lib/prisma";
@@ -138,30 +139,43 @@ export async function fulfillMercadoPago(paymentId: string): Promise<FulfillResu
         ? `${founder ? `Mensualidad Pro · $${usd} · ${credits} créditos` : `Recarga de ${credits} créditos`} · Mercado Pago`
         : `Recarga de ${purchasedCredits} créditos${promo ? ` + ${promo} de promoción` : ""} · Mercado Pago`;
 
-    await prisma.$transaction(async (tx) => {
+    const outcome = await prisma.$transaction(async (tx) => {
+      // Se conserva la regla de producción: toda recarga pagada cuenta como REBUY para la actividad del mes.
       const firstRebuy = (await tx.transaction.count({ where: { userId: user.id, ...rebuyPaidFilter() } })) === 0;
-      const wallet = await tx.creditWallet.upsert({
-        where: { userId: user.id },
-        create: { userId: user.id, balance: credits },
-        update: { balance: { increment: credits } },
-      });
+      const reason = purpose === "rebuy" ? "payments.rebuy" : "payments.credits";
       if (credits > 0) {
-        await tx.user.update({ where: { id: user.id }, data: { credits: { increment: credits } } });
+        const credited = await creditCredits(
+          { userId: user.id, credits, amountUsd: usd, externalRef, kind: "REBUY", reason, description },
+          tx,
+        );
+        if (!credited.ok) throw new Error("No se pudieron acreditar los créditos del pago.");
+        // Otro webhook ya registró este pago: no se repiten cuota ni comisiones.
+        if (credited.already) return "already" as const;
+      } else {
+        // Pago sin créditos (delta 0): se conserva el asiento para la idempotencia y las comisiones.
+        const wallet = await tx.creditWallet.upsert({
+          where: { userId: user.id },
+          create: { userId: user.id, balance: user.credits },
+          update: {},
+        });
+        await tx.transaction.create({
+          data: {
+            userId: user.id,
+            walletId: wallet.id,
+            amount: usd,
+            creditDelta: 0,
+            kind: "REBUY",
+            description,
+            reason,
+            externalRef,
+          },
+        });
       }
-      await tx.transaction.create({
-        data: {
-          userId: user.id,
-          walletId: wallet.id,
-          amount: usd,
-          creditDelta: credits,
-          kind: "REBUY",
-          description,
-          externalRef,
-        },
-      });
       if (firstRebuy) await grantVideoQuota(tx, user.id, user.package);
       if (firstRebuy || purpose === "credits") await payCommissions(tx, user, usd, "rebuy");
+      return "applied" as const;
     });
+    if (outcome === "already") return { ok: true, purpose, credits: 0, already: true };
     return { ok: true, purpose, credits, already: false };
   } catch (error) {
     if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002") {

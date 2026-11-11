@@ -23,6 +23,7 @@ import { getCurrentUser } from "@/lib/auth/profile";
 import { INDEFINITE_YEAR } from "@/lib/auth/suspension";
 import { payCommissions } from "@/lib/compensation/payout";
 import { rebuyPaidFilter } from "@/lib/compensation/activity";
+import { applyCredits, creditCredits } from "@/lib/credits/ledger";
 import { activateMembership } from "@/lib/payments/activate";
 import { grantVideoQuota } from "@/lib/studio/video-quotas";
 import { setCompanyUsdtWallet as persistCompanyWallet } from "@/lib/payments/usdt";
@@ -102,36 +103,23 @@ export async function adjustCredits(id: string, delta: number, note: string): Pr
   if (!amount || Math.abs(amount) > 1_000_000) return { ok: false, error: "Escribe una cantidad válida de créditos." };
   const user = await target(id);
   if (!user) return { ok: false, error: "Esa cuenta ya no existe." };
-  if (user.credits + amount < 0) return { ok: false, error: `Solo tiene ${user.credits} créditos para quitar.` };
 
-  const prisma = getPrisma();
-  const credits = await prisma.$transaction(async (tx) => {
-    const changed = await tx.user.updateMany({
-      where: { id, credits: { gte: Math.max(-amount, 0) } },
-      data: { credits: { increment: amount } },
-    });
-    if (changed.count === 0) return null;
-    const updated = await tx.user.findUniqueOrThrow({ where: { id }, select: { credits: true } });
-    const wallet = await tx.creditWallet.upsert({
-      where: { userId: id },
-      create: { userId: id, balance: updated.credits },
-      update: { balance: updated.credits },
-    });
-    await tx.transaction.create({
-      data: {
-        userId: id,
-        walletId: wallet.id,
-        amount: 0,
-        creditDelta: amount,
-        kind: "ADJUSTMENT",
-        description: `${amount > 0 ? "Créditos añadidos" : "Créditos retirados"} por administración${note.trim() ? ` · ${note.trim().slice(0, 120)}` : ""}`,
-      },
-    });
-    return updated.credits;
+  const result = await applyCredits({
+    userId: id,
+    delta: amount,
+    kind: "ADJUSTMENT",
+    reason: "admin.adjust",
+    description: `${amount > 0 ? "Créditos añadidos" : "Créditos retirados"} por administración${note.trim() ? ` · ${note.trim().slice(0, 120)}` : ""}`,
   });
-  if (credits === null) return { ok: false, error: "El saldo cambió y ya no alcanza para quitar esa cantidad." };
+  if (!result.ok) {
+    if (result.code === "insufficient") {
+      return { ok: false, error: `Solo tiene ${result.balance} créditos para quitar.` };
+    }
+    if (result.code === "missing") return { ok: false, error: "Esa cuenta ya no existe." };
+    return { ok: false, error: "No se pudo ajustar el saldo." };
+  }
   done();
-  return { ok: true, credits };
+  return { ok: true, credits: result.balance };
 }
 
 export async function updateProfile(id: string, input: { name: string; email: string }): Promise<Result> {
@@ -298,6 +286,8 @@ export async function approveUsdtOrder(orderId: string): Promise<Result> {
           creditDelta: 0,
           kind: "REBUY",
           description: `Recompra del mes · USDT TRC20 · ${order.trxHash}`,
+          reason: "admin.usdt.rebuy",
+          externalRef: `usdt:${order.id}`,
         },
       });
       await grantVideoQuota(tx, user.id, user.package);
@@ -321,22 +311,23 @@ export async function approveUsdtOrder(orderId: string): Promise<Result> {
       select: { id: true },
     }));
     await prisma.$transaction(async (tx) => {
-      await tx.user.update({ where: { id: user.id }, data: { credits: { increment: credited } } });
-      const wallet = await tx.creditWallet.upsert({
-        where: { userId: user.id },
-        create: { userId: user.id, balance: credited },
-        update: { balance: { increment: credited } },
-      });
-      await tx.transaction.create({
-        data: {
+      const credit = await creditCredits(
+        {
           userId: user.id,
-          walletId: wallet.id,
-          amount,
-          creditDelta: credited,
+          credits: credited,
+          amountUsd: amount,
+          externalRef: `usdt:${order.id}`,
           kind: "REBUY",
+          reason: "admin.usdt.credits",
           description: `Recarga de ${purchased} créditos${promo ? ` + ${promo} de promoción` : ""} · USDT TRC20 · ${order.trxHash}`,
         },
-      });
+        tx,
+      );
+      if (!credit.ok) {
+        throw new Error("No se pudieron acreditar los créditos de la recarga USDT.");
+      }
+      // Doble aprobación de la misma orden: no se repiten cuota ni comisiones.
+      if (credit.already) return;
       if (firstRecharge) await grantVideoQuota(tx, user.id, user.package);
       await payCommissions(
         tx,

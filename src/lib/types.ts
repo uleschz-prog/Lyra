@@ -29,6 +29,7 @@ export type TransactionKind =
   | "COMMISSION"
   | "CREDIT_PURCHASE"
   | "CREDIT_SPEND"
+  | "CREDIT_REFUND"
   | "ADJUSTMENT"
   | "REBUY"
   | "PAYOUT"
