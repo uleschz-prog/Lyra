@@ -32,6 +32,7 @@ async function finish(request: Request, providerName: string, code: string, stat
       ref: saved.ref,
       idea: saved.idea,
       kind: saved.kind,
+      emailVerified: true,
     });
     back.searchParams.set("paso", "plan");
     if (saved.idea) back.searchParams.set("idea", saved.idea);

@@ -17,6 +17,7 @@ const kindLabel: Record<TransactionKind, string> = {
   COMMISSION: "Comisión",
   CREDIT_PURCHASE: "Compra",
   CREDIT_SPEND: "Consumo",
+  CREDIT_REFUND: "Reembolso",
   ADJUSTMENT: "Ajuste",
   REBUY: "Recompra",
   PAYOUT: "Corte de comisiones",

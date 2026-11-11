@@ -34,6 +34,7 @@ const kindMap = {
   COMMISSION: "commission",
   CREDIT_PURCHASE: "credits",
   CREDIT_SPEND: "spend",
+  CREDIT_REFUND: "adjustment",
   REBUY: "rebuy",
   ADJUSTMENT: "adjustment",
   PAYOUT: "spend",

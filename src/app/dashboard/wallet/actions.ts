@@ -17,6 +17,7 @@ import {
   type SignupPlanId,
 } from "@/config/compensation-plan";
 import { getCurrentUser } from "@/lib/auth/profile";
+import { debitCredits } from "@/lib/credits/ledger";
 import { createMercadoPagoCheckout, mercadoPagoReady, type MpPurpose } from "@/lib/payments/mercadopago";
 import { signupCheckout } from "@/lib/payments/signup";
 import {
@@ -351,26 +352,22 @@ export async function createActivationCode(packageId: string) {
       _sum: { price: true },
     });
     if ((used._sum.price ?? 0) + price > founderSignupCodeCredits) return null;
-    const debited = await tx.user.updateMany({
-      where: { id: user.id, package: "FOUNDER", activatedWithCode: false, credits: { gte: price } },
-      data: { credits: { decrement: price } },
+    const member = await tx.user.findUnique({
+      where: { id: user.id },
+      select: { package: true, activatedWithCode: true },
     });
-    if (debited.count === 0) return null;
-    const wallet = await tx.creditWallet.upsert({
-      where: { userId: user.id },
-      create: { userId: user.id, balance: -price },
-      update: { balance: { decrement: price } },
-    });
-    await tx.transaction.create({
-      data: {
+    if (!member || member.package !== "FOUNDER" || member.activatedWithCode) return null;
+    const debit = await debitCredits(
+      {
         userId: user.id,
-        walletId: wallet.id,
-        amount: 0,
-        creditDelta: -price,
+        credits: price,
         kind: "CREDIT_SPEND",
+        reason: "activation.code",
         description: `Código de activación ${packageId} · ${price} créditos`,
       },
-    });
+      tx,
+    );
+    if (!debit.ok) return null;
     return tx.activationCode.create({
       data: { code: newCode(), packageId: toPackageType(packageId), price, ownerId: user.id },
       select: { code: true },
