@@ -68,6 +68,8 @@ export async function listCreations(area: CreationArea, take = 40): Promise<Crea
         media:
           row.kind === "video" && isPrivateVideoBlobUrl(row.media)
             ? `/api/library/video?pieceId=${encodeURIComponent(row.id)}`
+            : row.kind === "image" && isPrivateVideoBlobUrl(row.media)
+              ? `/api/library/image?pieceId=${encodeURIComponent(row.id)}`
             : row.media,
         createdAt: row.createdAt.toISOString(),
       },
@@ -85,9 +87,23 @@ export async function saveCreation(input: {
   const user = await getCurrentUser();
   if (!user || !process.env.DATABASE_URL) return null;
 
+  return saveCreationForUser(user.id, input);
+}
+
+export async function saveCreationForUser(
+  userId: string,
+  input: {
+    area: CreationArea;
+    kind: CreationKind;
+    title: string;
+    body: string;
+    media?: string | null;
+  },
+) {
+  if (!process.env.DATABASE_URL) return null;
   const row = await getPrisma().mediaPiece.create({
     data: {
-      userId: user.id,
+      userId,
       area: input.area,
       kind: input.kind,
       title: input.title.trim().slice(0, 120) || "Pieza",

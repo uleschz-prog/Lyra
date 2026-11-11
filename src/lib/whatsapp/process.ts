@@ -5,6 +5,7 @@ import { getPrisma } from "@/lib/prisma";
 import { runProspectAgent, type AgentEffect } from "@/lib/whatsapp/agent/prospect-agent";
 import { canUseProspectAgent } from "@/lib/whatsapp/agent/prospect-rules";
 import { canUseVega } from "@/lib/vega/access";
+import { ensureDefaultVegaAgent } from "@/lib/vega/agents";
 import { decideAction } from "@/lib/vega/decide";
 import { prepareVegaTurn, runVegaTurn } from "@/lib/vega/turn";
 import { normalizePhone } from "@/lib/whatsapp/crypto";
@@ -70,7 +71,9 @@ async function handleOwner(connection: WhatsappConnection, inbound: WhatsappInbo
   if (!text) return "owner-empty";
 
   const title = "WhatsApp";
+  const defaultAgent = await ensureDefaultVegaAgent(user.id);
   const prepared = await prepareVegaTurn(user, {
+    agentId: defaultAgent.id,
     conversationId: null,
     message: text.slice(0, 4000),
     requestId: `wa-${connection.id.slice(-8)}-${inbound.waMessageId.slice(-16)}`,

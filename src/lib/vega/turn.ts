@@ -96,6 +96,7 @@ type Prepared = { ok: true; turn: VegaTurn } | { ok: false; status: number; erro
 export async function prepareVegaTurn(
   user: Pick<AuthProfile, "id" | "name" | "package">,
   input: {
+    agentId: string;
     conversationId: string | null;
     message: string;
     requestId: string;
@@ -105,10 +106,15 @@ export async function prepareVegaTurn(
   },
 ): Promise<Prepared> {
   const prisma = getPrisma();
+  const agent = await prisma.vegaAgent.findFirst({
+    where: { id: input.agentId, userId: user.id },
+    select: { id: true, name: true, specialty: true, instructions: true, isDefault: true },
+  });
+  if (!agent) return { ok: false, status: 404, error: "Ese agente ya no existe." };
   let conversation = input.conversationId
-    ? await prisma.vegaConversation.findFirst({ where: { id: input.conversationId, userId: user.id }, select: { id: true } })
+    ? await prisma.vegaConversation.findFirst({ where: { id: input.conversationId, userId: user.id, agentId: agent.id }, select: { id: true } })
     : null;
-  if (input.conversationId && !conversation) return { ok: false, status: 404, error: "Esa conversación ya no existe." };
+  if (input.conversationId && !conversation) return { ok: false, status: 404, error: "Esa conversación no pertenece a este agente o ya no existe." };
 
   const chargeKey = `vega:${user.id}:${input.requestId}`;
   const charge = await chargeCredits(user.id, creditPrices.vegaMessage, "Vega · mensaje", chargeKey);
@@ -118,7 +124,7 @@ export async function prepareVegaTurn(
   const attachments = input.attachments ?? [];
   const titleSource = input.message || attachments[0]?.name || "Archivos";
   conversation ??= await prisma.vegaConversation.create({
-    data: { userId: user.id, title: input.title ?? conversationTitle(titleSource) },
+    data: { userId: user.id, agentId: agent.id, title: input.title ?? conversationTitle(titleSource) },
     select: { id: true },
   });
   const chatId = conversation.id;
@@ -158,7 +164,7 @@ export async function prepareVegaTurn(
     notes: null,
   }));
   const system = [
-    vegaSystemPrompt(user, connections, webSearch, memories, profile),
+    vegaSystemPrompt(user, connections, webSearch, memories, profile, new Date(), agent),
     await autonomyPrompt(user.id).catch(() => ""),
     input.channelNote,
   ]

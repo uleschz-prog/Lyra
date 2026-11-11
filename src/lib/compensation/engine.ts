@@ -3,6 +3,7 @@ import {
   compensationPlan,
   getPackage,
   isPackageId,
+  minimumCreditRecharge,
   rebuyStatus,
   productPoints,
   toPoints,
@@ -18,9 +19,9 @@ export type CompensationMember = {
   status: MemberStatus;
   packageId: PackageId | null;
   personalVolume: number;
-  /** Suma de recargas de membresía pagadas en el mes. La de $99 habilita el bono mundial. */
+  /** Suma de recargas de 5 créditos o más hechas en el mes. */
   renewalUsd: number;
-  /** Compras de créditos del mes. Entran en las ventas y no sustituyen la renovación. */
+  /** Compras de crédito históricas que todavía no se registraron como recargas mensuales. */
   creditPurchaseUsd: number;
 };
 
@@ -91,6 +92,7 @@ export type ProcessInput = {
   kind: "purchase" | "rebuy" | "monthly";
   userId: string;
   packageId?: PackageId;
+  amountUsd?: number;
 };
 
 type Index = {
@@ -215,7 +217,7 @@ export function monthlyClose(members: CompensationMember[]): {
   const qualifiers = members
     .filter(
       (member) =>
-        isGlobalPoolPackage(member.packageId) && member.renewalUsd >= compensationPlan.globalPoolRenewal,
+        isGlobalPoolPackage(member.packageId) && member.renewalUsd >= compensationPlan.globalPoolMinimumRechargeUsd,
     )
     .sort((left, right) => left.id.localeCompare(right.id));
   const cents = Math.round(pool * 100);
@@ -249,13 +251,7 @@ export function rebuyMessage(packageId: PackageId | null) {
   if (packageId === "CORPORATE") {
     return "Tu cuenta Corporate conserva Órbita en los 6 niveles. Ese paquete ya no se ofrece.";
   }
-  if (packageId === "FOUNDER") {
-    return "Pro recarga desde $99 al mes siguiente.";
-  }
-  if (packageId === "PRO") {
-    return "Negocio recarga desde $49 al mes siguiente.";
-  }
-  return `${planPackage.label} recarga desde $${planPackage.rebuy} al mes siguiente de la inscripción.`;
+  return `${planPackage.label}: una recarga mensual de ${minimumCreditRecharge} créditos o más mantiene la actividad y habilita las comisiones del mes.`;
 }
 
 function upline(index: Index, userId: string, limit: number = compensationPlan.unilevel.length) {
@@ -326,7 +322,7 @@ export function estimateInvitationEarnings(input: {
 }) {
   const sale = getPackage(input.salePackageId);
   const packagePoints = productPoints(sale.price);
-  const rebuyPoints = productPoints(sale.rebuy);
+  const rebuyPoints = productPoints(minimumCreditRecharge);
   const profile = bonusProfile(input.earnerPackageId);
   const depth = profile?.orbitaLevels ?? 0;
   const levels = compensationPlan.unilevel.map((listedRate, index) => {
@@ -349,7 +345,7 @@ export function estimateInvitationEarnings(input: {
   const level1 = levels[0]?.networkUsd ?? 0;
   const level2 = levels[1]?.networkUsd ?? 0;
   const networkSales = roundMoney(
-    levels.reduce((total, level) => total + level.people * (sale.price + sale.rebuy), 0),
+    levels.reduce((total, level) => total + level.people * (sale.price + minimumCreditRecharge), 0),
   );
   const earnerPackage = getPackage(input.earnerPackageId);
   const globalBonusUsd =
@@ -370,7 +366,7 @@ export function estimateInvitationEarnings(input: {
     level1Rate: levels[0]?.rate ?? 0,
     level2Rate: levels[1]?.rate ?? 0,
     price: sale.price,
-    rebuy: sale.rebuy,
+    rebuy: minimumCreditRecharge,
     earnerLevels: depth,
     earnerShare: roundMoney(compensationPlan.unilevel.slice(0, depth).reduce((sum, rate) => sum + rate, 0)),
   };
@@ -394,7 +390,7 @@ export function memberPlan(members: CompensationMember[], userId: string) {
     remainingDirects: status.remaining,
     exempt: status.exempt,
     exemptLabel: status.label,
-    rebuyUsd: planPackage?.rebuy ?? 0,
+    rebuyUsd: minimumCreditRecharge,
     message: rebuyMessage(member.packageId),
     rank: evaluateRank(members, userId),
   };
@@ -437,7 +433,7 @@ export function processCommission(
   const planPackage = getPackage(packageId);
   const status = rebuyStatus(packageId, directs.length);
   const exempt = input.kind === "rebuy" && status.exempt;
-  const amount = input.kind === "purchase" ? planPackage.price : status.amount;
+  const amount = input.kind === "purchase" ? planPackage.price : (input.amountUsd ?? minimumCreditRecharge);
   const charge: Charge = {
     kind: input.kind,
     amount,
@@ -448,7 +444,7 @@ export function processCommission(
         ? status.label
         : input.kind === "purchase"
           ? `Plan ${planPackage.label}`
-          : `${packageId === "FOUNDER" ? "Mensualidad" : "Recompra"} ${planPackage.label}`,
+          : `Recarga de créditos · ${planPackage.label}`,
     credits: input.kind === "purchase" ? planPackage.credits : 0,
     activeDirects: directs.length,
   };

@@ -19,8 +19,6 @@ const fields: { key: keyof VegaProfile; label: string; placeholder: string }[] =
   { key: "notes", label: "Notas", placeholder: "Cualquier otro contexto que Vega deba saber" },
 ];
 
-const empty: VegaProfile = { business: null, goals: null, tone: null, markets: null, services: null, hours: null, team: null, notes: null };
-
 export function ProfilePanel({ onClose }: { onClose: () => void }) {
   const [profile, setProfile] = useState<VegaProfile | null>(null);
   const [busy, setBusy] = useState(false);

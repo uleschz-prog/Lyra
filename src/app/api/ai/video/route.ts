@@ -140,7 +140,7 @@ export async function POST(request: Request) {
   if (!process.env.ELEVENLABS_API_KEY?.trim()) {
     return NextResponse.json({ error: "La narración de video requiere configurar ElevenLabs." }, { status: 503 });
   }
-  if (!process.env.HIGGSFIELD_API_KEY_ID?.trim() || !process.env.HIGGSFIELD_API_KEY_SECRET?.trim()) {
+  if (!process.env.HF_KEY_ID?.trim() || !process.env.HF_KEY_SECRET?.trim()) {
     return NextResponse.json({ error: "La generación de video requiere configurar las credenciales de Higgsfield." }, { status: 503 });
   }
 

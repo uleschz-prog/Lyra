@@ -1,7 +1,6 @@
 import Link from "next/link";
 import {
   ArrowRight,
-  BookOpen,
   Check,
   Coins,
   Crown,
@@ -9,7 +8,6 @@ import {
   Library,
   Minus,
   Plus,
-  Sparkles,
   TrendingUp,
   UserPlus,
   Wallet,
@@ -171,16 +169,14 @@ export function RecentActivity({ items }: { items: HomeActivity[] }) {
 
 const shortcuts = [
   { href: "/dashboard/super-agent", label: "Vega", hint: "Tu super agente", icon: Crown },
-  { href: "/dashboard/studio", label: "Estudio creativo", hint: "Video, imagen y voz", icon: Sparkles },
-  { href: "/dashboard/biblioteca", label: "Biblioteca", hint: "Lo creado en el estudio", icon: Library },
-  { href: "/dashboard/notebook", label: "Notebook", hint: "Investiga tus fuentes", icon: BookOpen },
+  { href: "/dashboard/biblioteca", label: "Biblioteca", hint: "Tus creaciones guardadas", icon: Library },
 ] as const;
 
 export function Shortcuts() {
   return (
     <section>
       <h2 className="mb-4 text-sm font-bold tracking-tight text-[#1E1E24]">Herramientas</h2>
-      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
+      <div className="grid grid-cols-2 gap-3 sm:max-w-xl">
         {shortcuts.map(({ href, label, hint, icon: Icon }) => (
           <Link
             key={href}

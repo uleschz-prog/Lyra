@@ -1,10 +1,15 @@
 import { randomUUID } from "node:crypto";
 import sharp from "sharp";
 
-import { providerError, readJson } from "@/lib/ai/providers";
+import {
+  higgsfieldAuthHeaders,
+  higgsfieldGenerationRequest,
+  higgsfieldPublicError,
+  type Soul2ImageOptions,
+} from "@/lib/ai/higgsfield-api";
+import { readJson } from "@/lib/ai/providers";
 
 const apiBase = "https://api.higgsfield.ai";
-const endpointId = "marketing-studio/image/flare";
 // Base64 output stays below the studio's 1.9 MB persistence limit.
 const maxSourceImageBytes = 12 * 1024 * 1024;
 const maxImageBytes = 1_400_000;
@@ -23,15 +28,17 @@ function failure(stage: string, error: string, statusCode?: number): ImageError 
 }
 
 function credentials() {
-  const keyId = process.env.HIGGSFIELD_API_KEY_ID?.trim() ?? "";
-  const keySecret = process.env.HIGGSFIELD_API_KEY_SECRET?.trim() ?? "";
-  return keyId && keySecret ? { Authorization: `Key ${keyId}:${keySecret}` } : null;
+  return higgsfieldAuthHeaders();
 }
 
-export function higgsfieldImageAspectRatio(size?: string) {
-  if (size === "horizontal" || size === "16:9") return "16:9";
-  if (size === "vertical" || size === "9:16") return "9:16";
-  return "1:1";
+export function higgsfieldImageAspectRatio(size?: string): Soul2ImageOptions["aspect_ratio"] {
+  const allowed: Soul2ImageOptions["aspect_ratio"][] = ["9:16", "16:9", "4:3", "3:4", "1:1", "2:3", "3:2"];
+  const match = allowed.find((ratio) => ratio === size);
+  if (match) return match;
+  if (size === "cuadrada") return "1:1";
+  if (size === "horizontal") return "16:9";
+  if (size === "vertical") return "9:16";
+  return "4:3";
 }
 
 function statusUrl(value: unknown, requestId: string) {
@@ -61,16 +68,17 @@ export async function readHiggsfieldImageStatus(submission: HiggsfieldImageSubmi
   if (!response.ok || !payload || typeof payload !== "object") {
     return failure(
       "status_response",
-      providerError(payload, "Higgsfield no pudo consultar el estado de la imagen."),
+      higgsfieldPublicError(response.status, payload, "Higgsfield no pudo consultar el estado de la imagen."),
       response.status,
     );
   }
 
-  const record = payload as { status?: unknown; images?: unknown; error?: unknown };
+  const record = payload as { status?: unknown; images?: unknown; result?: { images?: unknown }; error?: unknown };
   const state = typeof record.status === "string" ? record.status : "";
   if (!state) return failure("status_invalid", "Higgsfield devolvió un estado de imagen inválido.");
   if (state === "completed") {
-    const firstImage = Array.isArray(record.images) ? record.images[0] : null;
+    const images = record.images ?? record.result?.images;
+    const firstImage = Array.isArray(images) ? images[0] : null;
     const imageUrl = firstImage && typeof firstImage === "object" ? (firstImage as { url?: unknown }).url : null;
     if (typeof imageUrl !== "string") {
       return failure("completed_without_image", "Higgsfield terminó sin entregar la imagen.");
@@ -81,7 +89,7 @@ export async function readHiggsfieldImageStatus(submission: HiggsfieldImageSubmi
     return {
       ok: true,
       status: state,
-      error: providerError(record.error ?? payload, `Higgsfield no pudo generar la imagen (${state}).`),
+      error: `Higgsfield no pudo generar la imagen (${state}).`,
     };
   }
   return { ok: true, status: state };
@@ -164,7 +172,7 @@ export async function downloadHiggsfieldImage(imageUrl: string): Promise<ImageRe
     return {
       ok: true,
       dataUrl: `data:image/jpeg;base64,${optimized.toString("base64")}`,
-      note: "Imagen generada con Higgsfield Marketing Studio.",
+      note: "Imagen generada con Higgsfield Soul 2.",
     };
   } catch {
     return failure("image_processing", "No pudimos preparar la imagen generada por Higgsfield.");
@@ -179,19 +187,20 @@ export async function submitHiggsfieldImage(prompt: string, size?: string): Prom
   if (!auth) return failure("submit_credentials", "Higgsfield no está configurado en el servidor.");
   const cleanPrompt = prompt.trim().slice(0, 5000);
   if (!cleanPrompt) return failure("submit_prompt", "Describe la imagen que quieres generar.");
+  const generation = higgsfieldGenerationRequest("image", cleanPrompt, undefined, {
+    custom_reference_strength: 1,
+    batch_size: 1,
+    resolution: "720p",
+    aspect_ratio: higgsfieldImageAspectRatio(size),
+    enhance_prompt: true,
+  });
 
   let response: Response;
   try {
-    response = await fetch(`${apiBase}/${endpointId}`, {
+    response = await fetch(new URL(generation.endpoint, apiBase), {
       method: "POST",
       headers: { ...auth, "Content-Type": "application/json", "Idempotency-Key": randomUUID() },
-      body: JSON.stringify({
-        prompt: cleanPrompt,
-        resolution: "1k",
-        aspect_ratio: higgsfieldImageAspectRatio(size),
-        quality: "low",
-        enhance_prompt: false,
-      }),
+      body: JSON.stringify(generation.body),
       cache: "no-store",
       signal: AbortSignal.timeout(15_000),
     });
@@ -210,7 +219,7 @@ export async function submitHiggsfieldImage(prompt: string, size?: string): Prom
   ) {
     return failure(
       "submit_response",
-      providerError(payload, "Higgsfield no aceptó la solicitud de imagen."),
+      higgsfieldPublicError(response.status, payload, "Higgsfield no aceptó la solicitud de imagen."),
       response.status,
     );
   }

@@ -42,9 +42,18 @@ export default async function PreviewVega({ searchParams }: { searchParams: Prom
         <VegaChat
           creditAllowance={300}
           firstName="Ana"
+          initialAgentId="agent-preview"
+          initialAgents={[{
+            id: "agent-preview",
+            name: "Vega",
+            specialty: "Asistente general",
+            instructions: "",
+            avatar: "✦",
+            isDefault: true,
+          }]}
           initialChats={[
-            { id: "c1", title: "App de citas para la clínica", updatedAt: now },
-            { id: "c2", title: "Plan de prospección de la semana", updatedAt: now },
+            { id: "c1", agentId: "agent-preview", title: "App de citas para la clínica", updatedAt: now },
+            { id: "c2", agentId: "agent-preview", title: "Plan de prospección de la semana", updatedAt: now },
           ]}
           initialMessages={
             pieza === "1" && project

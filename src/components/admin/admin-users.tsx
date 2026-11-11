@@ -13,12 +13,10 @@ import {
   getCommissionHistory,
   resetPassword,
   setUsdtWallet,
-  settleCommissions,
   suspendAccount,
   updateProfile,
   validateRegistration,
 } from "@/app/dashboard/admin/actions";
-import { isSignupPlanId } from "@/config/compensation-plan";
 import { formatCredits, formatUsd } from "@/lib/format";
 import { cn } from "@/lib/utils";
 

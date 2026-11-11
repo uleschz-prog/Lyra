@@ -1,13 +1,10 @@
 import {
-  BookOpen,
   Crown,
   GraduationCap,
   Home,
   Library,
-  MessageCircle,
   Network,
-  Orbit,
-  Sparkles,
+  Presentation,
   Wallet,
 } from "lucide-react";
 
@@ -29,14 +26,10 @@ export const brand = {
     register: "/register",
     dashboard: "/dashboard",
     network: "/dashboard/network",
-    plan: "/dashboard/plan",
     upgrade: "/dashboard/upgrade",
     academy: "/dashboard/academy",
-    notebook: "/dashboard/notebook",
-    studio: "/dashboard/studio",
     library: "/dashboard/biblioteca",
     wallet: "/dashboard/wallet",
-    whatsapp: "/dashboard/whatsapp",
   },
 };
 
@@ -53,28 +46,16 @@ export const officeModes = [
         icon: Home,
       },
       {
+        href: "/presentacion",
+        label: "Presentación",
+        description: "Conoce LYRA y sus oportunidades",
+        icon: Presentation,
+      },
+      {
         href: "/dashboard/super-agent",
         label: "Vega",
         description: "Tu super agente",
         icon: Crown,
-      },
-      {
-        href: "/dashboard/whatsapp",
-        label: "WhatsApp",
-        description: "Bandeja y seguimientos Business",
-        icon: MessageCircle,
-      },
-      {
-        href: "/dashboard/notebook",
-        label: "Notebook",
-        description: "Investigación sobre tus fuentes",
-        icon: BookOpen,
-      },
-      {
-        href: "/dashboard/studio",
-        label: "Estudio creativo",
-        description: "Video con imagen y sonido",
-        icon: Sparkles,
       },
       {
         href: "/dashboard/biblioteca",
@@ -84,15 +65,9 @@ export const officeModes = [
       },
       {
         href: "/dashboard/network",
-        label: "Mi Red",
-        description: "Árbol genealógico",
-        icon: Network,
-      },
-      {
-        href: "/dashboard/plan",
         label: "Partners",
-        description: "Comisiones y membresías",
-        icon: Orbit,
+        description: "Tu comunidad y su crecimiento",
+        icon: Network,
       },
       {
         href: "/dashboard/academy",

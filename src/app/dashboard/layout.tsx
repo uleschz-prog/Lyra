@@ -8,6 +8,7 @@ import { getPackage, isSignupPlanId } from "@/config/compensation-plan";
 import { PendingMembership } from "@/components/dashboard/pending-membership";
 import { onboardingPath } from "@/lib/auth/onboarding";
 import { getCurrentUser, getRecentTransactions } from "@/lib/auth/profile";
+import { getPrisma } from "@/lib/prisma";
 
 export default async function DashboardLayout({ children }: { children: ReactNode }) {
   const user = await getCurrentUser();
@@ -15,7 +16,10 @@ export default async function DashboardLayout({ children }: { children: ReactNod
   const onboarding = onboardingPath(user);
   if (onboarding) redirect(onboarding);
 
-  const transactions = await getRecentTransactions(user.id);
+  const [transactions, unreadNotifications] = await Promise.all([
+    getRecentTransactions(user.id),
+    getPrisma().academyNotification.count({ where: { userId: user.id, readAt: null } }),
+  ]);
   const pendingPlan = user.pendingPackage && isSignupPlanId(user.pendingPackage) ? getPackage(user.pendingPackage) : null;
 
   return (
@@ -24,7 +28,7 @@ export default async function DashboardLayout({ children }: { children: ReactNod
       initialTransactions={transactions}
       totalEarnedCommissions={user.walletBalance}
     >
-      <DashboardShell user={user}>
+      <DashboardShell user={user} unreadNotifications={unreadNotifications}>
         {pendingPlan ? <PendingMembership label={pendingPlan.label} price={pendingPlan.price} /> : null}
         {children}
       </DashboardShell>

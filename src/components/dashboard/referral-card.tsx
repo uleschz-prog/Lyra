@@ -4,24 +4,21 @@ import { Check, Copy, MessageCircle, Send, Share2 } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
 
-import { creditRechargeUsd, isFounderPackage } from "@/config/compensation-plan";
+import { minimumCreditRecharge } from "@/config/compensation-plan";
 import { VegaMascot } from "@/components/vega/vega-mark";
 
 const shareText = "Te invito a LYRA: agentes de IA que crean, venden y dan seguimiento por ti, más un plan para ganar refiriendo.";
 
 export function ReferralCard({
   link,
-  packageId,
   directs,
   joinedThisMonth,
 }: {
   link: string;
-  packageId: string;
   directs: number;
   joinedThisMonth: number;
 }) {
   const [copied, setCopied] = useState(false);
-  const recharge = creditRechargeUsd(packageId);
   const message = `${shareText}\n${link}`;
 
   async function copyLink() {
@@ -107,11 +104,7 @@ export function ReferralCard({
       <div className="relative mt-3 flex min-w-0 items-center gap-3 rounded-xl border border-[#DDD6FE] bg-white/70 p-3 sm:p-4">
         <VegaMascot className="h-16 w-16 shrink-0 sm:h-20 sm:w-20" />
         <p className="min-w-0 text-sm leading-6 text-[#5C5854]">
-        {isFounderPackage(packageId)
-          ? "Tu cuenta Pro cobra Órbita en los 6 niveles."
-          : recharge
-            ? `Tu recarga mínima es de $${recharge} al mes siguiente. Un crédito equivale a $1.`
-            : "Inicio entra con $29, Negocio con $99 y Pro con $249. Un crédito equivale a $1."}
+        {`Recarga desde ${minimumCreditRecharge} créditos al mes para mantener la actividad. Compra exactamente 50 y recibe 60. Un crédito cuesta 1 USD.`}
         </p>
       </div>
     </section>

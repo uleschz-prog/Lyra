@@ -1,6 +1,15 @@
 import { describe, expect, it } from "vitest";
 
-import { canSpendSignupCreditsOnCodes, founderCodeBudget, getPackage, signupPlans } from "@/config/compensation-plan";
+import {
+  bonusCreditsForRecharge,
+  canSpendSignupCreditsOnCodes,
+  creditedRechargeCredits,
+  creditRechargeUsdForCredits,
+  founderCodeBudget,
+  getPackage,
+  isValidCreditRecharge,
+  signupPlans,
+} from "@/config/compensation-plan";
 import { distributeSale, estimateInvitationEarnings, monthlyClose, roundMoney, type CompensationMember } from "@/lib/compensation/engine";
 
 function member(
@@ -19,6 +28,22 @@ function chain(packageId: CompensationMember["packageId"], status: CompensationM
     ...ids.map((id, index) => member(id, ids[index + 1] ?? null, packageId, status)),
   ];
 }
+
+describe("recarga flexible", () => {
+  it("permite recargas enteras desde 5 créditos", () => {
+    expect(isValidCreditRecharge(5)).toBe(true);
+    expect(isValidCreditRecharge(4)).toBe(false);
+    expect(isValidCreditRecharge(5.5)).toBe(false);
+  });
+
+  it("bonifica 10 créditos solo en una compra exacta de 50", () => {
+    expect(creditRechargeUsdForCredits(50)).toBe(50);
+    expect(bonusCreditsForRecharge(50)).toBe(10);
+    expect(creditedRechargeCredits(50)).toBe(60);
+    expect(bonusCreditsForRecharge(100)).toBe(0);
+    expect(creditedRechargeCredits(100)).toBe(100);
+  });
+});
 
 describe("códigos de un Pro", () => {
   it("deja usar 500 de los 1,000 créditos iniciales", () => {
@@ -101,9 +126,9 @@ describe("bono órbita", () => {
     expect(pro.level2).toBe(13.92);
     expect(pro.levels[2]?.packageUsd).toBe(1.16);
     expect(pro.packageTotal).toBe(11.6);
-    expect(pro.rebuyTotal).toBe(7.6);
-    expect(pro.networkSales).toBe(34944);
-    expect(pro.globalBonusUsd).toBe(2795.52);
+    expect(pro.rebuyTotal).toBe(2);
+    expect(pro.networkSales).toBe(24752);
+    expect(pro.globalBonusUsd).toBe(1980.16);
     expect(inicio.globalBonusUsd).toBe(0);
   });
 
@@ -114,8 +139,8 @@ describe("bono órbita", () => {
       salePackageId: "FOUNDER",
       earnerPackageId: "FOUNDER",
     });
-    expect(pro.networkSales).toBe(380016);
-    expect(pro.globalBonusUsd).toBe(30401.28);
+    expect(pro.networkSales).toBe(277368);
+    expect(pro.globalBonusUsd).toBe(22189.44);
 
     const negocio = estimateInvitationEarnings({
       directs: 3,
@@ -145,9 +170,9 @@ describe("bono órbita", () => {
     expect(closed.payouts.every((payout) => payout.rankPayout === 0)).toBe(true);
   });
 
-  it("un Pro activo sin la renovación de 99 no cobra el bono mundial", () => {
+  it("un Pro activo con una recarga menor a 5 no cobra el bono mundial", () => {
     const members = [
-      { ...member("pro", null, "FOUNDER", "ACTIVE"), personalVolume: 1000, renewalUsd: 98 },
+      { ...member("pro", null, "FOUNDER", "ACTIVE"), personalVolume: 1000, renewalUsd: 4.99 },
       { ...member("otro", null, "STARTED"), personalVolume: 0, renewalUsd: 0 },
     ];
     const closed = monthlyClose(members);

@@ -1,6 +1,18 @@
 import { Prisma } from "@/generated/prisma/client";
 
-import { getPackage, isFounderPackage, isSignupPlanId, rebuyCredits, toPackageType } from "@/config/compensation-plan";
+import {
+  bonusCreditsForRecharge,
+  creditedRechargeCredits,
+  creditRechargeUsdForCredits,
+  creditUsd,
+  getPackage,
+  isFounderPackage,
+  isSignupPlanId,
+  isValidCreditRecharge,
+  minimumCreditRecharge,
+  rebuyCredits,
+  toPackageType,
+} from "@/config/compensation-plan";
 import { rebuyPaidFilter } from "@/lib/compensation/activity";
 import { payCommissions } from "@/lib/compensation/payout";
 import { activateMembership } from "@/lib/payments/activate";
@@ -40,6 +52,16 @@ export async function fulfillMercadoPago(paymentId: string): Promise<FulfillResu
     total <= 0
   ) {
     return { ok: false, status: "invalid", error: "Ese pago no corresponde a LYRA." };
+  }
+  if (purpose === "credits") {
+    const purchasedCredits = usd / creditUsd;
+    if (!isValidCreditRecharge(purchasedCredits) || creditRechargeUsdForCredits(purchasedCredits) !== usd) {
+      return {
+        ok: false,
+        status: "invalid",
+        error: `La recarga debe ser de al menos ${minimumCreditRecharge} créditos enteros.`,
+      };
+    }
   }
   if (payment.transaction_amount + 0.01 < total) {
     return { ok: false, status: "invalid", error: "El monto pagado no coincide." };
@@ -105,15 +127,19 @@ export async function fulfillMercadoPago(paymentId: string): Promise<FulfillResu
     }
 
     const founder = isFounderPackage(user.package);
-    const credits = purpose === "rebuy" ? rebuyCredits(user.package, usd) : usd;
+    const purchasedCredits = purpose === "credits" ? usd / creditUsd : 0;
+    const credits =
+      purpose === "rebuy"
+        ? rebuyCredits(user.package, usd)
+        : creditedRechargeCredits(purchasedCredits);
+    const promo = purpose === "credits" ? bonusCreditsForRecharge(purchasedCredits) : 0;
     const description =
       purpose === "rebuy"
         ? `${founder ? `Mensualidad Pro · $${usd} · ${credits} créditos` : `Recarga de ${credits} créditos`} · Mercado Pago`
-        : `Recarga de ${usd} créditos · Mercado Pago`;
+        : `Recarga de ${purchasedCredits} créditos${promo ? ` + ${promo} de promoción` : ""} · Mercado Pago`;
 
     await prisma.$transaction(async (tx) => {
-      const firstRebuy =
-        purpose === "rebuy" && (await tx.transaction.count({ where: { userId: user.id, ...rebuyPaidFilter() } })) === 0;
+      const firstRebuy = (await tx.transaction.count({ where: { userId: user.id, ...rebuyPaidFilter() } })) === 0;
       const wallet = await tx.creditWallet.upsert({
         where: { userId: user.id },
         create: { userId: user.id, balance: credits },
@@ -128,12 +154,12 @@ export async function fulfillMercadoPago(paymentId: string): Promise<FulfillResu
           walletId: wallet.id,
           amount: usd,
           creditDelta: credits,
-          kind: purpose === "rebuy" ? "REBUY" : "CREDIT_PURCHASE",
+          kind: "REBUY",
           description,
           externalRef,
         },
       });
-      if (purpose === "rebuy") await grantVideoQuota(tx, user.id, user.package);
+      if (firstRebuy) await grantVideoQuota(tx, user.id, user.package);
       if (firstRebuy || purpose === "credits") await payCommissions(tx, user, usd, "rebuy");
     });
     return { ok: true, purpose, credits, already: false };

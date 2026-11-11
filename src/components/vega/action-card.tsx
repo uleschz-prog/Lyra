@@ -135,7 +135,7 @@ export function ActionCard({
   if (action.kind === "create_image" && action.status === "running" && (action.payload as ImageDraft).requestId) {
     return <ImageGenerationCard action={action} onChange={onChange} />;
   }
-  if (action.kind === "create_image" && (action.payload as ImageDraft).dataUrl) {
+  if (action.kind === "create_image" && ((action.payload as ImageDraft).imageUrl || (action.payload as ImageDraft).dataUrl)) {
     return <MediaCard image={action.payload as ImageDraft} />;
   }
   return <ConfirmCard action={action} onChange={onChange} />;

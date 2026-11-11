@@ -5,7 +5,7 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 
 import { getCurrentUser } from "@/lib/auth/profile";
-import { academyMarketplaceEnabled } from "@/lib/academy/mercadopago";
+import { academyPaymentsEnabled } from "@/lib/academy/mercadopago";
 import { getPrisma } from "@/lib/prisma";
 
 const builderPath = "/dashboard/academy/creator";
@@ -70,16 +70,6 @@ export async function createAcademyCourse(formData: FormData) {
   if (!/^\d{1,10}(?:\.\d{1,2})?$/.test(price) || Number(price) <= 0 && pricingType !== "FREE") {
     message("error", "El precio debe ser mayor a cero y tener hasta dos decimales.");
   }
-  if (pricingType === "ONE_TIME") {
-    const account = await getPrisma().creatorAccount.findUnique({
-      where: { userId: user.id },
-      select: { status: true },
-    });
-    if (account?.status !== "connected") {
-      message("error", "Conecta tu cuenta de Mercado Pago antes de crear un curso de pago.");
-    }
-  }
-
   const baseSlug =
     title
       .normalize("NFD")
@@ -131,8 +121,25 @@ export async function createAcademyLesson(formData: FormData) {
   const description = field(formData, "description");
   const content = field(formData, "content");
   const videoUrl = safeVideoUrl(field(formData, "videoUrl"));
+  const uploadedVideo = field(formData, "uploadedVideo") === "true";
   if (!courseId || !moduleId || !title || title.length > 150 || description.length > 1000 || content.length > 20000) {
     message("error", "Revisa el título, descripción y contenido de la lección.");
+  }
+  if (uploadedVideo) {
+    let url: URL;
+    try {
+      url = new URL(videoUrl);
+    } catch {
+      message("error", "Vuelve a subir el archivo de video.");
+    }
+    if (
+      url.protocol !== "https:" ||
+      !url.hostname.endsWith(".public.blob.vercel-storage.com") ||
+      !url.pathname.startsWith(`/lyra-academy-videos/${courseId}/`) ||
+      !/\.(mp4|webm)$/i.test(url.pathname)
+    ) {
+      message("error", "El video cargado no pertenece al almacenamiento de LYRA.");
+    }
   }
   if (!videoUrl && !content) message("error", "Agrega un video o contenido de texto para la lección.");
 
@@ -209,9 +216,7 @@ export async function publishAcademyCourse(formData: FormData) {
   }
   if (course.pricingType === "MONTHLY") message("error", "Los cursos mensuales aún no están disponibles.");
   if (course.pricingType === "ONE_TIME") {
-    if (!academyMarketplaceEnabled()) message("error", "El Marketplace de Academia aún no está habilitado.");
-    const account = await prisma.creatorAccount.findUnique({ where: { userId: user.id }, select: { status: true } });
-    if (account?.status !== "connected") message("error", "Conecta Mercado Pago antes de publicar el curso.");
+    if (!academyPaymentsEnabled()) message("error", "LYRA aún no habilitó los cobros de Academia.");
   }
 
   await prisma.course.update({

@@ -81,17 +81,17 @@ export function StudioLibrary({ initialPieces }: { initialPieces: CreationRecord
     <div className="space-y-6">
       <header className="flex flex-wrap items-end justify-between gap-4">
         <div>
-          <p className="text-[11px] font-medium tracking-[0.22em] text-[#7C3AED] uppercase">Estudio creativo</p>
+          <p className="text-[11px] font-medium tracking-[0.22em] text-[#7C3AED] uppercase">Tus creaciones</p>
           <h1 className="mt-2 text-3xl font-semibold tracking-tight text-[#1E1E24] dark:text-[#F2F0F7]">Biblioteca</h1>
           <p className="mt-2 max-w-xl text-sm leading-relaxed text-[#5C5854] dark:text-[#9B96AC]">
-            Aquí queda cada video e imagen que creas en el estudio.
+            Aquí encuentras los videos e imágenes guardados desde tus herramientas de LYRA.
           </p>
         </div>
         <Link
-          href="/dashboard/studio"
+          href="/dashboard/super-agent"
           className="inline-flex rounded-full bg-[#7C3AED] px-4 py-2 text-sm font-medium text-white hover:bg-[#6D28D9]"
         >
-          Crear en el estudio
+          Crear con Vega
         </Link>
       </header>
 

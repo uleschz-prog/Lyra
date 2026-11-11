@@ -10,9 +10,10 @@ import { WalletPanel } from "@/components/wallet/wallet-panel";
 import { brand } from "@/config/brand";
 import {
   canSpendSignupCreditsOnCodes,
-  creditRechargeUsd,
+  creditRechargeUsdForCredits,
   founderCodeBudget,
   isFounderPackage,
+  minimumCreditRecharge,
   rebuyStatus,
 } from "@/config/compensation-plan";
 import { getCurrentUser } from "@/lib/auth/profile";
@@ -33,12 +34,8 @@ export default async function WalletPage({
   if (!user) redirect(brand.links.login);
 
   const status = rebuyStatus(user.package, user.activeDirects);
-  const extraUsd = creditRechargeUsd(user.package);
-  const quotes = mercadoPagoReady()
-    ? {
-        rebuy: status.amount > 0 ? await mercadoPagoQuote(status.amount) : null,
-        credits: extraUsd ? await mercadoPagoQuote(extraUsd) : null,
-      }
+  const initialQuote = mercadoPagoReady()
+    ? await mercadoPagoQuote(creditRechargeUsdForCredits(minimumCreditRecharge))
     : null;
   const canMint = canSpendSignupCreditsOnCodes({
     packageId: user.package,
@@ -67,8 +64,8 @@ export default async function WalletPage({
     ? params.tipo === "signup"
       ? "Pago recibido. Tu membresía quedó activa. Bienvenido a LYRA."
       : params.tipo === "rebuy"
-        ? "Pago recibido. Tu recompra del mes quedó activa."
-        : "Pago recibido. Tus créditos extra ya están en tu cuenta."
+        ? "Pago recibido. Tu recarga mensual quedó activa."
+        : "Pago recibido. Tus créditos ya están en tu cuenta."
     : params.pago === "pendiente"
       ? "Tu pago está en proceso. Se activa en cuanto Mercado Pago lo acredite."
       : params.pago === "error"
@@ -84,8 +81,8 @@ export default async function WalletPage({
         title="Saldos"
         description={
           isFounderPackage(user.package)
-            ? "Tus comisiones quedan en dólares. La mensualidad de Pro es de $99."
-            : "Las comisiones quedan en dólares. Paga tu recompra para seguir activo."
+            ? "Tus comisiones quedan en dólares. Recarga desde 5 créditos al mes para mantener la actividad y participar en los bonos."
+            : "Tus comisiones quedan en dólares. Elige la cantidad de créditos que necesitas; una recarga mensual desde 5 mantiene tu actividad."
         }
       />
       <div className="space-y-6">
@@ -113,11 +110,9 @@ export default async function WalletPage({
         ) : null}
         <CreditRecharge
           packageId={user.package}
-          amount={status.amount}
-          exempt={status.exempt}
-          exemptLabel={status.label}
-          paid={user.rebuyPaidThisMonth}
-          quotes={quotes}
+          activeThisMonth={user.rebuyPaidThisMonth || status.exempt}
+          mercadoPagoEnabled={mercadoPagoReady()}
+          initialQuote={initialQuote}
         />
         <UsdtWallet address={user.usdtTrc20} />
         <WalletPanel />

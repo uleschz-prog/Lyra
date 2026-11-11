@@ -5,7 +5,7 @@ import { useEffect, useState } from "react";
 import { toast } from "sonner";
 
 import { updateVegaAutonomy, vegaAutonomy } from "@/app/dashboard/super-agent/actions";
-import { defaultAutonomy, type AutonomySettings } from "@/lib/vega/autonomy";
+import type { AutonomySettings } from "@/lib/vega/autonomy";
 import { sheetClass } from "@/components/vega/sheet";
 
 const toggles: { key: "sendEmail" | "whatsapp" | "events" | "appActions"; label: string; hint: string }[] = [

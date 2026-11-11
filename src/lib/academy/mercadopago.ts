@@ -9,8 +9,27 @@ import { getPrisma } from "@/lib/prisma";
 
 const API = "https://api.mercadopago.com";
 
-export function academyMarketplaceEnabled() {
-  return process.env.ACADEMY_MARKETPLACE_ENABLED?.trim().toLowerCase() === "true";
+export function academyPaymentsEnabled() {
+  return (
+    (process.env.ACADEMY_PAYMENTS_ENABLED ?? process.env.ACADEMY_MARKETPLACE_ENABLED)?.trim().toLowerCase() ===
+      "true" &&
+    Boolean(process.env.MERCADOPAGO_ACCESS_TOKEN?.trim())
+  );
+}
+
+export function getAcademyCompanyAccessToken() {
+  const token = process.env.MERCADOPAGO_ACCESS_TOKEN?.trim();
+  if (!token) throw new Error("Falta MERCADOPAGO_ACCESS_TOKEN para cobrar cursos en la cuenta de LYRA.");
+  return token;
+}
+
+export async function getAcademyCompanyAccountId(accessToken = getAcademyCompanyAccessToken()) {
+  const profile = await requestJson<{ id?: number | string }>("/users/me", {
+    method: "GET",
+    headers: { Authorization: `Bearer ${accessToken}` },
+  });
+  if (!profile.id) throw new Error("Mercado Pago no devolvió la cuenta de cobro de LYRA.");
+  return String(profile.id);
 }
 
 type OAuthToken = {
@@ -152,24 +171,21 @@ export async function getAcademySellerToken(account: {
   return decryptAcademyCredential(updated.accessTokenEncrypted);
 }
 
-export async function createAcademyMarketplacePreference(input: {
+export async function createAcademyCompanyPreference(input: {
   accessToken: string;
-  sellerId: string;
   externalReference: string;
   courseId: string;
   courseTitle: string;
   buyerId: string;
   creatorId: string;
   price: number;
-  fee: number;
   currency: string;
 }) {
   const origin = academyAppUrl();
+  const companyAccountId = await getAcademyCompanyAccountId(input.accessToken);
   const preference = await requestJson<{
     id?: string;
     init_point?: string;
-    marketplace?: string;
-    marketplace_fee?: number | string;
     collector_id?: number | string;
   }>("/checkout/preferences", {
     method: "POST",
@@ -184,7 +200,6 @@ export async function createAcademyMarketplacePreference(input: {
           currency_id: input.currency,
         },
       ],
-      marketplace_fee: input.fee,
       external_reference: input.externalReference,
       metadata: {
         lyra_academy: true,
@@ -205,16 +220,14 @@ export async function createAcademyMarketplacePreference(input: {
   if (
     !preference.id ||
     !preference.init_point ||
-    !preference.marketplace?.startsWith("MP-MKT-") ||
-    String(preference.collector_id) !== input.sellerId ||
-    Math.round(Number(preference.marketplace_fee) * 100) !== Math.round(input.fee * 100)
+    String(preference.collector_id) !== companyAccountId
   ) {
-    throw new Error("Mercado Pago no confirmó el marketplace, el vendedor y la comisión del 7%.");
+    throw new Error("Mercado Pago no confirmó que el cobro se deposite en la cuenta de LYRA.");
   }
   return preference;
 }
 
-export async function getAcademyMercadoPagoPayment(id: string, accessToken: string) {
+export async function getAcademyCompanyPayment(id: string, accessToken: string) {
   if (!/^\d{1,20}$/.test(id)) return null;
   return requestJson<{
     id: number | string;

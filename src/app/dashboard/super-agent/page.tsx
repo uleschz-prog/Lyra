@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 
-import { listVegaChats } from "@/app/dashboard/super-agent/actions";
+import { listVegaAgents, listVegaChats } from "@/app/dashboard/super-agent/actions";
 import { AgentNight } from "@/components/landing/agent-night";
 import { VegaChat } from "@/components/vega/vega-chat";
 import { brand } from "@/config/brand";
@@ -27,10 +27,14 @@ export default async function SuperAgentPage({ searchParams }: { searchParams: P
   if (!user) redirect(brand.links.login);
 
   if (canUseVega(user)) {
-    const [chats, { conexion }] = await Promise.all([listVegaChats(), searchParams]);
+    const [agents, { conexion }] = await Promise.all([listVegaAgents(), searchParams]);
+    const selectedAgent = agents[0];
+    const chats = selectedAgent ? await listVegaChats(selectedAgent.id) : [];
     return (
       <VegaChat
         firstName={user.name.split(" ")[0] || user.name}
+        initialAgents={agents}
+        initialAgentId={selectedAgent?.id ?? ""}
         initialChats={chats}
         justConnected={conexion && isUserToolkit(conexion) ? conexion : null}
         creditAllowance={isPackageId(user.package) ? Math.max(getPackage(user.package).credits, 1) : Math.max(user.credits, 1)}
@@ -62,7 +66,7 @@ export default async function SuperAgentPage({ searchParams }: { searchParams: P
       </section>
 
       <div className="flex justify-center">
-        <Link href="/dashboard/plan" className="inline-flex rounded-full bg-[#7C3AED] px-6 py-3 text-sm font-medium text-white">
+        <Link href="/dashboard/upgrade" className="inline-flex rounded-full bg-[#7C3AED] px-6 py-3 text-sm font-medium text-white">
           Activar una membresía
         </Link>
       </div>

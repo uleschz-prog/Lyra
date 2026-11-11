@@ -38,8 +38,6 @@ const startupImages: Array<{ href: string; media: string }> = [
 export const viewport: Viewport = {
   width: "device-width",
   initialScale: 1,
-  maximumScale: 1,
-  userScalable: false,
   viewportFit: "cover",
   interactiveWidget: "resizes-content",
   themeColor: "#2E1065",
@@ -87,9 +85,9 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           closeButton
           toastOptions={{
             style: {
-              background: "#FFFFFF",
-              border: "1px solid #D9D5CE",
-              color: "#1E1E24",
+              background: "var(--card)",
+              border: "1px solid var(--border)",
+              color: "var(--card-foreground)",
             },
           }}
         />

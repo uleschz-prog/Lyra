@@ -1,9 +1,9 @@
 import { randomUUID } from "node:crypto";
 
 import {
-  academyMarketplaceEnabled,
-  createAcademyMarketplacePreference,
-  getAcademySellerToken,
+  academyPaymentsEnabled,
+  createAcademyCompanyPreference,
+  getAcademyCompanyAccessToken,
 } from "@/lib/academy/mercadopago";
 import { getPrisma } from "@/lib/prisma";
 
@@ -21,7 +21,6 @@ export function calculateAcademySplit(amount: string | number) {
     lyraFee7Percent: (lyraCents / 100).toFixed(2),
     creatorPayout93Percent: (creatorCents / 100).toFixed(2),
     totalNumber: cents / 100,
-    feeNumber: lyraCents / 100,
   };
 }
 
@@ -87,73 +86,85 @@ export async function beginAcademyCheckout(studentId: string, courseId: string):
     return { ok: true, url: null, free: true };
   }
 
-  if (course.pricingType !== "ONE_TIME" || !course.creatorId) {
+  const creatorId = course.creatorId;
+  if (course.pricingType !== "ONE_TIME" || !creatorId) {
     return { ok: false, status: 409, error: "El curso todavía no está habilitado para pagos." };
   }
   if (coursePrice <= 0) {
     return { ok: false, status: 409, error: "El precio del curso de pago no está configurado correctamente." };
   }
-  if (!academyMarketplaceEnabled()) {
-    return { ok: false, status: 503, error: "El Marketplace de Academia aún no está habilitado." };
+  if (!academyPaymentsEnabled()) {
+    return { ok: false, status: 503, error: "Los cobros de Academia no están habilitados en la cuenta de LYRA." };
   }
 
-  const account = await prisma.creatorAccount.findUnique({ where: { userId: course.creatorId } });
-  if (!account || account.status !== "connected") {
-    return { ok: false, status: 409, error: "El creador todavía no conectó su cuenta de Mercado Pago." };
-  }
-  if (course.currency !== "MXN" || account.siteId !== "MLM") {
+  if (course.currency !== "MXN") {
     return { ok: false, status: 409, error: "Por ahora los cursos se cobran en MXN." };
   }
 
   const split = calculateAcademySplit(course.price.toString());
-  const recentCheckout = await prisma.academyTransaction.findFirst({
-    where: {
-      courseId,
-      buyerId: studentId,
-      paymentGatewayStatus: { in: ["CREATED", "PENDING"] },
-      checkoutUrl: { not: null },
-      createdAt: { gte: new Date(Date.now() - 15 * 60_000) },
-    },
-    orderBy: { createdAt: "desc" },
-    select: { checkoutUrl: true },
-  });
-  if (recentCheckout?.checkoutUrl) return { ok: true, url: recentCheckout.checkoutUrl, free: false };
-
   const externalReference = `lyra_academy_${randomUUID().replaceAll("-", "")}`;
-  const transaction = await prisma.academyTransaction.create({
-    data: {
-      courseId,
-      buyerId: studentId,
-      creatorId: course.creatorId,
-      creatorAccountId: account.id,
-      externalReference,
-      totalAmount: split.totalAmount,
-      lyraFee7Percent: split.lyraFee7Percent,
-      creatorPayout93Percent: split.creatorPayout93Percent,
-      currency: course.currency,
-    },
-    select: { id: true },
-  });
+  const checkout: { id: string; url: string } | { id: string; error: string } | { id: string } =
+    await prisma.$transaction(async (tx) => {
+      const checkoutLock = `${courseId}:${studentId}`;
+      await tx.$queryRaw`SELECT pg_advisory_xact_lock(hashtextextended(${checkoutLock}, 0))`;
+
+      const pending = await tx.academyTransaction.findFirst({
+        where: {
+          courseId,
+          buyerId: studentId,
+          paymentGatewayStatus: { in: ["CREATED", "PENDING"] },
+        },
+        orderBy: { createdAt: "desc" },
+        select: { id: true, checkoutUrl: true, createdAt: true },
+      });
+      if (pending) {
+        if (pending.checkoutUrl !== null) return { id: pending.id, url: pending.checkoutUrl };
+        if (pending.createdAt.getTime() > Date.now() - 5 * 60_000) {
+          return { id: pending.id, error: "Ya estamos preparando el pago. Espera un momento e inténtalo de nuevo." };
+        }
+        await tx.academyTransaction.update({
+          where: { id: pending.id },
+          data: {
+            paymentGatewayStatus: "REJECTED",
+            gatewayStatusDetail: "Checkout sin enlace tras cinco minutos; se permite crear una nueva orden.",
+          },
+        });
+      }
+
+      const transaction = await tx.academyTransaction.create({
+        data: {
+          courseId,
+          buyerId: studentId,
+          creatorId,
+          externalReference,
+          totalAmount: split.totalAmount,
+          lyraFee7Percent: split.lyraFee7Percent,
+          creatorPayout93Percent: split.creatorPayout93Percent,
+          currency: course.currency,
+        },
+        select: { id: true },
+      });
+      return { id: transaction.id };
+    });
+  if ("url" in checkout) return { ok: true, url: checkout.url, free: false };
+  if ("error" in checkout) return { ok: false, status: 409, error: checkout.error };
 
   try {
-    const accessToken = await getAcademySellerToken(account);
-    const preference = await createAcademyMarketplacePreference({
-      accessToken,
-      sellerId: account.sellerId,
+    const preference = await createAcademyCompanyPreference({
+      accessToken: getAcademyCompanyAccessToken(),
       externalReference,
       courseId: course.id,
       courseTitle: course.title,
       buyerId: studentId,
-      creatorId: course.creatorId,
+      creatorId,
       price: split.totalNumber,
-      fee: split.feeNumber,
       currency: course.currency,
     });
     if (!preference.id || !preference.init_point) {
       throw new Error("Mercado Pago no devolvió el enlace de pago.");
     }
     await prisma.academyTransaction.update({
-      where: { id: transaction.id },
+      where: { id: checkout.id },
       data: {
         gatewayPreferenceId: preference.id,
         checkoutUrl: preference.init_point,
@@ -163,9 +174,9 @@ export async function beginAcademyCheckout(studentId: string, courseId: string):
   } catch (error) {
     const detail = error instanceof Error ? error.message.slice(0, 500) : "Error desconocido de Mercado Pago.";
     await prisma.academyTransaction.update({
-      where: { id: transaction.id },
+      where: { id: checkout.id },
       data: { paymentGatewayStatus: "REJECTED", gatewayStatusDetail: detail },
     });
-    return { ok: false, status: 502, error: "Mercado Pago no pudo crear el pago. Verifica la conexión del creador e inténtalo de nuevo." };
+    return { ok: false, status: 502, error: "Mercado Pago no pudo crear el pago. Verifica la cuenta de cobro de LYRA e inténtalo de nuevo." };
   }
 }

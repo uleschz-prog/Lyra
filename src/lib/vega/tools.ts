@@ -14,11 +14,12 @@ import {
 } from "@/lib/vega/assistant-tools";
 import { buildProject, buildStoryboard, type ProjectDraft } from "@/lib/vega/build-project";
 import { generateClip } from "@/lib/ai/media";
+import { saveVegaImageToLibrary, saveVegaVideoToLibrary } from "@/lib/vega/library-media";
 import { scenesFromScript } from "@/lib/studio/video-plan";
 import type { VegaConnections } from "@/lib/vega/apps";
 import type { FunctionDeclaration } from "@/lib/vega/gemini-stream";
 import { forgetMemory, MEMORY_MAX_LENGTH, saveMemory } from "@/lib/vega/memory";
-import { profileFields, saveVegaProfile } from "@/lib/vega/profile";
+import { saveVegaProfile } from "@/lib/vega/profile";
 import {
   createTask,
   DAILY_HOUR,
@@ -38,13 +39,14 @@ export type ActionPayload = EmailDraft | EventDraft | WhatsappDraft | AppDraft |
 export type EmailDraft = { to: string; cc?: string[]; subject: string; body: string };
 export type WhatsappDraft = { phone?: string; name?: string; text: string };
 export type CommandDraft = { commandId: string; label: string };
-export type ImageDraft = { prompt: string; size?: string; dataUrl?: string; requestId?: string; statusUrl?: string };
+export type ImageDraft = { prompt: string; size?: string; dataUrl?: string; imageUrl?: string; requestId?: string; statusUrl?: string };
 export type VideoDraft = {
   title: string;
   script: string;
   scenes: string[];
   html: string;
   videoUrl?: string;
+  libraryPieceId?: string;
   files: { path: string; content: string }[];
 };
 export type { ProjectDraft };
@@ -224,7 +226,7 @@ export function vegaTools(connections: VegaConnections, webSearch: boolean): Fun
     {
       name: "entregar_proyecto",
       description:
-        "Entrega ya una app, un sitio web o un agente que el socio pidió. La persona ve la vista previa y descarga el código. Úsala en el mismo turno, sin pedir confirmación. Rellena secciones con lo que dijo; si falta el nombre del negocio o los servicios, usa un ejemplo concreto y dilo. Una app de citas lleva una sección agenda. Un sitio lleva portada, servicios y contacto. Un agente lleva una sección agente con reglas y ejemplos de respuesta.",
+        "Entrega una pieza premium y específica: sitio web, prototipo de app o especificación de agente. Usa nombres, oferta y tono del socio; no inventes precios, reseñas, certificaciones o resultados. Si falta un dato esencial, pregunta antes de llamar esta herramienta; si no, completa la pieza y declara las suposiciones. Sitios: portada con propuesta de valor y CTA, servicios, diferenciadores/proceso, FAQ o testimonios sólo si hay datos, contacto y pie. Apps: una tarea principal completa y probada mediante agenda, herramienta CRUD local o contacto; incluye estados vacíos/confirmación/eliminación. Agentes: misión clara, 3+ reglas concretas, flujo de atención y 3+ ejemplos. La vista previa de app guarda localmente en ese navegador; la vista previa de agente es una simulación por ejemplos. No las describas como sistemas con servidor, IA en vivo, pagos o datos compartidos. Usa mínimo 5 secciones de valor para landing y 3–6 bloques para otras piezas; copy final, no texto placeholder.",
       parameters: {
         type: "object",
         properties: {
@@ -234,7 +236,7 @@ export function vegaTools(connections: VegaConnections, webSearch: boolean): Fun
           color: { type: "string", description: "Color hexadecimal, por ejemplo #0F766E." },
           secciones: {
             type: "array",
-            description: "Bloques de la pieza. portada, servicios, agenda, contacto, texto o agente.",
+            description: "Bloques específicos y en orden. portada={tipo,titulo,texto,boton}; servicios={tipo,titulo,items:[{nombre,detalle,precio?}]}; pasos/preguntas/testimonios/precios={tipo,titulo,items:[{titulo,texto}]}; texto={tipo,titulo,parrafos:[...]}; agenda={tipo,titulo,servicios:[...],nota}; herramienta={tipo,titulo,etiqueta,campos:[...],nota}; contacto={tipo,titulo,campos:[...],nota}; agente={tipo,nombre,mision,reglas:[3 o más],ejemplos:[{persona,respuesta} x3 o más]}. Tipos: portada, servicios, texto, pasos, preguntas, testimonios, precios, agenda, herramienta, contacto o agente. Cada bloque debe aportar valor y llevar copy final.",
             items: { type: "object" },
           },
           sugerencias: {
@@ -676,6 +678,17 @@ export async function runVegaTool(userId: string, name: string, args: Record<str
       styleId: "cine",
     });
     const videoUrl = clip.ok ? clip.url : undefined;
+    const savedVideo = await saveVegaVideoToLibrary(userId, {
+      title,
+      script,
+      scenes,
+      html,
+      ...(videoUrl ? { videoUrl } : {}),
+      files: [],
+    });
+    const libraryVideoUrl = savedVideo.media
+      ? `/api/library/video?pieceId=${encodeURIComponent(savedVideo.id)}`
+      : undefined;
     const files = [
       { path: "guion.txt", content: `${title}\n\n${script}\n` },
       { path: "pieza.html", content: html },
@@ -683,11 +696,19 @@ export async function runVegaTool(userId: string, name: string, args: Record<str
     return {
       kind: "delivery",
       action: "create_video",
-      payload: { title, script, scenes, html, ...(videoUrl ? { videoUrl } : {}), files },
+      payload: {
+        title,
+        script,
+        scenes,
+        html,
+        libraryPieceId: savedVideo.id,
+        ...(libraryVideoUrl ? { videoUrl: libraryVideoUrl } : {}),
+        files,
+      },
       summary: videoUrl ? "Video listo" : "Pieza de video lista para ver",
       modelNote: videoUrl
-        ? "El video ya se reproduce en el chat y se puede descargar. No pidas confirmación."
-        : "La pieza ya se ve en el chat como secuencia de escenas y se puede descargar. El archivo mp4 no salió en este servidor; no digas que el mp4 está listo.",
+        ? "El video ya se reproduce en el chat, se puede descargar y quedó guardado en la Biblioteca. No pidas confirmación."
+        : "La pieza ya se ve en el chat como secuencia de escenas, se puede descargar y el guion quedó guardado en la Biblioteca. El archivo mp4 no salió en este servidor; no digas que el mp4 está listo.",
     };
   }
 
@@ -746,7 +767,9 @@ export async function executeVegaAction(userId: string, kind: ActionKind, payloa
       error: "El proveedor de imagen no respondió.",
     }));
     if (!generated.ok) return { ok: false as const, message: `No se generó la imagen: ${generated.error}` };
-    return { ok: true as const, message: `Listo, generé tu imagen.\n\n![imagen](${generated.dataUrl})` };
+    const piece = await saveVegaImageToLibrary(userId, draft.prompt, generated.dataUrl);
+    const imageUrl = `/api/library/image?pieceId=${encodeURIComponent(piece.id)}`;
+    return { ok: true as const, message: `Listo, generé tu imagen y la guardé en la Biblioteca.\n\n![imagen](${imageUrl})` };
   }
 
   if (kind === "whatsapp_message") {

@@ -21,7 +21,7 @@ export default function manifest(): MetadataRoute.Manifest {
     shortcuts: [
       { name: "Vega", url: "/dashboard/super-agent", description: "Hablar con el superagente Vega" },
       { name: "Billetera", url: "/dashboard/wallet", description: "Tus créditos y transacciones" },
-      { name: "Red", url: "/dashboard/network", description: "Tu red de referidos" },
+      { name: "Partners", url: "/dashboard/network", description: "Tu equipo y su crecimiento" },
     ],
   };
 }

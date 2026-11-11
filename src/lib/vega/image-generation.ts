@@ -1,5 +1,6 @@
 import { downloadHiggsfieldImage, readHiggsfieldImageStatus } from "@/lib/ai/higgsfield-image";
 import { getPrisma } from "@/lib/prisma";
+import { saveVegaImageActionToLibrary } from "@/lib/vega/library-media";
 import { actionView } from "@/lib/vega/decide";
 import type { VegaActionView } from "@/lib/vega/events";
 import type { ImageDraft } from "@/lib/vega/tools";
@@ -66,24 +67,16 @@ export async function advanceVegaImage(userId: string, actionId: string): Promis
     return actionView({ ...action, status: "failed", result: image.error });
   }
 
-  const completedPayload: ImageDraft = {
+  const completedPayload: Omit<ImageDraft, "dataUrl" | "imageUrl"> = {
     prompt: draft.prompt,
     ...(draft.size ? { size: draft.size } : {}),
-    dataUrl: image.dataUrl,
   };
-  const updated = await prisma.vegaAction.updateMany({
-    where: { id: action.id, userId, status: "running" },
-    data: {
-      status: "done",
-      result: image.note,
-      payload: completedPayload,
-    },
-  });
-  if (updated.count === 0) return advanceVegaImage(userId, action.id);
-  return actionView({
-    ...action,
+  return saveVegaImageActionToLibrary({
+    userId,
+    actionId: action.id,
+    prompt: draft.prompt,
+    dataUrl: image.dataUrl,
     payload: completedPayload,
-    status: "done",
     result: image.note,
   });
 }

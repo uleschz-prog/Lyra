@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { BookOpen, Check, ChevronDown, ChevronUp, GraduationCap, Search, ShoppingBag } from "lucide-react";
+import { BookOpen, Check, ChevronDown, ChevronUp, GraduationCap, Heart, Search, Share2, ShoppingBag } from "lucide-react";
 import { toast } from "sonner";
 
 import { academyVideoEmbed } from "@/lib/academy/video";
@@ -21,6 +21,8 @@ export type MarketplaceCourseCardData = {
   coverImageUrl: string | null;
   enrolled: boolean;
   progress: number;
+  likes: number;
+  likedByUser: boolean;
 };
 
 type CourseFilter = "all" | "free" | "paid" | "enrolled";
@@ -120,6 +122,10 @@ export function MarketplaceCourseCatalog({ courses }: { courses: MarketplaceCour
   const [search, setSearch] = useState("");
   const [activeId, setActiveId] = useState<string | null>(null);
   const [pendingCourse, setPendingCourse] = useState<string | null>(null);
+  const [social, setSocial] = useState<Record<string, { likes: number; liked: boolean }>>(() =>
+    Object.fromEntries(courses.map((course) => [course.id, { likes: course.likes, liked: course.likedByUser }])),
+  );
+  const [pendingLikes, setPendingLikes] = useState<Record<string, boolean>>({});
 
   const visibleCourses = useMemo(() => {
     const normalizedSearch = search.trim().toLocaleLowerCase();
@@ -141,6 +147,17 @@ export function MarketplaceCourseCatalog({ courses }: { courses: MarketplaceCour
   useEffect(() => {
     if (feedRef.current) feedRef.current.scrollTop = 0;
   }, [filter, search]);
+
+  useEffect(() => {
+    const courseId = new URLSearchParams(window.location.search).get("curso");
+    const target = courseId && visibleCourses.some((course) => course.id === courseId) ? courseId : null;
+    if (!target || !feedRef.current) return;
+    setActiveId(target);
+    requestAnimationFrame(() => {
+      const card = feedRef.current?.querySelector<HTMLElement>(`[data-course-id="${CSS.escape(target)}"]`);
+      if (card && feedRef.current) feedRef.current.scrollTo({ top: card.offsetTop, behavior: "smooth" });
+    });
+  }, [visibleCourses]);
 
   useEffect(() => {
     const feed = feedRef.current;
@@ -181,6 +198,61 @@ export function MarketplaceCourseCatalog({ courses }: { courses: MarketplaceCour
       toast.error(error instanceof Error ? error.message : "No se pudo iniciar la inscripción.");
     } finally {
       setPendingCourse(null);
+    }
+  }
+
+  async function toggleLike(course: MarketplaceCourseCardData) {
+    const current = social[course.id] ?? { likes: course.likes, liked: course.likedByUser };
+    if (pendingLikes[course.id]) return;
+    const nextLiked = !current.liked;
+    setPendingLikes((state) => ({ ...state, [course.id]: true }));
+    setSocial((state) => ({
+      ...state,
+      [course.id]: { liked: nextLiked, likes: Math.max(0, current.likes + (nextLiked ? 1 : -1)) },
+    }));
+    try {
+      const response = await fetch(`/api/academy/courses/${encodeURIComponent(course.id)}/like`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ liked: nextLiked }),
+      });
+      const result = (await response.json()) as { liked?: boolean; likes?: number; error?: string };
+      if (!response.ok || typeof result.liked !== "boolean" || typeof result.likes !== "number") {
+        throw new Error(result.error ?? "No se pudo actualizar el me gusta.");
+      }
+      const confirmed = { liked: result.liked, likes: result.likes };
+      setSocial((state) => ({ ...state, [course.id]: confirmed }));
+    } catch (error) {
+      setSocial((state) => ({ ...state, [course.id]: current }));
+      toast.error(error instanceof Error ? error.message : "No se pudo actualizar el me gusta.");
+    } finally {
+      setPendingLikes((state) => {
+        const next = { ...state };
+        delete next[course.id];
+        return next;
+      });
+    }
+  }
+
+  async function shareCourse(course: MarketplaceCourseCardData) {
+    const url = new URL("/dashboard/academy", window.location.origin);
+    url.searchParams.set("curso", course.id);
+    const shareData = { title: course.title, text: `Mira este curso de ${course.creatorName} en LYRA`, url: url.toString() };
+    try {
+      if (navigator.share) {
+        await navigator.share(shareData);
+      } else {
+        await navigator.clipboard.writeText(shareData.url);
+        toast.success("Enlace del curso copiado.");
+      }
+    } catch (error) {
+      if (error instanceof DOMException && error.name === "AbortError") return;
+      try {
+        await navigator.clipboard.writeText(shareData.url);
+        toast.success("Enlace del curso copiado.");
+      } catch {
+        toast.error("No se pudo compartir el curso.");
+      }
     }
   }
 
@@ -264,6 +336,7 @@ export function MarketplaceCourseCatalog({ courses }: { courses: MarketplaceCour
               return (
                 <article
                   key={course.id}
+                  id={`academy-course-${course.id}`}
                   data-course-id={course.id}
                   className="relative mx-auto h-[min(74dvh,780px)] min-h-[480px] w-full snap-start snap-always overflow-hidden text-white"
                 >
@@ -271,11 +344,39 @@ export function MarketplaceCourseCatalog({ courses }: { courses: MarketplaceCour
                   <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-black via-black/55 to-black/5" />
                   <div className="pointer-events-none absolute inset-0 bg-gradient-to-r from-black/25 via-transparent to-black/15" />
 
-                  <div className="absolute right-4 top-1/2 z-10 flex -translate-y-1/2 flex-col items-center gap-2 text-center">
+                  <div className="absolute right-4 top-1/2 z-10 flex -translate-y-1/2 flex-col items-center gap-4 text-center">
                     <div className="grid size-11 place-items-center rounded-full border border-white/30 bg-black/30 text-sm font-semibold shadow-lg backdrop-blur">
                       {course.creatorName.trim().slice(0, 1).toLocaleUpperCase() || "L"}
                     </div>
                     <span className="max-w-14 text-[10px] leading-tight text-white/90">{course.creatorName}</span>
+                    <button
+                      type="button"
+                      onClick={() => void toggleLike(course)}
+                      disabled={Boolean(pendingLikes[course.id])}
+                      aria-label={social[course.id]?.liked ? "Quitar me gusta" : "Dar me gusta"}
+                      aria-pressed={social[course.id]?.liked ?? course.likedByUser}
+                      className="flex flex-col items-center gap-1 text-white transition hover:scale-105 disabled:opacity-60"
+                    >
+                      <span className="grid size-11 place-items-center rounded-full border border-white/25 bg-black/35 backdrop-blur">
+                        <Heart
+                          size={21}
+                          aria-hidden="true"
+                          className={social[course.id]?.liked ? "fill-rose-500 text-rose-500" : ""}
+                        />
+                      </span>
+                      <span className="text-[11px] font-semibold tabular-nums">{social[course.id]?.likes ?? course.likes}</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => void shareCourse(course)}
+                      aria-label={`Compartir curso ${course.title}`}
+                      className="flex flex-col items-center gap-1 text-white transition hover:scale-105"
+                    >
+                      <span className="grid size-11 place-items-center rounded-full border border-white/25 bg-black/35 backdrop-blur">
+                        <Share2 size={20} aria-hidden="true" />
+                      </span>
+                      <span className="text-[11px] font-semibold">Compartir</span>
+                    </button>
                   </div>
 
                   <div className="absolute bottom-0 left-0 z-10 max-w-[calc(100%-5.5rem)] p-5 pb-6 sm:p-8 sm:pb-8">
@@ -330,7 +431,7 @@ export function MarketplaceCourseCatalog({ courses }: { courses: MarketplaceCour
                             ? "Inscribirme gratis"
                             : course.pricingType === "MONTHLY"
                               ? "Membresía no disponible"
-                              : "Comprar curso"}
+                              : "Comprar con Mercado Pago"}
                       </button>
                     )}
                   </div>

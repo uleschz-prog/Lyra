@@ -1,4 +1,5 @@
 import { providerError, readJson } from "@/lib/ai/providers";
+import { higgsfieldAuthHeaders } from "@/lib/ai/higgsfield-api";
 
 export type HiggsfieldVideoModel = "wan-3.0" | "wan-3.0-prime";
 
@@ -22,10 +23,7 @@ export type HiggsfieldStatus =
   | { ok: false; error: string };
 
 function credentials() {
-  const keyId = process.env.HIGGSFIELD_API_KEY_ID?.trim() ?? "";
-  const keySecret = process.env.HIGGSFIELD_API_KEY_SECRET?.trim() ?? "";
-  if (!keyId || !keySecret) return null;
-  return { Authorization: `Key ${keyId}:${keySecret}` };
+  return higgsfieldAuthHeaders();
 }
 
 function endpoint(model: HiggsfieldVideoModel) {

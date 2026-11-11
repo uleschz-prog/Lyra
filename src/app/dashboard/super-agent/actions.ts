@@ -8,6 +8,7 @@ import { getCurrentUser } from "@/lib/auth/profile";
 import { currentCredits } from "@/lib/credits";
 import { getPrisma } from "@/lib/prisma";
 import { canUseVega } from "@/lib/vega/access";
+import { ensureDefaultVegaAgent } from "@/lib/vega/agents";
 import { isUserToolkit, noConnections } from "@/lib/vega/apps";
 import { attachmentChips } from "@/lib/vega/attachments";
 import type { VegaActionView, VegaSource } from "@/lib/vega/events";
@@ -25,7 +26,15 @@ import {
   sendMetaWhatsapp,
 } from "@/lib/whatsapp/meta-business";
 
-export type VegaChatSummary = { id: string; title: string; updatedAt: string };
+export type VegaAgentSummary = {
+  id: string;
+  name: string;
+  specialty: string;
+  instructions: string;
+  avatar: string;
+  isDefault: boolean;
+};
+export type VegaChatSummary = { id: string; agentId: string; title: string; updatedAt: string };
 export type VegaAttachmentChip = { kind: "file" | "link"; name: string; url?: string };
 export type VegaChatMessage = {
   id: string;
@@ -42,23 +51,78 @@ async function vegaUser() {
   return canUseVega(user) ? user : null;
 }
 
-export async function listVegaChats(): Promise<VegaChatSummary[]> {
+export async function listVegaAgents(): Promise<VegaAgentSummary[]> {
   const user = await vegaUser();
   if (!user) return [];
-  const chats = await getPrisma().vegaConversation.findMany({
+  const prisma = getPrisma();
+  await ensureDefaultVegaAgent(user.id);
+  return prisma.vegaAgent.findMany({
     where: { userId: user.id },
+    orderBy: [{ isDefault: "desc" }, { createdAt: "asc" }],
+    select: { id: true, name: true, specialty: true, instructions: true, avatar: true, isDefault: true },
+  });
+}
+
+export async function listVegaChats(agentId: string): Promise<VegaChatSummary[]> {
+  const user = await vegaUser();
+  if (!user || typeof agentId !== "string" || !agentId) return [];
+  const belongsToUser = await getPrisma().vegaAgent.findFirst({ where: { id: agentId, userId: user.id }, select: { id: true } });
+  if (!belongsToUser) return [];
+  const chats = await getPrisma().vegaConversation.findMany({
+    where: { userId: user.id, agentId },
     orderBy: { updatedAt: "desc" },
     take: 50,
-    select: { id: true, title: true, updatedAt: true },
+    select: { id: true, agentId: true, title: true, updatedAt: true },
   });
   return chats.map((chat) => ({ ...chat, updatedAt: chat.updatedAt.toISOString() }));
 }
 
-export async function openVegaChat(id: string): Promise<VegaChatMessage[] | null> {
+export async function createVegaAgent(input: { name: string; specialty: string; instructions: string; avatar?: string }) {
   const user = await vegaUser();
-  if (!user) return null;
+  if (!input || typeof input.name !== "string" || typeof input.specialty !== "string" || typeof input.instructions !== "string") {
+    return { ok: false as const, error: "Los datos del agente no son válidos." };
+  }
+  const name = input.name.replace(/\s+/g, " ").trim().slice(0, 40);
+  const specialty = input.specialty.replace(/\s+/g, " ").trim().slice(0, 80);
+  const instructions = input.instructions.trim().slice(0, 2000);
+  const avatar = input.avatar?.trim().slice(0, 8) || "✦";
+  if (!user || !name || !specialty) return { ok: false as const, error: "Indica un nombre y una especialidad para el agente." };
+  const agent = await getPrisma().vegaAgent.create({
+    data: { userId: user.id, name, specialty, instructions, avatar },
+    select: { id: true, name: true, specialty: true, instructions: true, avatar: true, isDefault: true },
+  });
+  return { ok: true as const, agent };
+}
+
+export async function updateVegaAgent(input: { id: string; name: string; specialty: string; instructions: string; avatar?: string }) {
+  const user = await vegaUser();
+  if (!input || typeof input.id !== "string" || typeof input.name !== "string" || typeof input.specialty !== "string" || typeof input.instructions !== "string") {
+    return { ok: false as const, error: "Los datos del agente no son válidos." };
+  }
+  const name = input.name.replace(/\s+/g, " ").trim().slice(0, 40);
+  const specialty = input.specialty.replace(/\s+/g, " ").trim().slice(0, 80);
+  const instructions = input.instructions.trim().slice(0, 2000);
+  const avatar = input.avatar?.trim().slice(0, 8) || "✦";
+  if (!user || !name || !specialty) return { ok: false as const, error: "Indica un nombre y una especialidad para el agente." };
+  const updated = await getPrisma().vegaAgent.updateMany({
+    where: { id: input.id, userId: user.id, isDefault: false },
+    data: { name, specialty, instructions, avatar },
+  });
+  return { ok: updated.count > 0 };
+}
+
+export async function deleteVegaAgent(id: string) {
+  const user = await vegaUser();
+  if (!user || typeof id !== "string" || !id) return { ok: false as const };
+  const deleted = await getPrisma().vegaAgent.deleteMany({ where: { id, userId: user.id, isDefault: false } });
+  return { ok: deleted.count > 0 };
+}
+
+export async function openVegaChat(id: string, agentId: string): Promise<VegaChatMessage[] | null> {
+  const user = await vegaUser();
+  if (!user || typeof id !== "string" || !id || typeof agentId !== "string" || !agentId) return null;
   const chat = await getPrisma().vegaConversation.findFirst({
-    where: { id, userId: user.id },
+    where: { id, userId: user.id, agentId },
     select: {
       messages: {
         orderBy: { createdAt: "asc" },
@@ -87,18 +151,18 @@ export async function openVegaChat(id: string): Promise<VegaChatMessage[] | null
   });
 }
 
-export async function renameVegaChat(id: string, title: string) {
+export async function renameVegaChat(id: string, title: string, agentId: string) {
   const user = await vegaUser();
   const clean = title.replace(/\s+/g, " ").trim().slice(0, 80);
-  if (!user || !clean) return { ok: false as const };
-  const updated = await getPrisma().vegaConversation.updateMany({ where: { id, userId: user.id }, data: { title: clean } });
+  if (!user || !clean || typeof agentId !== "string" || !agentId) return { ok: false as const };
+  const updated = await getPrisma().vegaConversation.updateMany({ where: { id, userId: user.id, agentId }, data: { title: clean } });
   return { ok: updated.count > 0 };
 }
 
-export async function deleteVegaChat(id: string) {
+export async function deleteVegaChat(id: string, agentId: string) {
   const user = await vegaUser();
-  if (!user) return { ok: false as const };
-  const deleted = await getPrisma().vegaConversation.deleteMany({ where: { id, userId: user.id } });
+  if (!user || typeof agentId !== "string" || !agentId) return { ok: false as const };
+  const deleted = await getPrisma().vegaConversation.deleteMany({ where: { id, userId: user.id, agentId } });
   return { ok: deleted.count > 0 };
 }
 
@@ -239,7 +303,7 @@ export async function saveVegaWhatsapp(phone: string | null) {
 export async function connectVegaApp(toolkit: UserToolkit) {
   const user = await vegaUser();
   if (!user || !isUserToolkit(toolkit)) return { ok: false as const, error: "No disponible." };
-  if (toolkit === "whatsapp") return { ok: true as const, url: "/dashboard/whatsapp" };
+  if (toolkit === "whatsapp") return { ok: true as const, url: "/dashboard/super-agent" };
   const origin = process.env.NEXT_PUBLIC_APP_URL?.trim() || `https://${(await headers()).get("host")}`;
   forgetConnections(user.id);
   return userConnectUrl(user.id, toolkit, `${origin}/dashboard/super-agent?conexion=${toolkit}`);

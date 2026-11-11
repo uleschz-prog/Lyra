@@ -1,4 +1,9 @@
-import { getAcademyMercadoPagoPayment, getAcademySellerToken } from "@/lib/academy/mercadopago";
+import {
+  getAcademyCompanyAccessToken,
+  getAcademyCompanyAccountId,
+  getAcademyCompanyPayment,
+  getAcademySellerToken,
+} from "@/lib/academy/mercadopago";
 import { getPrisma } from "@/lib/prisma";
 
 const paymentStatuses: Record<string, "PENDING" | "APPROVED" | "REJECTED" | "CANCELLED" | "REFUNDED"> = {
@@ -12,6 +17,17 @@ const paymentStatuses: Record<string, "PENDING" | "APPROVED" | "REJECTED" | "CAN
   refunded: "REFUNDED",
   charged_back: "REFUNDED",
 };
+
+type AcademyPaymentStatus = "CREATED" | "PENDING" | "APPROVED" | "REJECTED" | "CANCELLED" | "REFUNDED";
+
+export function shouldApplyAcademyPaymentStatus(
+  current: AcademyPaymentStatus,
+  incoming: AcademyPaymentStatus,
+) {
+  if (current === "REFUNDED") return incoming === "REFUNDED";
+  if (current === "APPROVED") return incoming === "APPROVED" || incoming === "REFUNDED";
+  return true;
+}
 
 function cents(value: number | string) {
   const parsed = Number(value);
@@ -30,13 +46,23 @@ export async function fulfillAcademyPayment(externalReference: string, paymentId
   });
   if (!transaction) return { ok: false as const, error: "La compra no existe." };
 
-  const accessToken = await getAcademySellerToken(transaction.creatorAccount);
-  const payment = await getAcademyMercadoPagoPayment(paymentId, accessToken);
+  const legacySeller = transaction.creatorAccount;
+  const accessToken = legacySeller
+    ? await getAcademySellerToken(legacySeller)
+    : getAcademyCompanyAccessToken();
+  const [collectorId, payment] = await Promise.all([
+    legacySeller
+      ? Promise.resolve(legacySeller.sellerId)
+      : getAcademyCompanyAccountId(accessToken),
+    legacySeller
+      ? getAcademyCompanyPayment(paymentId, accessToken)
+      : getAcademyCompanyPayment(paymentId, accessToken),
+  ]);
   if (!payment) return { ok: false as const, error: "No pudimos consultar el pago." };
   if (
     String(payment.id) !== paymentId ||
     payment.external_reference !== transaction.externalReference ||
-    String(payment.collector_id) !== transaction.creatorAccount.sellerId ||
+    String(payment.collector_id) !== collectorId ||
     payment.currency_id !== transaction.currency ||
     cents(payment.transaction_amount) !== cents(transaction.totalAmount.toString())
   ) {
@@ -52,13 +78,17 @@ export async function fulfillAcademyPayment(externalReference: string, paymentId
     (refunded !== null && totalCents !== null && refunded >= totalCents);
   const status = fullyRefunded ? "REFUNDED" : mappedStatus;
 
-  await prisma.$transaction(async (tx) => {
+  const finalStatus = await prisma.$transaction(async (tx) => {
+    await tx.$queryRaw`SELECT id FROM "AcademyTransaction" WHERE id = ${transaction.id} FOR UPDATE`;
     const current = await tx.academyTransaction.findUnique({
       where: { id: transaction.id },
-      select: { gatewayPaymentId: true },
+      select: { gatewayPaymentId: true, paymentGatewayStatus: true, creatorPayoutStatus: true },
     });
     if (current?.gatewayPaymentId && current.gatewayPaymentId !== paymentId) {
       throw new Error("La referencia ya está asociada a otro pago de Mercado Pago.");
+    }
+    if (!current || !shouldApplyAcademyPaymentStatus(current.paymentGatewayStatus, status)) {
+      return current?.paymentGatewayStatus ?? status;
     }
 
     await tx.academyTransaction.update({
@@ -66,6 +96,12 @@ export async function fulfillAcademyPayment(externalReference: string, paymentId
       data: {
         gatewayPaymentId: paymentId,
         paymentGatewayStatus: status,
+        creatorPayoutStatus: legacySeller && status === "APPROVED"
+          ? "PAID"
+          : fullyRefunded && current.creatorPayoutStatus === "PENDING"
+            ? "CANCELLED"
+            : undefined,
+        creatorPaidAt: legacySeller && status === "APPROVED" ? (transaction.paidAt ?? new Date()) : undefined,
         gatewayStatusDetail: payment.status_detail ?? null,
         paidAt: status === "APPROVED" ? (transaction.paidAt ?? new Date()) : undefined,
         refundedAt: fullyRefunded ? new Date() : undefined,
@@ -119,7 +155,8 @@ export async function fulfillAcademyPayment(externalReference: string, paymentId
         });
       }
     }
+    return status;
   });
 
-  return { ok: true as const, status };
+  return { ok: true as const, status: finalStatus };
 }

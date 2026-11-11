@@ -4,8 +4,6 @@ export type ConstellationSection =
   | "compensation"
   | "academy"
   | "agents"
-  | "notebook"
-  | "creative"
   | "wallet";
 
 export const sectionDesks: Record<
@@ -19,13 +17,13 @@ export const sectionDesks: Record<
   },
   genealogy: {
     star: "Sheliak",
-    squad: "Genealogía",
-    line: "Cada nodo es una estrella con patrocinador y rango.",
+    squad: "Partners",
+    line: "Cada partner forma parte de una comunidad que crece conectada.",
   },
   compensation: {
     star: "Sulafat",
     squad: "Partners",
-    line: "Órbita paga 20%, 10% y 5% hasta el nivel 6. El 10% de las ventas del mes se reparte entre los Pro de $249 que renovaron con $99.",
+    line: "Órbita paga 20%, 10% y 5% hasta el nivel 6. El bono mundial del 10% se reparte entre las cuentas Pro de $249 que recargaron al menos 5 créditos en el mes.",
   },
   academy: {
     star: "Epsilon",
@@ -36,16 +34,6 @@ export const sectionDesks: Record<
     star: "Vega",
     squad: "Super agente",
     line: "Un solo super agente, con tus canales y herramientas listas para trabajar.",
-  },
-  notebook: {
-    star: "Aladfar",
-    squad: "Investigación",
-    line: "Fuentes propias, preguntas y síntesis en el mismo cuaderno.",
-  },
-  creative: {
-    star: "Delta",
-    squad: "Estudio creativo",
-    line: "Video con imagen, sonido y señales de mercado.",
   },
   wallet: {
     star: "Zeta",

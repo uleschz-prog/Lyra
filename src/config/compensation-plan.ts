@@ -2,6 +2,25 @@ import type { PackageType } from "@/lib/types";
 
 export const platformEntryUsd = 29;
 export const creditUsd = 1;
+export const minimumCreditRecharge = 5;
+export const promotionalRechargeCredits = 50;
+export const promotionalRechargeBonus = 10;
+
+export function isValidCreditRecharge(value: unknown): value is number {
+  return typeof value === "number" && Number.isSafeInteger(value) && value >= minimumCreditRecharge;
+}
+
+export function creditRechargeUsdForCredits(credits: number) {
+  return credits * creditUsd;
+}
+
+export function bonusCreditsForRecharge(credits: number) {
+  return credits === promotionalRechargeCredits ? promotionalRechargeBonus : 0;
+}
+
+export function creditedRechargeCredits(credits: number) {
+  return credits + bonusCreditsForRecharge(credits);
+}
 
 /**
  * Planes de entrada de LYRA.
@@ -25,7 +44,7 @@ export type PlanSpec = {
 
 const sharedServices = [
   "Todos los agentes, canales y servicios",
-  "Notebook, academia, imágenes y seguimiento",
+  "Academia, creación visual y seguimiento",
 ] as const;
 
 export const signupPlans: readonly PlanSpec[] = [
@@ -38,7 +57,8 @@ export const signupPlans: readonly PlanSpec[] = [
       "40 segundos de video por ciclo de 30 días",
       "Cobras Órbita hasta el nivel 2 (20% y 10%)",
       ...sharedServices,
-      "Recarga desde $19 al mes siguiente",
+      "Recarga mensual flexible desde 5 créditos",
+      "Compra 50 créditos y recibe 60",
     ],
     price: 29,
     rebuy: 19,
@@ -54,7 +74,8 @@ export const signupPlans: readonly PlanSpec[] = [
       "140 segundos de video por ciclo de 30 días",
       "Cobras Órbita hasta el nivel 4",
       ...sharedServices,
-      "Recarga desde $49 al mes siguiente",
+      "Recarga mensual flexible desde 5 créditos",
+      "Compra 50 créditos y recibe 60",
     ],
     price: 99,
     rebuy: 49,
@@ -69,9 +90,10 @@ export const signupPlans: readonly PlanSpec[] = [
       "1,000 créditos de entrada",
       "360 segundos de video por ciclo de 30 días",
       "Cobras Órbita en los 6 niveles, hasta el 50%",
-      "Con la renovación de $99 participas del 10% de las ventas del mes",
+      "Con una recarga mensual desde 5 créditos participas en los bonos del mes",
       ...sharedServices,
-      "Recarga desde $99 al mes siguiente",
+      "Recarga mensual flexible desde 5 créditos",
+      "Compra 50 créditos y recibe 60",
     ],
     price: 249,
     rebuy: 99,
@@ -84,8 +106,7 @@ export type SignupPlanId = (typeof signupPlans)[number]["id"];
 
 /**
  * Créditos de regalo por cada directo activo. Sustituyen a la exención total
- * de recompra: la mensualidad se conserva (recurrencia) y el socio recibe
- * créditos, que cuestan centavos. Ajusta el número al medir uso real.
+ * de recarga mensual flexible: los créditos de bono se mantienen como beneficio.
  */
 export const activeDirectBonusCredits = 250;
 
@@ -107,21 +128,19 @@ export const compensationPlan = {
   galaxyPoolRate: 0,
   /**
    * Bono mundial: el 10 % de las ventas del mes (paquetes y recargas)
-   * se reparte en partes iguales entre los Pro de $249 que pagaron
-   * la renovación de $99 en ese mismo mes.
+   * se reparte en partes iguales entre los Pro de $249 que hicieron una
+   * recarga mensual mínima de 5 créditos.
    */
   globalPoolRate: 0.1,
   globalPoolPrice: 249,
-  globalPoolRenewal: 99,
+  globalPoolMinimumRechargeUsd: minimumCreditRecharge * creditUsd,
   /**
    * Los seis niveles suman el 50 % del dinero pagado (paquete o recarga).
    * No hay un recorte extra: 20 + 10 + 5 + 5 + 5 + 5.
    */
   payoutCap: 0.5,
   /**
-   * Los directos activos ya NO exentan la recompra: dan créditos bonus.
-   * La recurrencia queda siempre activa. Se conserva el valor por compatibilidad
-   * de UI/label, pero no se usa para exentar pagos.
+   * Los directos activos ya NO exentan la recarga: dan créditos bonus.
    */
   minActiveDirectsForBonus: 3,
   minActiveDirectsForFreeSubscription: 3,
@@ -231,7 +250,7 @@ export function isQuotePlan(id: string | null | undefined) {
   return id === "CORPORATE";
 }
 
-export const rebuyExemptionRule = `Con ${compensationPlan.minActiveDirectsForBonus} directos activos ganas créditos bonus cada mes (la recarga sigue activa).`;
+export const rebuyExemptionRule = `Recarga desde ${minimumCreditRecharge} créditos al mes para mantener la actividad y recibir comisiones.`;
 
 export function activeDirectBonusCreditsFor(activeDirects: number) {
   if (activeDirects < compensationPlan.minActiveDirectsForBonus) return 0;
@@ -240,18 +259,17 @@ export function activeDirectBonusCreditsFor(activeDirects: number) {
 }
 
 export function rebuyStatus(packageId: string | null | undefined, activeDirects: number) {
-  const amount = packageId && isPackageId(packageId) ? getPackage(packageId).rebuy : 0;
   const required = compensationPlan.minActiveDirectsForBonus;
   const bonus = activeDirectBonusCreditsFor(activeDirects);
   if (packageId === "CORPORATE") {
     return { amount: 0, exempt: true, remaining: 0, bonusCredits: bonus, label: "Corporate ya no se ofrece" };
   }
   return {
-    amount,
-    exempt: amount === 0,
+    amount: 0,
+    exempt: false,
     remaining: Math.max(required - activeDirects, 0),
     bonusCredits: bonus,
-    label: amount > 0 ? `Recarga de $${amount} al mes` : "Sin recarga",
+    label: `Recarga flexible desde ${minimumCreditRecharge} créditos al mes`,
   };
 }
 
@@ -330,11 +348,4 @@ export function rebuyCredits(packageId: string | null | undefined, amountUsd: nu
     if (typeof plan.rebuyCredits === "number") return plan.rebuyCredits;
   }
   return amountUsd;
-}
-
-export function creditRechargeUsd(packageId: string | null | undefined) {
-  if (packageId === "FOUNDER" || packageId === "LYRA_MASTER" || packageId === "CORPORATE") return 99;
-  if (packageId === "PRO" || packageId === "POLARIS") return 49;
-  if (packageId === "STARTED" || packageId === "VEGA" || packageId === "FREE" || packageId === "VEGA_PARTNER") return 19;
-  return null;
 }

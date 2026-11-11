@@ -66,8 +66,8 @@ export function PromoCodes({ initialCodes }: { initialCodes: PromoStats[] }) {
           <p className="text-[11px] font-medium tracking-[0.22em] text-[#7C3AED] uppercase">Uso exclusivo del administrador</p>
           <h2 className="mt-1 text-lg font-bold tracking-tight text-[#1E1E24]">Código promocional universal</h2>
           <p className="mt-2 max-w-2xl text-sm leading-6 text-[#5C5854]">
-            Cubre <strong>cualquier cuenta</strong> del socio que lo use: membresía de entrada, recompra mensual,
-            recarga de créditos o mejora de plan. El pago sale del presupuesto de este código, sin pasar por Mercado
+            Cubre <strong>cualquier cuenta</strong> del socio que lo use: membresía de entrada, recarga flexible de
+            créditos o mejora de plan. El pago sale del presupuesto de este código, sin pasar por Mercado
             Pago ni USDT. Cada uso queda registrado con su monto y propósito.
           </p>
         </div>

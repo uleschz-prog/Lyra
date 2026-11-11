@@ -7,8 +7,13 @@ import bcrypt from "bcryptjs";
 import { revalidatePath } from "next/cache";
 
 import {
-  creditRechargeUsd,
+  bonusCreditsForRecharge,
+  creditedRechargeCredits,
+  creditRechargeUsdForCredits,
+  creditUsd,
   getPackage,
+  isValidCreditRecharge,
+  minimumCreditRecharge,
   isSignupPlanId,
   toPackageType,
   type SignupPlanId,
@@ -17,6 +22,7 @@ import { applySponsorChange, rebuildUpline } from "@/lib/admin/sponsor-move";
 import { getCurrentUser } from "@/lib/auth/profile";
 import { INDEFINITE_YEAR } from "@/lib/auth/suspension";
 import { payCommissions } from "@/lib/compensation/payout";
+import { rebuyPaidFilter } from "@/lib/compensation/activity";
 import { activateMembership } from "@/lib/payments/activate";
 import { grantVideoQuota } from "@/lib/studio/video-quotas";
 import { setCompanyUsdtWallet as persistCompanyWallet } from "@/lib/payments/usdt";
@@ -42,6 +48,35 @@ async function target(id: string) {
 function done() {
   revalidatePath("/dashboard/admin");
   revalidatePath("/dashboard/network");
+}
+
+export async function markAcademyCreatorPayoutPaid(
+  transactionId: string,
+  reference: string,
+): Promise<Result> {
+  if (!(await requireAdmin())) return denied;
+  const payoutReference = reference.trim();
+  if (transactionId.length > 128 || payoutReference.length > 160) {
+    return { ok: false, error: "El pago o su referencia excede el límite permitido." };
+  }
+  const updated = await getPrisma().academyTransaction.updateMany({
+    where: {
+      id: transactionId,
+      paymentGatewayStatus: "APPROVED",
+      creatorPayoutStatus: "PENDING",
+    },
+    data: {
+      creatorPayoutStatus: "PAID",
+      creatorPaidAt: new Date(),
+      creatorPayoutReference: payoutReference || null,
+    },
+  });
+  if (updated.count !== 1) {
+    return { ok: false, error: "El pago ya fue registrado, fue reembolsado o no existe." };
+  }
+  revalidatePath("/dashboard/admin");
+  revalidatePath("/dashboard/academy/creator");
+  return { ok: true };
 }
 
 export async function validateRegistration(id: string): Promise<Result> {
@@ -274,29 +309,39 @@ export async function approveUsdtOrder(orderId: string): Promise<Result> {
       );
     });
   } else if (order.purpose === "credits") {
-    const extra = creditRechargeUsd(user.package as Parameters<typeof creditRechargeUsd>[0]);
-    if (!extra) return { ok: false, error: "Esta membresía no tiene una recarga definida." };
+    const amount = Number(order.amountUsd) || 0;
+    const purchased = amount / creditUsd;
+    if (!isValidCreditRecharge(purchased) || creditRechargeUsdForCredits(purchased) !== amount) {
+      return { ok: false, error: `La recarga debe ser de al menos ${minimumCreditRecharge} créditos enteros.` };
+    }
+    const credited = creditedRechargeCredits(purchased);
+    const promo = bonusCreditsForRecharge(purchased);
+    const firstRecharge = !(await prisma.transaction.findFirst({
+      where: { userId: user.id, ...rebuyPaidFilter() },
+      select: { id: true },
+    }));
     await prisma.$transaction(async (tx) => {
-      await tx.user.update({ where: { id: user.id }, data: { credits: { increment: extra } } });
+      await tx.user.update({ where: { id: user.id }, data: { credits: { increment: credited } } });
       const wallet = await tx.creditWallet.upsert({
         where: { userId: user.id },
-        create: { userId: user.id, balance: extra },
-        update: { balance: { increment: extra } },
+        create: { userId: user.id, balance: credited },
+        update: { balance: { increment: credited } },
       });
       await tx.transaction.create({
         data: {
           userId: user.id,
           walletId: wallet.id,
-          amount: extra,
-          creditDelta: extra,
-          kind: "CREDIT_PURCHASE",
-          description: `Recarga ${extra} créditos · USDT TRC20 · ${order.trxHash}`,
+          amount,
+          creditDelta: credited,
+          kind: "REBUY",
+          description: `Recarga de ${purchased} créditos${promo ? ` + ${promo} de promoción` : ""} · USDT TRC20 · ${order.trxHash}`,
         },
       });
+      if (firstRecharge) await grantVideoQuota(tx, user.id, user.package);
       await payCommissions(
         tx,
         { id: user.id, name: user.name, sponsorId: user.sponsorId, package: user.package },
-        Number(order.amountUsd) || extra,
+        amount,
         "rebuy",
       );
     });

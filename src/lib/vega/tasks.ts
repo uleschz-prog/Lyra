@@ -4,6 +4,7 @@ import { runUserTool, userAccount } from "@/lib/ai/composio-user";
 import { searchWeb } from "@/lib/ai/search";
 import { chargeCredits, creditPrices, refundCharge } from "@/lib/credits";
 import { getPrisma } from "@/lib/prisma";
+import { ensureDefaultVegaAgent } from "@/lib/vega/agents";
 import { canUseVega } from "@/lib/vega/access";
 import { listMemories, memoryPrompt } from "@/lib/vega/memory";
 import { type TaskKind, type TaskRepeat, type VegaTaskView } from "@/lib/vega/tasks-shared";
@@ -135,8 +136,9 @@ export async function deleteTask(userId: string, id: string) {
 async function remindersChat(userId: string) {
   const prisma = getPrisma();
   const title = "Recordatorios de Vega";
-  const existing = await prisma.vegaConversation.findFirst({ where: { userId, title }, select: { id: true } });
-  return existing ?? prisma.vegaConversation.create({ data: { userId, title }, select: { id: true } });
+  const agent = await ensureDefaultVegaAgent(userId);
+  const existing = await prisma.vegaConversation.findFirst({ where: { userId, agentId: agent.id, title }, select: { id: true } });
+  return existing ?? prisma.vegaConversation.create({ data: { userId, agentId: agent.id, title }, select: { id: true } });
 }
 
 function escapeHtml(value: string) {

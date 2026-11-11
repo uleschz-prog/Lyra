@@ -87,7 +87,6 @@ export function CourseCatalog({ courses }: { courses: Course[] }) {
                             {index + 1}. {lesson.title}
                           </p>
                           <p className="mt-1 text-xs leading-5 text-[#8A8680]">{lesson.description}</p>
-                          <p className="mt-2 text-[11px] text-[#8A8680]">{lesson.videoUrl}</p>
                         </div>
                         <Button
                           type="button"

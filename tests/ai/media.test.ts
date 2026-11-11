@@ -35,20 +35,20 @@ describe("generación de imagen y video", () => {
   });
 
   it("solicita y descarga una imagen desde Higgsfield", async () => {
-    vi.stubEnv("HIGGSFIELD_API_KEY_ID", "image-test-id");
-    vi.stubEnv("HIGGSFIELD_API_KEY_SECRET", "image-test-secret");
+    vi.stubEnv("HF_KEY_ID", "image-test-id");
+    vi.stubEnv("HF_KEY_SECRET", "image-test-secret");
     const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
       const url = String(input);
-      if (url === "https://api.higgsfield.ai/marketing-studio/image/flare") {
+      if (url === "https://api.higgsfield.ai/higgsfield-ai/soul/v2/standard") {
         expect(init?.method).toBe("POST");
         expect(new Headers(init?.headers).get("Authorization")).toBe("Key image-test-id:image-test-secret");
         expect(new Headers(init?.headers).get("Idempotency-Key")).toBeTruthy();
         expect(JSON.parse(String(init?.body))).toMatchObject({
           prompt: "Flyer para un concierto",
-          resolution: "1k",
+          batch_size: 1,
+          resolution: "720p",
           aspect_ratio: "9:16",
-          quality: "low",
-          enhance_prompt: false,
+          enhance_prompt: true,
         });
         return acceptedRequest();
       }
@@ -73,14 +73,14 @@ describe("generación de imagen y video", () => {
 
     const result = await generateStill("Flyer para un concierto", "vertical");
 
-    expect(result).toMatchObject({ ok: true, note: "Imagen generada con Higgsfield Marketing Studio." });
+    expect(result).toMatchObject({ ok: true, note: "Imagen generada con Higgsfield Soul 2." });
     expect(result.ok && result.dataUrl).toMatch(/^data:image\/jpeg;base64,/);
     expect(fetchMock).toHaveBeenCalledTimes(3);
   });
 
   it("deja el trabajo en segundo plano para que Vega no bloquee el chat", async () => {
-    vi.stubEnv("HIGGSFIELD_API_KEY_ID", "image-test-id");
-    vi.stubEnv("HIGGSFIELD_API_KEY_SECRET", "image-test-secret");
+    vi.stubEnv("HF_KEY_ID", "image-test-id");
+    vi.stubEnv("HF_KEY_SECRET", "image-test-secret");
     const fetchMock = vi.fn().mockResolvedValue(acceptedRequest());
     vi.stubGlobal("fetch", fetchMock);
 
@@ -92,8 +92,8 @@ describe("generación de imagen y video", () => {
   });
 
   it("falla claramente si las credenciales de Higgsfield no están configuradas", async () => {
-    vi.stubEnv("HIGGSFIELD_API_KEY_ID", "");
-    vi.stubEnv("HIGGSFIELD_API_KEY_SECRET", "");
+    vi.stubEnv("HF_KEY_ID", "");
+    vi.stubEnv("HF_KEY_SECRET", "");
     const fetchMock = vi.fn();
     vi.stubGlobal("fetch", fetchMock);
 
@@ -105,8 +105,8 @@ describe("generación de imagen y video", () => {
   });
 
   it("rechaza una URL de estado que no pertenece a la solicitud de Higgsfield", async () => {
-    vi.stubEnv("HIGGSFIELD_API_KEY_ID", "image-test-id");
-    vi.stubEnv("HIGGSFIELD_API_KEY_SECRET", "image-test-secret");
+    vi.stubEnv("HF_KEY_ID", "image-test-id");
+    vi.stubEnv("HF_KEY_SECRET", "image-test-secret");
     vi.stubGlobal("fetch", vi.fn().mockResolvedValue(acceptedRequest({ status_url: "https://attacker.example/status" })));
 
     const result = await generateStill("Una imagen");
@@ -116,10 +116,10 @@ describe("generación de imagen y video", () => {
 
   it("devuelve el error cuando Higgsfield marca la generación como fallida", async () => {
     vi.spyOn(console, "error").mockImplementation(() => {});
-    vi.stubEnv("HIGGSFIELD_API_KEY_ID", "image-test-id");
-    vi.stubEnv("HIGGSFIELD_API_KEY_SECRET", "image-test-secret");
+    vi.stubEnv("HF_KEY_ID", "image-test-id");
+    vi.stubEnv("HF_KEY_SECRET", "image-test-secret");
     const fetchMock = vi.fn(async (input: RequestInfo | URL) =>
-      String(input) === "https://api.higgsfield.ai/marketing-studio/image/flare"
+      String(input) === "https://api.higgsfield.ai/higgsfield-ai/soul/v2/standard"
         ? acceptedRequest()
         : new Response(JSON.stringify({ status: "failed", error: { message: "Generation failed" } }), {
             status: 200,
@@ -135,11 +135,11 @@ describe("generación de imagen y video", () => {
   });
 
   it("rechaza respuestas de descarga que no sean imágenes compatibles", async () => {
-    vi.stubEnv("HIGGSFIELD_API_KEY_ID", "image-test-id");
-    vi.stubEnv("HIGGSFIELD_API_KEY_SECRET", "image-test-secret");
+    vi.stubEnv("HF_KEY_ID", "image-test-id");
+    vi.stubEnv("HF_KEY_SECRET", "image-test-secret");
     const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
       const url = String(input);
-      if (url === "https://api.higgsfield.ai/marketing-studio/image/flare") return acceptedRequest();
+      if (url === "https://api.higgsfield.ai/higgsfield-ai/soul/v2/standard") return acceptedRequest();
       if (url === statusUrl) return completedStatus();
       return new Response("<html>not an image</html>", { status: 200, headers: { "Content-Type": "text/html" } });
     });
@@ -155,11 +155,11 @@ describe("generación de imagen y video", () => {
 
   it("rechaza archivos fuente que exceden el límite de descarga", async () => {
     vi.spyOn(console, "error").mockImplementation(() => {});
-    vi.stubEnv("HIGGSFIELD_API_KEY_ID", "image-test-id");
-    vi.stubEnv("HIGGSFIELD_API_KEY_SECRET", "image-test-secret");
+    vi.stubEnv("HF_KEY_ID", "image-test-id");
+    vi.stubEnv("HF_KEY_SECRET", "image-test-secret");
     const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
       const url = String(input);
-      if (url === "https://api.higgsfield.ai/marketing-studio/image/flare") return acceptedRequest();
+      if (url === "https://api.higgsfield.ai/higgsfield-ai/soul/v2/standard") return acceptedRequest();
       if (url === statusUrl) return completedStatus();
       return new Response(new Uint8Array([0]), {
         status: 200,
@@ -177,13 +177,13 @@ describe("generación de imagen y video", () => {
   });
 
   it("optimiza imágenes grandes para poder guardarlas en la biblioteca", async () => {
-    vi.stubEnv("HIGGSFIELD_API_KEY_ID", "image-test-id");
-    vi.stubEnv("HIGGSFIELD_API_KEY_SECRET", "image-test-secret");
+    vi.stubEnv("HF_KEY_ID", "image-test-id");
+    vi.stubEnv("HF_KEY_SECRET", "image-test-secret");
     const pixels = randomBytes(1200 * 1200 * 3);
     const source = await sharp(pixels, { raw: { width: 1200, height: 1200, channels: 3 } }).png().toBuffer();
     const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
       const url = String(input);
-      if (url === "https://api.higgsfield.ai/marketing-studio/image/flare") return acceptedRequest();
+      if (url === "https://api.higgsfield.ai/higgsfield-ai/soul/v2/standard") return acceptedRequest();
       if (url === statusUrl) return completedStatus();
       return new Response(source, {
         status: 200,

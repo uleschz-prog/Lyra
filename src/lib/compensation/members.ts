@@ -1,6 +1,6 @@
 import type { Prisma } from "@/generated/prisma/client";
 
-import { compensationPlan, getPackage, isPackageId, type PackageId } from "@/config/compensation-plan";
+import { compensationPlan, creditUsd, getPackage, isPackageId, minimumCreditRecharge, type PackageId } from "@/config/compensation-plan";
 import { monthStart, nextMonthStart, paysOwnWay } from "@/lib/compensation/activity";
 import { roundMoney, type CompensationMember } from "@/lib/compensation/engine";
 import { getPrisma } from "@/lib/prisma";
@@ -22,7 +22,7 @@ export const memberSelect = (month: Date) =>
         kind: { in: ["REBUY", "CREDIT_PURCHASE"] },
         createdAt: { gte: monthStart(month), lt: nextMonthStart(month) },
       },
-      select: { amount: true, kind: true, externalRef: true },
+      select: { amount: true, kind: true, externalRef: true, description: true },
     },
   }) satisfies Prisma.UserSelect;
 
@@ -43,7 +43,13 @@ export function personalVolume(user: MemberRow, month: Date) {
 export function renewalVolume(user: MemberRow) {
   return roundMoney(
     user.transactions.reduce(
-      (total, row) => total + (row.kind === "REBUY" && !settledOnChain(row) ? Number(row.amount) : 0),
+      (total, row) =>
+        total +
+        ((row.kind === "REBUY" || (row.kind === "CREDIT_PURCHASE" && row.description.startsWith("Recarga"))) &&
+        !settledOnChain(row) &&
+        Number(row.amount) >= minimumCreditRecharge * creditUsd
+          ? Number(row.amount)
+          : 0),
       0,
     ),
   );
@@ -52,7 +58,11 @@ export function renewalVolume(user: MemberRow) {
 export function creditPurchaseVolume(user: MemberRow) {
   return roundMoney(
     user.transactions.reduce(
-      (total, row) => total + (row.kind === "CREDIT_PURCHASE" && !settledOnChain(row) ? Number(row.amount) : 0),
+      (total, row) =>
+        total +
+        (row.kind === "CREDIT_PURCHASE" && !row.description.startsWith("Recarga") && !settledOnChain(row)
+          ? Number(row.amount)
+          : 0),
       0,
     ),
   );
@@ -67,7 +77,13 @@ export function toMembers(users: MemberRow[], month: Date): CompensationMember[]
           package: user.package,
           createdAt: user.createdAt,
           isSubscriptionExempt: user.isSubscriptionExempt,
-          paidRebuy: user.transactions.some((row) => row.kind === "REBUY"),
+          paidRebuy: user.transactions.some(
+            (row) =>
+              (row.kind === "REBUY" && Number(row.amount) >= minimumCreditRecharge * creditUsd) ||
+              (row.kind === "CREDIT_PURCHASE" &&
+                row.description.startsWith("Recarga") &&
+                Number(row.amount) >= minimumCreditRecharge * creditUsd),
+          ),
         },
         month,
       ),

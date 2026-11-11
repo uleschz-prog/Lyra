@@ -5,6 +5,7 @@ const mocks = vi.hoisted(() => ({
   updateMany: vi.fn(),
   readStatus: vi.fn(),
   downloadImage: vi.fn(),
+  saveImage: vi.fn(),
 }));
 
 vi.mock("@/lib/prisma", () => ({
@@ -18,6 +19,10 @@ vi.mock("@/lib/ai/higgsfield-image", () => ({
 
 vi.mock("@/lib/vega/decide", () => ({
   actionView: (action: unknown) => action,
+}));
+
+vi.mock("@/lib/vega/library-media", () => ({
+  saveVegaImageActionToLibrary: mocks.saveImage,
 }));
 
 import { advanceVegaImage } from "@/lib/vega/image-generation";
@@ -64,18 +69,30 @@ describe("seguimiento de imágenes de Vega", () => {
       dataUrl: "data:image/jpeg;base64,abc",
       note: "Imagen generada con Higgsfield Marketing Studio.",
     });
-    mocks.updateMany.mockResolvedValue({ count: 1 });
+    mocks.saveImage.mockResolvedValue({
+      ...action,
+      status: "done",
+      payload: {
+        prompt: "Flyer para un concierto",
+        size: "vertical",
+        imageUrl: "/api/library/image?pieceId=piece-1",
+      },
+      result: "Imagen generada con Higgsfield Marketing Studio.",
+    });
 
     await expect(advanceVegaImage("user-1", action.id)).resolves.toMatchObject({
       status: "done",
-      payload: { prompt: "Flyer para un concierto", size: "vertical", dataUrl: "data:image/jpeg;base64,abc" },
+      payload: { prompt: "Flyer para un concierto", size: "vertical", imageUrl: "/api/library/image?pieceId=piece-1" },
     });
-    expect(mocks.updateMany).toHaveBeenCalledWith(
-      expect.objectContaining({
-        where: { id: action.id, userId: "user-1", status: "running" },
-        data: expect.objectContaining({ status: "done" }),
-      }),
-    );
+    expect(mocks.saveImage).toHaveBeenCalledWith({
+      userId: "user-1",
+      actionId: action.id,
+      prompt: "Flyer para un concierto",
+      dataUrl: "data:image/jpeg;base64,abc",
+      payload: { prompt: "Flyer para un concierto", size: "vertical" },
+      result: "Imagen generada con Higgsfield Marketing Studio.",
+    });
+    expect(mocks.updateMany).not.toHaveBeenCalled();
   });
 
   it("marca la acción como fallida con el error de Higgsfield", async () => {

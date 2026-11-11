@@ -34,7 +34,6 @@ export default async function DashboardPage() {
         <div className="order-1 min-w-0 lg:col-span-3">
           <ReferralCard
             link={referralLink}
-            packageId={user.package}
             directs={summary.directs}
             joinedThisMonth={summary.joinedThisMonth}
           />
