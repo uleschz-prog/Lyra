@@ -2,6 +2,7 @@ import type { Prisma } from "@/generated/prisma/client";
 
 import { getPackage, toPackageType, type SignupPlanId } from "@/config/compensation-plan";
 import { payCommissions } from "@/lib/compensation/payout";
+import { creditCredits } from "@/lib/credits/ledger";
 import { grantVideoQuota } from "@/lib/studio/video-quotas";
 
 export async function activateMembership(
@@ -16,7 +17,6 @@ export async function activateMembership(
     data: {
       package: toPackageType(packageId),
       pendingPackage: null,
-      credits: { increment: plan.credits },
       activationCredits: typeof plan.activationCredits === "number" ? plan.activationCredits : 0,
       createdAt: new Date(),
     },
@@ -24,22 +24,44 @@ export async function activateMembership(
   if (claimed.count === 0) return false;
   await grantVideoQuota(tx, user.id, packageId);
 
-  const wallet = await tx.creditWallet.upsert({
-    where: { userId: user.id },
-    create: { userId: user.id, balance: plan.credits },
-    update: { balance: { increment: plan.credits } },
-  });
-  await tx.transaction.create({
-    data: {
-      userId: user.id,
-      walletId: wallet.id,
-      amount: plan.price,
-      creditDelta: plan.credits,
-      kind: "CREDIT_PURCHASE",
-      description: record.description,
-      externalRef: record.externalRef,
-    },
-  });
+  if (plan.credits > 0) {
+    const credited = await creditCredits(
+      {
+        userId: user.id,
+        credits: plan.credits,
+        amountUsd: plan.price,
+        externalRef: record.externalRef,
+        kind: "CREDIT_PURCHASE",
+        reason: "membership.activate",
+        description: record.description,
+      },
+      tx,
+    );
+    if (!credited.ok) {
+      throw new Error("No se pudieron acreditar los créditos de la membresía.");
+    }
+  } else {
+    // Planes sin créditos de alta (p. ej. Corporate ya no ofrecido): se deja
+    // constancia con delta 0 y el mismo externalRef para la idempotencia del pago.
+    const wallet = await tx.creditWallet.upsert({
+      where: { userId: user.id },
+      create: { userId: user.id, balance: 0 },
+      update: {},
+    });
+    await tx.transaction.create({
+      data: {
+        userId: user.id,
+        walletId: wallet.id,
+        amount: plan.price,
+        creditDelta: 0,
+        kind: "CREDIT_PURCHASE",
+        description: record.description,
+        reason: "membership.activate",
+        externalRef: record.externalRef,
+      },
+    });
+  }
+
   if (!record.skipCommissions) {
     await payCommissions(tx, { ...user, package: packageId }, plan.price, "purchase");
   }
