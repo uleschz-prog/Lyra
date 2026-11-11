@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 
 import { generateClip, readOpenRouterVideo, type VideoQuality } from "@/lib/ai/media";
 import { requireMember } from "@/lib/auth/api";
+import { creditPrices, withCharge } from "@/lib/credits";
 import { scenesFromScript } from "@/lib/studio/video-plan";
 
 export const maxDuration = 60;
@@ -54,28 +55,67 @@ export async function POST(request: Request) {
 
   const scenes = scenesFromScript(script);
 
-  const clip = await generateClip({ title, script, format, styleId, duration, captions, quality: qualityOf(body?.quality) }, 45_000);
-  if (!clip.ok && "pending" in clip && clip.pending) {
+  type VideoCharge =
+    | { status: "processing"; provider: string; jobId: string; message: string }
+    | { status: "completed"; provider: string; videoUrl: string; message: string };
+
+  const result = await withCharge<VideoCharge>(
+    { userId: guard.user.id, amount: creditPrices.video, description: "Video · estudio" },
+    async () => {
+      const clip = await generateClip(
+        { title, script, format, styleId, duration, captions, quality: qualityOf(body?.quality) },
+        45_000,
+      );
+      // El trabajo aceptado (aunque siga procesando) no se reembolsa.
+      if (!clip.ok && "pending" in clip && clip.pending) {
+        return {
+          ok: true as const,
+          value: {
+            status: "processing" as const,
+            provider: "openrouter",
+            jobId: clip.jobId,
+            message: clip.note,
+          },
+        };
+      }
+      if (clip.ok) {
+        return {
+          ok: true as const,
+          value: {
+            status: "completed" as const,
+            provider: clip.url.includes("jobId=") ? "openrouter" : "runway",
+            videoUrl: clip.url,
+            message: clip.note,
+          },
+        };
+      }
+      return { ok: false as const, error: "error" in clip ? clip.error : "No se pudo crear el video." };
+    },
+  );
+  if (!result.ok) {
+    return NextResponse.json({ error: result.error, credits: result.balance }, { status: result.status });
+  }
+
+  if (result.value.status === "processing") {
     return NextResponse.json({
       mode: "live",
-      provider: "openrouter",
+      provider: result.value.provider,
       title,
       status: "processing",
-      jobId: clip.jobId,
+      jobId: result.value.jobId,
       scenes,
-      message: clip.note,
+      message: result.value.message,
+      credits: result.balance,
     });
   }
-  if (clip.ok) {
-    return NextResponse.json({
-      mode: "live",
-      provider: clip.url.includes("jobId=") ? "openrouter" : "runway",
-      title,
-      status: "completed",
-      videoUrl: clip.url,
-      scenes,
-      message: clip.note,
-    });
-  }
-  return NextResponse.json({ error: "error" in clip ? clip.error : "No se pudo crear el video." }, { status: 502 });
+  return NextResponse.json({
+    mode: "live",
+    provider: result.value.provider,
+    title,
+    status: "completed",
+    videoUrl: result.value.videoUrl,
+    scenes,
+    message: result.value.message,
+    credits: result.balance,
+  });
 }

@@ -38,6 +38,7 @@ enum TransactionKind {
   COMMISSION
   CREDIT_PURCHASE
   CREDIT_SPEND
+  CREDIT_REFUND
   ADJUSTMENT
   REBUY
   PAYOUT
@@ -434,6 +435,8 @@ model Transaction {
   creditDelta Int             @default(0)
   kind        TransactionKind
   description String
+  reason      String?
+  metadata    Json?
   externalRef String?         @unique
   createdAt   DateTime        @default(now())
 

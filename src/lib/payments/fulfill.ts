@@ -3,6 +3,7 @@ import { Prisma } from "@prisma/client";
 import { getPackage, isFounderPackage, isSignupPlanId, rebuyCredits } from "@/config/compensation-plan";
 import { rebuyPaidFilter } from "@/lib/compensation/activity";
 import { payCommissions } from "@/lib/compensation/payout";
+import { creditCredits } from "@/lib/credits/ledger";
 import { activateMembership } from "@/lib/payments/activate";
 import { getMercadoPagoPayment, type MpPurpose } from "@/lib/payments/mercadopago";
 import { getPrisma } from "@/lib/prisma";
@@ -71,25 +72,44 @@ export async function fulfillMercadoPago(paymentId: string): Promise<FulfillResu
     await prisma.$transaction(async (tx) => {
       const firstRebuy =
         purpose === "rebuy" && (await tx.transaction.count({ where: { userId: user.id, ...rebuyPaidFilter() } })) === 0;
-      const wallet = await tx.creditWallet.upsert({
-        where: { userId: user.id },
-        create: { userId: user.id, balance: credits },
-        update: { balance: { increment: credits } },
-      });
+      const kind = purpose === "rebuy" ? "REBUY" : "CREDIT_PURCHASE";
       if (credits > 0) {
-        await tx.user.update({ where: { id: user.id }, data: { credits: { increment: credits } } });
+        const credited = await creditCredits(
+          {
+            userId: user.id,
+            credits,
+            amountUsd: usd,
+            externalRef,
+            kind,
+            reason: purpose === "rebuy" ? "payments.rebuy" : "payments.credits",
+            description,
+          },
+          tx,
+        );
+        if (!credited.ok) {
+          throw new Error("No se pudieron acreditar los créditos del pago.");
+        }
+      } else {
+        // Recompra o recarga sin créditos (delta 0): se conserva el asiento
+        // para la idempotencia y las comisiones, sin mover el saldo.
+        const wallet = await tx.creditWallet.upsert({
+          where: { userId: user.id },
+          create: { userId: user.id, balance: 0 },
+          update: {},
+        });
+        await tx.transaction.create({
+          data: {
+            userId: user.id,
+            walletId: wallet.id,
+            amount: usd,
+            creditDelta: 0,
+            kind,
+            description,
+            reason: purpose === "rebuy" ? "payments.rebuy" : "payments.credits",
+            externalRef,
+          },
+        });
       }
-      await tx.transaction.create({
-        data: {
-          userId: user.id,
-          walletId: wallet.id,
-          amount: usd,
-          creditDelta: credits,
-          kind: purpose === "rebuy" ? "REBUY" : "CREDIT_PURCHASE",
-          description,
-          externalRef,
-        },
-      });
       if (firstRebuy || purpose === "credits") await payCommissions(tx, user, usd, "rebuy");
     });
     return { ok: true, purpose, credits, already: false };
