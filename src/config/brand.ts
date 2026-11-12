@@ -1,5 +1,6 @@
 import {
   Crown,
+  FolderKanban,
   GraduationCap,
   Home,
   Library,
@@ -51,6 +52,12 @@ export const officeModes = [
         label: "Vega",
         description: "Tu super agente",
         icon: Crown,
+      },
+      {
+        href: "/dashboard/proyectos",
+        label: "Proyectos",
+        description: "Sitios, apps y agentes que creas",
+        icon: FolderKanban,
       },
       {
         href: "/dashboard/biblioteca",
