@@ -16,7 +16,7 @@ export type { CostLevel, CostMeterView, CostTier } from "@/lib/vega/cost-shared"
 type Env = Record<string, string | undefined>;
 
 export const COST_TIMEZONE = DEFAULT_TIMEZONE;
-export type UsageSource = "chat" | "whatsapp" | "routine";
+export type UsageSource = "chat" | "whatsapp" | "routine" | "x";
 
 /** Recarga mínima mensual (USD) por nivel; la misma que `rebuy` del plan. */
 const tierRecharge: Record<CostTier, number> = { inicio: 19, negocio: 49, pro: 99 };

@@ -69,6 +69,29 @@ El tope mensual por socio es el 5 % de la recarga mínima de su plan (`VEGA_COST
 - Un turno puede pasarse un poco del tope: se corta antes de la siguiente llamada al modelo.
 - `VEGA_COST_CAP=off` apaga el tope.
 
+### Inteligencia de mercado en X (Vega)
+
+Vega tiene cuatro herramientas de X (X API v2, solo lectura, con el token de la plataforma `X_BEARER_TOKEN`):
+
+- `buscar_en_x`: búsqueda reciente (últimos 7 días) con operadores de X; devuelve posts con interacción, sentimiento y enlace.
+- `analizar_competidor`: perfil, frecuencia, interacción promedio, temas, sentimiento y mejores posts de una cuenta.
+- `tendencias_x`: volumen por hora de los últimos 7 días (cambio de las últimas 24 h) más una muestra de posts para hashtags en aceleración, palabras, sentimiento y posts destacados.
+- `configurar_monitor_x`: crea una rutina `x_monitor` que revisa palabras clave y menciones por sondeo y avisa al socio (chat «Recordatorios de Vega», correo y WhatsApp) solo si hay un pico de negatividad. Opcionalmente programa un reporte diario o semanal: una rutina «tarea» normal que usa las herramientas anteriores.
+
+Las tres primeras son de lectura (política de la Fase 5) y su contenido se trata como externo; el monitor es interno. Publicar en X queda fuera. También existe `POST /api/vega/x/competitor` (`{ "cuenta": "@usuario" }`) con el mismo análisis sin modelo.
+
+Vercel no puede mantener abierto el filtered stream de X, así que los monitores usan sondeo con `since_id` a través del despachador de rutinas de la Fase 6 (mínimo `VEGA_X_MONITOR_MIN_MINUTES`). Sin pinger externo en Hobby, solo corren con el cron diario.
+
+El sentimiento es un filtro por palabras en español e inglés (sin modelo ni costo). No detecta ironía. La alerta salta cuando, con al menos `VEGA_CRISIS_MIN_POSTS` posts nuevos, la proporción negativa llega a `VEGA_CRISIS_THRESHOLD` o sube `VEGA_CRISIS_SPIKE` sobre la línea base del monitor, con `VEGA_CRISIS_COOLDOWN_HOURS` entre alertas.
+
+Costos (precios de X API de pago por uso revisados el 2026-11-12 en docs.x.com):
+
+- Leer un post cuesta $0.005, leer un usuario $0.010 y una consulta de conteo $0.005.
+- Cada socio tiene un tope diario de posts (Inicio 50, Negocio 150, Pro 400) y la plataforma uno global (`VEGA_X_GLOBAL_DAILY_POSTS`).
+- Las respuestas se guardan 15 minutos en `VegaXCache` y se comparten entre socios.
+- Cada consulta queda en `VegaXCall` y su costo cuenta contra el tope mensual de la Fase 7 (`VEGA_X_COUNT_IN_COST_CAP`). El modelo que resume los datos también cuenta, como cualquier turno.
+- Monitores por plan: Inicio 1, Negocio 3, Pro 5.
+
 ## WhatsApp Business
 
 La conexión usa el flujo oficial Meta Embedded Signup para WhatsApp Business Coexistence: la persona autoriza su cuenta de WhatsApp Business durante el alta y confirma desde la app móvil. No se emparejan sesiones de WhatsApp Web ni se escanea un QR de WhatsApp Web. La disponibilidad de Coexistence depende de la elegibilidad de la cuenta y de que la app de Meta tenga la configuración y permisos aprobados.

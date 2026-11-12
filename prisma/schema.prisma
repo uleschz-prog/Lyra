@@ -177,6 +177,8 @@ model User {
   vegaTasks                    VegaTask[]
   vegaRoutineRuns              VegaRoutineRun[]
   vegaUsageLogs                VegaUsageLog[]
+  vegaXMonitors                VegaXMonitor[]
+  vegaXCalls                   VegaXCall[]
   vegaWhatsappBlocks           VegaWhatsappBlock[]
   vegaWhatsapp                 String?
   usdtTrc20                    String?
@@ -495,7 +497,8 @@ model VegaTask {
   failCount   Int       @default(0)
 
   user User             @relation(fields: [userId], references: [id], onDelete: Cascade)
-  runs VegaRoutineRun[]
+  runs     VegaRoutineRun[]
+  xMonitor VegaXMonitor?
 
   @@index([status, runAt])
   @@index([userId, status])
@@ -1051,4 +1054,60 @@ model Transaction {
 
   @@index([userId, createdAt])
   @@index([walletId, createdAt])
+}
+
+// Fase 8: monitor de X (palabras clave y cuentas) ligado a una rutina (VegaTask kind = "x_monitor").
+// Guarda el último post visto (since_id) y la línea base de negatividad para la alerta de crisis.
+model VegaXMonitor {
+  id                  String    @id @default(cuid())
+  userId              String
+  taskId              String    @unique
+  keywords            Json
+  handles             Json
+  lang                String?
+  sinceId             String?
+  baseline            Float?
+  lastNegativity      Float?
+  lastAlertAt         DateTime?
+  lastAlertNegativity Float?
+  polls               Int       @default(0)
+  alerts              Int       @default(0)
+  createdAt           DateTime  @default(now())
+  updatedAt           DateTime  @updatedAt
+
+  user User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  task VegaTask @relation(fields: [taskId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
+
+// Fase 8: caché compartida de respuestas de X API (datos públicos). TTL corto.
+model VegaXCache {
+  key       String   @id
+  kind      String
+  payload   Json
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+
+  @@index([expiresAt])
+}
+
+// Fase 8: cada consulta pagada a X API (para topes diarios y costo). day = YYYY-MM-DD en CDMX.
+model VegaXCall {
+  id        String   @id @default(cuid())
+  userId    String
+  kind      String
+  query     String
+  day       String
+  posts     Int      @default(0)
+  users     Int      @default(0)
+  requests  Int      @default(1)
+  costUsd   Float    @default(0)
+  status    String   @default("ok")
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, day])
+  @@index([day])
 }

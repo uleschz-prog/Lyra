@@ -10,6 +10,7 @@ import { saveVegaImageToLibrary, saveVegaVideoToLibrary } from "@/lib/vega/libra
 import { scenesFromScript } from "@/lib/studio/video-plan";
 import { isUserToolkit, toolkitHints, toolkitLabels, userToolkits, type UserToolkit, type VegaConnections } from "@/lib/vega/apps";
 import type { FunctionDeclaration } from "@/lib/vega/gemini-stream";
+import { runXTool, xToolNames, xTools } from "@/lib/vega/x/tools";
 import { forgetMemory, MEMORY_MAX_LENGTH, saveMemory, searchMemories } from "@/lib/vega/memory";
 import { memoryKindLabels, parseKind } from "@/lib/vega/memory-logic";
 import { saveVegaProfile } from "@/lib/vega/profile";
@@ -79,7 +80,7 @@ const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const localDateTime = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(:\d{2})?$/;
 
 /** Herramientas que no cobran el extra de créditos. */
-export const freeTools = new Set(["recordar", "olvidar", "buscar_memoria", "programar_rutina", "ver_rutinas", "pausar_rutina", "reanudar_rutina", "borrar_rutina", "preparar_whatsapp", "no_molestar_whatsapp", "actualizar_perfil", "listar_archivos", "buscar_archivos", "leer_archivo", "escribir_archivo", "ver_comandos", "pedir_conexion"]);
+export const freeTools = new Set(["recordar", "olvidar", "buscar_memoria", "programar_rutina", "ver_rutinas", "pausar_rutina", "reanudar_rutina", "borrar_rutina", "preparar_whatsapp", "no_molestar_whatsapp", "actualizar_perfil", "listar_archivos", "buscar_archivos", "leer_archivo", "escribir_archivo", "ver_comandos", "pedir_conexion", "configurar_monitor_x"]);
 const taskTools: FunctionDeclaration[] = [
   {
     name: "programar_rutina",
@@ -388,6 +389,8 @@ export function vegaTools(connections: VegaConnections, webSearch: boolean): Fun
     );
   }
   tools.push(...appTools(connections));
+  // Fase 8: X siempre aparece; si falta la credencial, la herramienta responde con un aviso claro.
+  tools.push(...xTools());
   const missing = userToolkits.filter((toolkit) => !connections[toolkit]);
   if (missing.length) {
     tools.push({
@@ -448,6 +451,8 @@ export async function runVegaTool(userId: string, name: string, args: Record<str
     const outcome = await runAppTool(userId, name, args);
     return outcome.kind === "app" ? { kind: "action", action: "app_action", payload: outcome.payload, summary: outcome.summary } : outcome;
   }
+
+  if (xToolNames.has(name)) return runXTool(userId, name, args);
 
   if (name === "pedir_conexion") {
     const app = text(args.app, 40).toLowerCase();
@@ -564,7 +569,7 @@ export async function runVegaTool(userId: string, name: string, args: Record<str
         rutinas: tasks.map((task) => ({
           id: task.id,
           titulo: task.title,
-          tipo: task.kind === "task" ? "tarea" : "recordatorio",
+          tipo: task.kind === "task" ? "tarea" : task.kind === "x_monitor" ? "monitor de X" : "recordatorio",
           horario: task.label,
           proxima: new Date(task.runAt).toLocaleString("es-MX", { day: "numeric", month: "long", hour: "2-digit", minute: "2-digit", timeZone: task.timezone }),
           estado: task.status === "paused" ? "pausada" : "activa",

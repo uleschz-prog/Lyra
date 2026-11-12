@@ -1,7 +1,8 @@
 import type { RoutineRepeat } from "@/lib/vega/schedule";
 
 export type TaskRepeat = RoutineRepeat;
-export type TaskKind = "reminder" | "task";
+/** x_monitor = monitor de X (Fase 8): consulta X sin modelo y avisa solo si hay un pico negativo. */
+export type TaskKind = "reminder" | "task" | "x_monitor";
 
 /** Hora por defecto cuando el socio no dice una (hora local de su zona). */
 export const DEFAULT_TIME = "09:00";

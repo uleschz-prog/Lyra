@@ -24,6 +24,7 @@ import { selectMemoriesForPrompt } from "@/lib/vega/memory-logic";
 import { getVegaProfile } from "@/lib/vega/profile";
 import { conversationTitle, vegaSystemPrompt } from "@/lib/vega/prompt";
 import { connectDraft, freeTools, runVegaTool, vegaTools } from "@/lib/vega/tools";
+import { xStatusLabels } from "@/lib/vega/x/tools";
 import { isUserToolkit, type UserToolkit } from "@/lib/vega/apps";
 import { HISTORY, SUMMARY_SLACK, scheduleSummary, summaryContext } from "@/lib/vega/summary";
 import { summarizeUsage, type ModelUsage } from "@/lib/vega/usage";
@@ -74,6 +75,7 @@ export function statusLabel(name: string) {
   if (name === "olvidar") return "Borrando de la memoria…";
   if (name === "actualizar_perfil") return "Actualizando tu perfil…";
   if (name === "buscar_web") return "Buscando en la web…";
+  if (xStatusLabels[name]) return xStatusLabels[name];
   if (name === "leer_correos") return "Revisando tu Gmail…";
   if (name === "ver_agenda") return "Revisando tu agenda…";
   if (name === "preparar_correo") return "Preparando el correo…";
