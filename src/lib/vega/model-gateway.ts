@@ -38,6 +38,9 @@ type Opener = (
   | { ok: false; status: number; error: string }
 >;
 
+/** Modelos a usar en lugar de los configurados (ahorro cerca del tope de costo). */
+export type ModelOverride = { gemini: string; openrouter: string };
+
 export type GatewayDeps = {
   primary: Opener;
   fallback: Opener | null;
@@ -54,7 +57,9 @@ function defaultDeps(): GatewayDeps {
   const { apiKey, model } = openRouterConfig();
   return {
     primary: openGeminiStream,
-    fallback: apiKey ? (system, contents, tools, options) => openOpenRouter(apiKey, model, system, contents, tools, options) : null,
+    fallback: apiKey
+      ? (system, contents, tools, options) => openOpenRouter(apiKey, options.model?.trim() || model, system, contents, tools, options)
+      : null,
   };
 }
 
@@ -78,9 +83,17 @@ export async function openVegaStream(
   system: string,
   contents: GeminiContent[],
   tools: FunctionDeclaration[],
-  options: { timeoutMs: number; deps?: GatewayDeps },
+  options: { timeoutMs: number; deps?: GatewayDeps; models?: ModelOverride | null },
 ): Promise<ModelStream | ModelFailure> {
-  const deps = options.deps ?? defaultDeps();
+  const base = options.deps ?? defaultDeps();
+  const models = options.models ?? null;
+  const deps: GatewayDeps = models
+    ? {
+        ...base,
+        primary: (s, c, t, o) => base.primary(s, c, t, { ...o, model: models.gemini }),
+        fallback: base.fallback ? (s, c, t, o) => base.fallback!(s, c, t, { ...o, model: models.openrouter }) : null,
+      }
+    : base;
   const startedAt = Date.now();
   const primary = await attempt(deps.primary, system, contents, tools, options.timeoutMs, deps.firstPartTimeoutMs ?? firstPartTimeoutMs);
   if (primary.ok || !deps.fallback) return primary;

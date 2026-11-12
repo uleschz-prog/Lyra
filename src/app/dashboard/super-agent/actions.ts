@@ -28,6 +28,7 @@ import {
   type VegaTaskView,
 } from "@/lib/vega/tasks";
 import type { TaskKind, TaskRepeat, VegaRoutineRunView } from "@/lib/vega/tasks-shared";
+import { costStatus, meterView, type CostMeterView } from "@/lib/vega/cost-cap";
 import { actionLog, type ActionLogEntry } from "@/lib/vega/action-store";
 import { actionView, decideAction } from "@/lib/vega/decide";
 import {
@@ -350,6 +351,14 @@ export async function createVegaRoutine(input: {
 export async function vegaRoutineRuns(): Promise<VegaRoutineRunView[]> {
   const user = await vegaUser();
   return user ? listRoutineRuns(user.id, 20) : [];
+}
+
+/** Medidor del tope mensual de costo de IA (solo porcentaje; null si no aplica). */
+export async function vegaCostMeter(): Promise<CostMeterView | null> {
+  const user = await vegaUser();
+  if (!user) return null;
+  const status = await costStatus({ id: user.id, package: user.package ?? null, role: user.role }).catch(() => null);
+  return status && status.level !== "unlimited" ? meterView(status) : null;
 }
 
 export async function vegaRoutineUnseen() {

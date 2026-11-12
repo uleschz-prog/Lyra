@@ -23,7 +23,8 @@ export function vegaConfigured() {
   return Boolean(geminiCredentials().apiKey);
 }
 
-export type StreamOptions = { signal?: AbortSignal };
+/** `model` reemplaza el modelo configurado (p. ej. uno más barato cerca del tope de costo). */
+export type StreamOptions = { signal?: AbortSignal; model?: string };
 
 /**
  * Abre la respuesta de Gemini en modo SSE y entrega cada parte tal como llega.
@@ -35,7 +36,9 @@ export async function openGeminiStream(
   tools: FunctionDeclaration[] = [],
   options: StreamOptions = {},
 ) {
-  const { apiKey, model } = geminiCredentials();
+  const credentials = geminiCredentials();
+  const apiKey = credentials.apiKey;
+  const model = options.model?.trim() || credentials.model;
   if (!apiKey) return { ok: false as const, status: 0, error: "Vega no está configurada en el servidor." };
 
   let response: Response;

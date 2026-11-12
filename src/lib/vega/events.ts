@@ -1,4 +1,5 @@
 import type { WebResult } from "@/lib/ai/search";
+import type { CostMeterView } from "@/lib/vega/cost-shared";
 import type { ActionKind, ActionPayload } from "@/lib/vega/tools";
 
 export type VegaActionView = {
@@ -24,4 +25,5 @@ export type VegaEvent =
   | { t: "sources"; v: VegaSource[] }
   | { t: "action"; v: VegaActionView }
   | { t: "credits"; v: number }
+  | { t: "usage"; v: CostMeterView }
   | { t: "error"; v: string };

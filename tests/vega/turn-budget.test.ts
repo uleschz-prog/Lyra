@@ -5,6 +5,7 @@ import type { ModelStream } from "@/lib/vega/model-gateway";
 
 const db = vi.hoisted(() => ({
   messages: [] as { content: string; meta: Record<string, unknown> }[],
+  usage: [] as Record<string, unknown>[],
 }));
 const openVegaStream = vi.hoisted(() => vi.fn());
 const runVegaTool = vi.hoisted(() => vi.fn());
@@ -20,6 +21,13 @@ vi.mock("@/lib/prisma", () => ({
     },
     vegaConversation: { update: async () => ({}) },
     vegaAction: { create: async () => ({ id: "a1" }), update: async () => null },
+    vegaUsageLog: {
+      create: async ({ data }: { data: Record<string, unknown> }) => {
+        db.usage.push(data);
+        return { id: "log1" };
+      },
+      aggregate: async () => ({ _sum: { costUsd: db.usage.reduce((sum, row) => sum + Number(row.costUsd), 0) } }),
+    },
   }),
 }));
 vi.mock("@/lib/credits", () => ({
@@ -75,6 +83,7 @@ const toolCall = (name = "recordar"): GeminiPart => ({ functionCall: { name, arg
 
 beforeEach(() => {
   db.messages.length = 0;
+  db.usage.length = 0;
   openVegaStream.mockReset();
   runVegaTool.mockReset();
   runVegaTool.mockResolvedValue({ kind: "result", status: "Guardado.", response: { ok: true } });
@@ -120,5 +129,43 @@ describe("ciclo del turno de Vega", () => {
     const result = await runVegaTurn(turn(cut), () => undefined);
     expect(result.content).toMatch(/^Parte de la respuesta\n\n\(Se me acabó el tiempo/);
     expect(db.messages[0].meta).toMatchObject({ partial: true, stopReason: "time" });
+  });
+});
+
+describe("costo del turno (Fase 7)", () => {
+  it("registra el costo real del turno en el log de uso", async () => {
+    openVegaStream.mockResolvedValueOnce(stream({ text: "Listo." }));
+    const result = await runVegaTurn({ ...turn(stream(toolCall())), source: "routine" as const }, () => undefined);
+    // 2 llamadas × (100 × $0.30 + 10 × $2.50) / 1M
+    expect(result.usage.costUsd).toBeCloseTo((2 * (100 * 0.3 + 10 * 2.5)) / 1_000_000, 9);
+    expect(db.usage).toHaveLength(1);
+    expect(db.usage[0]).toMatchObject({ userId: "u1", conversationId: "c1", source: "routine", calls: 2, costSource: "table", degraded: false });
+    expect(db.usage[0].month).toMatch(/^\d{4}-\d{2}$/);
+  });
+
+  it("corta el turno cuando agota lo que le queda del tope mensual", async () => {
+    openVegaStream.mockResolvedValue(stream(toolCall()));
+    const result = await runVegaTurn({ ...turn(stream({ text: "Empiezo." }, toolCall())), costRemainingUsd: 0.00001 }, () => undefined);
+    expect(runVegaTool).not.toHaveBeenCalled();
+    expect(result.stopReason).toBe("cost");
+    expect(result.content).toContain("límite mensual de uso de IA");
+    expect(db.usage[0]).toMatchObject({ stopReason: "cost" });
+  });
+
+  it("usa los modelos baratos en todas las llamadas del turno cuando se degradó", async () => {
+    openVegaStream.mockResolvedValueOnce(stream({ text: "Listo." }));
+    const models = { gemini: "gemini-2.5-flash-lite", openrouter: "google/gemini-2.5-flash-lite" };
+    await runVegaTurn({ ...turn(stream(toolCall())), models }, () => undefined);
+    expect(openVegaStream).toHaveBeenCalledWith(expect.anything(), expect.anything(), expect.anything(), expect.objectContaining({ models }));
+    expect(db.usage[0]).toMatchObject({ degraded: true });
+  });
+
+  it("emite el medidor al terminar si el socio tiene tope", async () => {
+    openVegaStream.mockResolvedValueOnce(stream({ text: "Listo." }));
+    const events: { t: string; v: unknown }[] = [];
+    await runVegaTurn({ ...turn(stream(toolCall())), capUser: { id: "u1", package: "STARTED", role: "USER" } }, (event) => events.push(event));
+    const meter = events.find((event) => event.t === "usage");
+    expect(meter?.v).toMatchObject({ level: "ok", tier: "inicio" });
+    expect(JSON.stringify(meter?.v)).not.toMatch(/Usd/);
   });
 });

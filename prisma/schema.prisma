@@ -176,6 +176,7 @@ model User {
   vegaFiles                    VegaFile[]
   vegaTasks                    VegaTask[]
   vegaRoutineRuns              VegaRoutineRun[]
+  vegaUsageLogs                VegaUsageLog[]
   vegaWhatsappBlocks           VegaWhatsappBlock[]
   vegaWhatsapp                 String?
   usdtTrc20                    String?
@@ -525,6 +526,29 @@ model VegaRoutineRun {
   @@unique([taskId, scheduledFor])
   @@index([status, scheduledFor])
   @@index([userId, createdAt])
+}
+
+// Fase 7: costo de IA de cada turno de Vega (chat, WhatsApp y rutinas), para el tope mensual.
+model VegaUsageLog {
+  id             String   @id @default(cuid())
+  userId         String
+  conversationId String?
+  source         String   @default("chat") // chat | whatsapp | routine
+  month          String // «2026-11», mes calendario en America/Mexico_City
+  models         Json?
+  calls          Int      @default(0)
+  inputTokens    Int      @default(0)
+  outputTokens   Int      @default(0)
+  costUsd        Float    @default(0)
+  costSource     String   @default("table") // reported | table | default
+  degraded       Boolean  @default(false)
+  stopReason     String?
+  createdAt      DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, month])
+  @@index([month])
 }
 
 model VegaWhatsappBlock {

@@ -58,6 +58,17 @@ curl -fsS -X POST -H "Authorization: Bearer $CRON_SECRET" "$LYRA_URL/api/vega/ro
 
 Con Vercel Pro basta agregar `{ "path": "/api/vega/routines/dispatch", "schedule": "*/5 * * * *" }` a `vercel.json`. Con un disparo cada 5 minutos caben unas 36 tareas con turno completo por hora; lo demás espera en cola al siguiente disparo.
 
+### Tope de costo de IA de Vega
+
+Cada turno de Vega (chat, WhatsApp y rutinas) guarda su costo real en USD en `VegaUsageLog`. Se usa el costo que informa OpenRouter o, si no, tokens × la tabla de precios de `src/lib/vega/cost.ts` (precios de Gemini y OpenRouter revisados el 2026-11-12; se pueden cambiar con `VEGA_MODEL_PRICES`). Los modelos sin precio usan un precio alto por defecto.
+
+El tope mensual por socio es el 5 % de la recarga mínima de su plan (`VEGA_COST_CAP_PCT`): Inicio $0.95, Negocio $2.45 y Pro $4.95. Los planes anteriores siguen la escalera del catálogo: FREE, VEGA y VEGA_PARTNER cuentan como Inicio; POLARIS como Negocio; LYRA_MASTER y CORPORATE como Pro. Los administradores no tienen tope. El periodo es el mes calendario de Ciudad de México y se reinicia el día 1 a las 00:00.
+
+- Desde el 80 % el medidor del chat se pone ámbar y Vega cambia a un modelo más barato (`VEGA_COST_DEGRADE*`).
+- Al 100 % no se cobra ni se llama al modelo: el socio recibe un mensaje amable, y las rutinas con tareas quedan omitidas. Los recordatorios simples, la memoria, los archivos, el historial, las rutinas y la confirmación de acciones pendientes siguen funcionando.
+- Un turno puede pasarse un poco del tope: se corta antes de la siguiente llamada al modelo.
+- `VEGA_COST_CAP=off` apaga el tope.
+
 ## WhatsApp Business
 
 La conexión usa el flujo oficial Meta Embedded Signup para WhatsApp Business Coexistence: la persona autoriza su cuenta de WhatsApp Business durante el alta y confirma desde la app móvil. No se emparejan sesiones de WhatsApp Web ni se escanea un QR de WhatsApp Web. La disponibilidad de Coexistence depende de la elegibilidad de la cuenta y de que la app de Meta tenga la configuración y permisos aprobados.

@@ -92,7 +92,7 @@ async function notifyOwner(user: RoutineUser, heading: string, text: string) {
 }
 
 async function backgroundTurn(user: RoutineUser, input: Parameters<RunnerDeps["turn"]>[1]): Promise<TurnOutcome> {
-  const prepared = await prepareVegaTurn(user as never, { ...input });
+  const prepared = await prepareVegaTurn(user as never, { ...input, source: "routine" });
   if (!prepared.ok) return { ok: false, error: prepared.error, status: prepared.status };
   // Sin mensaje del socio: un «envíalo otra vez» guardado en la rutina no reabre acciones que él canceló.
   prepared.turn.userMessage = "";
@@ -255,6 +255,11 @@ export async function executeRun(runId: string, now: Date, deps: RunnerDeps = de
     })
     .catch((error: unknown): TurnOutcome => ({ ok: false, error: error instanceof Error ? error.message : "El turno de Vega falló." }));
 
+  if (!outcome.ok && outcome.status === 429) {
+    // Tope mensual de costo de IA (Fase 7): no se ejecuta ni se cobra; queda omitida con el aviso.
+    await finish("skipped", `Omitida: ${outcome.error}`.slice(0, 500), { conversationId: chat.id });
+    return "skipped";
+  }
   if (!outcome.ok) {
     const noCredits = outcome.status === 402;
     if (noCredits) {

@@ -59,7 +59,9 @@ describe("costo estimado", () => {
     expect(total.costUsd).toBeCloseTo(0.0003 + 0.00025 + 0.001);
   });
 
-  it("deja el costo en null si un modelo no tiene precio", () => {
-    expect(summarizeUsage([{ provider: "openrouter", model: "x/otro", inputTokens: 1, outputTokens: 1, reportedCostUsd: null }]).costUsd).toBeNull();
+  it("usa un precio por defecto alto si un modelo no tiene precio (el tope nunca se queda sin costo)", () => {
+    const usage = summarizeUsage([{ provider: "openrouter", model: "x/otro", inputTokens: 1_000_000, outputTokens: 0, reportedCostUsd: null }]);
+    expect(usage.costUsd).toBeCloseTo(1.5);
+    expect(usage.costSource).toBe("default");
   });
 });
