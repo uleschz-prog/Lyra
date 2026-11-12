@@ -8,9 +8,9 @@ export const dynamic = "force-dynamic";
 
 // Vercel Hobby dispara este cron con ±59 min de holgura: adelanta lo que vence en los
 // próximos 90 min para que las rutinas de las 7:00 (las de antes de la Fase 6) no se
-// pasen al día siguiente.
+// pasen al día siguiente. PR H: también libera las ganancias retenidas del Marketplace.
 const DAILY_HORIZON_MS = 90 * 60_000;
 
 export function GET(request: Request) {
-  return handleDispatch(request, { horizonMs: DAILY_HORIZON_MS });
+  return handleDispatch(request, { horizonMs: DAILY_HORIZON_MS, releaseEarnings: true });
 }

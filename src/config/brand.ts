@@ -5,6 +5,7 @@ import {
   Home,
   Library,
   Network,
+  Store,
   Wallet,
 } from "lucide-react";
 
@@ -58,6 +59,12 @@ export const officeModes = [
         label: "Proyectos",
         description: "Sitios, apps y agentes que creas",
         icon: FolderKanban,
+      },
+      {
+        href: "/dashboard/marketplace",
+        label: "Marketplace",
+        description: "Plantillas de sitios, apps y agentes",
+        icon: Store,
       },
       {
         href: "/dashboard/biblioteca",

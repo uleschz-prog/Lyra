@@ -17,6 +17,7 @@ function reasonFor(key: string | undefined) {
   if (key.endsWith(":tool") || key.startsWith("task:")) return "vega.tool";
   if (key.startsWith("vega:")) return "vega.message";
   if (key.startsWith("wa:")) return "whatsapp.reply";
+  if (key.startsWith("market:")) return "marketplace.purchase";
   return "credits.charge";
 }
 

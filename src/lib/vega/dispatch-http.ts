@@ -12,6 +12,12 @@ async function resumeIdleBuilds(budgetMs: number) {
   return resumeBuilds({ db: getPrisma() }, { budgetMs });
 }
 
+/** PR H: libera ganancias del Marketplace que ya cumplieron los 7 días (solo en el cron diario). */
+async function releaseMarketplaceEarnings() {
+  const [{ releaseDueEarnings }, { ledgerCredits, marketDb }] = await Promise.all([import("@/lib/marketplace/core"), import("@/lib/marketplace/server")]);
+  return releaseDueEarnings(marketDb(), ledgerCredits, { take: 200 });
+}
+
 export function authorizedCron(request: Request, secret = process.env.CRON_SECRET) {
   if (!secret) return false;
   const given = Buffer.from(request.headers.get("authorization") ?? "");
@@ -25,11 +31,14 @@ export function authorizedCron(request: Request, secret = process.env.CRON_SECRE
  * Por defecto responde 202 de inmediato y trabaja en segundo plano con `after()`;
  * con `?wait=1` espera y devuelve el resumen.
  */
-export async function handleDispatch(request: Request, options: { horizonMs?: number } = {}) {
+export async function handleDispatch(request: Request, options: { horizonMs?: number; releaseEarnings?: boolean } = {}) {
   const started = Date.now();
   if (!authorizedCron(request)) return NextResponse.json({ error: "No autorizado." }, { status: 401 });
   const run = async () => {
-    const routines = await dispatchRoutines({ budgetMs: DISPATCH_BUDGET_MS - (Date.now() - started), horizonMs: options.horizonMs });
+    const dispatched = await dispatchRoutines({ budgetMs: DISPATCH_BUDGET_MS - (Date.now() - started), horizonMs: options.horizonMs });
+    const routines = options.releaseEarnings
+      ? { ...dispatched, marketplace: await releaseMarketplaceEarnings().catch((error: unknown) => ({ error: error instanceof Error ? error.message : "earnings failed" })) }
+      : dispatched;
     // PR C: con el tiempo que sobre, retoma construcciones del generador v2 que nadie está sondeando.
     const left = DISPATCH_BUDGET_MS - (Date.now() - started);
     if (left < 20_000) return routines;

@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
-import { ArrowLeft, Download, ExternalLink } from "lucide-react";
+import { ArrowLeft, Download, ExternalLink, Store } from "lucide-react";
 
 import { ProjectActions } from "@/components/projects/project-actions";
 import { brand } from "@/config/brand";
@@ -56,6 +56,10 @@ export default async function ProjectPage({
             <Download className="size-3.5" />
             Descargar ZIP
           </a>
+          <Link href={`/dashboard/marketplace/publicar?proyecto=${project.id}`} className={button}>
+            <Store className="size-3.5" />
+            Publicar en Marketplace
+          </Link>
           <ProjectActions id={project.id} title={project.title} afterDelete="/dashboard/proyectos" />
         </div>
       </header>
