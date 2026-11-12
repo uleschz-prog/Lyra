@@ -52,6 +52,8 @@ import {
 } from "@/app/dashboard/super-agent/actions";
 import { useCredits } from "@/components/dashboard/credit-provider";
 import { ActionCard } from "@/components/vega/action-card";
+import { BriefingCard } from "@/components/vega/briefing-card";
+import type { BriefKind, BriefRequest } from "@/lib/vega/briefing";
 import { CreditRing } from "@/components/vega/credit-ring";
 import { ConnectionsPanel } from "@/components/vega/connections-panel";
 import { AutonomyPanel } from "@/components/vega/autonomy-panel";
@@ -69,7 +71,7 @@ import { isUserToolkit, toolkitLabels } from "@/lib/vega/apps";
 import type { VegaActionView, VegaEvent, VegaMood } from "@/lib/vega/events";
 import { cn } from "@/lib/utils";
 
-type ChatItem = VegaChatMessage & { status?: string };
+type ChatItem = VegaChatMessage & { status?: string; brief?: BriefRequest };
 type DraftFile = { id: string; name: string; mime: string; text?: string; data?: string };
 type DraftLink = { id: string; url: string };
 
@@ -117,14 +119,23 @@ async function shrinkImage(file: File) {
   }
 }
 
-const launches: { icon: LucideIcon; label: string; prompt: string }[] = [
-  { icon: Smartphone, label: "App", prompt: "Diseña un prototipo premium para agendar citas de mi clínica. Atiendo medicina general y pediatría. Quiero que el paciente elija servicio, fecha y hora; el personal pueda revisar y cancelar citas. Tono cálido y profesional. Usa precios editables, no inventes datos clínicos." },
-  { icon: Globe, label: "Sitio", prompt: "Crea una landing premium, mobile-first y enfocada en convertir para mi estudio de diseño. Ofrezco branding, sitios web y contenido para redes. Quiero propuesta de valor clara, proceso, paquetes sin precios inventados, preguntas frecuentes y contacto por WhatsApp. Estilo editorial moderno, elegante y sobrio." },
-  { icon: Bot, label: "Agente", prompt: "Diseña un agente de atención para mi clínica que responda dudas frecuentes y ayude a solicitar citas. Debe hablar con calidez sin dar diagnósticos, recopilar nombre, servicio y horario preferido, confirmar qué queda pendiente y escalar urgencias a una persona. Incluye reglas, flujo y ejemplos; marca claramente qué requiere conexión real." },
-  { icon: Clapperboard, label: "Video", prompt: "Hazme un video corto para anunciar mi negocio" },
-  { icon: Sparkles, label: "Imagen", prompt: "Hazme el logo de mi clínica" },
+// Los botones de crear abren primero el briefing (preguntas clave); nada se crea con datos por defecto.
+const launches: { icon: LucideIcon; label: string; brief?: BriefKind; prompt?: string }[] = [
+  { icon: Smartphone, label: "App", brief: "app" },
+  { icon: Globe, label: "Sitio", brief: "sitio" },
+  { icon: Bot, label: "Agente", brief: "agente" },
+  { icon: Clapperboard, label: "Video", brief: "video" },
+  { icon: Sparkles, label: "Imagen", brief: "imagen" },
   { icon: Search, label: "Buscar", prompt: "Búscame ideas para crecer mi negocio esta semana" },
 ];
+
+const briefIntro: Record<BriefKind, string> = {
+  sitio: "¡Va! Para que tu sitio sea tuyo y no una plantilla, cuéntame lo esencial:",
+  app: "¡Va! Antes de armar tu app, dime para qué es y qué datos maneja:",
+  agente: "¡Va! Para que tu agente hable como tu negocio, necesito esto:",
+  video: "¡Va! Antes de producir tu video, define lo básico:",
+  imagen: "¡Va! Antes de crear tu imagen, dime qué buscas:",
+};
 
 export function VegaChat({
   firstName,
@@ -392,6 +403,11 @@ export function VegaChat({
     setLinkOpen(false);
   }
 
+  function openBrief(kind: BriefKind) {
+    if (streaming) return;
+    setMessages((current) => [...current, { id: crypto.randomUUID(), role: "assistant", content: briefIntro[kind], brief: { kind, missing: [] } }]);
+  }
+
   async function send(text = draft, extras?: { files: DraftFile[]; links: DraftLink[] }) {
     const message = text.trim();
     const pendingFiles = extras?.files ?? files;
@@ -501,6 +517,8 @@ export function VegaChat({
         else if (event.t === "action") {
           actions.push(event.v);
           update({ actions: [...actions] });
+        } else if (event.t === "brief") {
+          update({ brief: event.v });
         } else if (event.t === "credits") {
           syncBalance(event.v, charged ? undefined : "Vega · mensaje");
           charged = true;
@@ -900,7 +918,7 @@ export function VegaChat({
                     <button
                       key={launch.label}
                       type="button"
-                      onClick={() => void send(launch.prompt, { files: [], links: [] })}
+                      onClick={() => (launch.brief ? openBrief(launch.brief) : void send(launch.prompt, { files: [], links: [] }))}
                       className="group flex flex-col items-center gap-2.5 rounded-3xl border border-white/10 bg-white/6 px-2 py-4 transition hover:-translate-y-1 hover:border-white/25 hover:bg-white/10 active:scale-[0.98]"
                     >
                       <span className="grid size-12 place-items-center rounded-2xl bg-gradient-to-br from-[#C4B5FD] via-[#7C3AED] to-[#4C1D95] text-white shadow-[0_14px_30px_-14px_rgba(124,58,237,0.95)] transition group-hover:shadow-[0_18px_36px_-12px_rgba(167,139,250,0.9)]">
@@ -961,6 +979,13 @@ export function VegaChat({
                         <span className="size-1.5 animate-bounce rounded-full bg-[#7C3AED] [animation-delay:-0.15s]" />
                         <span className="size-1.5 animate-bounce rounded-full bg-[#7C3AED]" />
                       </span>
+                    ) : null}
+                    {message.brief ? (
+                      <BriefingCard
+                        request={message.brief}
+                        disabled={streaming || index !== messages.length - 1}
+                        onSubmit={(text) => void send(text, { files: [], links: [] })}
+                      />
                     ) : null}
                     {message.actions?.map((action) => (
                       <ActionCard
