@@ -25,6 +25,7 @@ import { getVegaProfile } from "@/lib/vega/profile";
 import { conversationTitle, vegaSystemPrompt } from "@/lib/vega/prompt";
 import { connectDraft, freeTools, runVegaTool, vegaTools } from "@/lib/vega/tools";
 import { xStatusLabels } from "@/lib/vega/x/tools";
+import { saveDeliveredProject } from "@/lib/projects/store";
 import { isUserToolkit, type UserToolkit } from "@/lib/vega/apps";
 import { HISTORY, SUMMARY_SLACK, scheduleSummary, summaryContext } from "@/lib/vega/summary";
 import { summarizeUsage, type ModelUsage } from "@/lib/vega/usage";
@@ -406,6 +407,12 @@ export async function runVegaTurn(turn: VegaTurn, emit: (event: VegaEvent) => vo
             select: { id: true, kind: true, payload: true, status: true, result: true },
           });
           actionIds.push(action.id);
+          if (outcome.action === "deliver_project") {
+            // Cada sitio, app o agente entregado queda en Proyectos (nueva versión si ya existía).
+            await saveDeliveredProject(prisma, { userId, conversationId: chatId, actionId: action.id, payload: outcome.payload }).catch(
+              (error: unknown) => console.error("[Proyectos] no se pudo guardar la entrega", { errorType: error instanceof Error ? error.name : typeof error }),
+            );
+          }
           emit({ t: "action", v: actionView(action) });
           statuses.push(outcome.summary);
           emit({ t: "status", v: outcome.summary });

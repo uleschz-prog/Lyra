@@ -179,6 +179,7 @@ model User {
   vegaUsageLogs                VegaUsageLog[]
   vegaXMonitors                VegaXMonitor[]
   vegaXCalls                   VegaXCall[]
+  projects                     Project[]
   vegaWhatsappBlocks           VegaWhatsappBlock[]
   vegaWhatsapp                 String?
   usdtTrc20                    String?
@@ -1110,4 +1111,65 @@ model VegaXCall {
 
   @@index([userId, day])
   @@index([day])
+}
+
+// PR B: proyectos (sitios, apps y agentes) que Vega entrega. Cada entrega es una versión.
+// Borrar es suave (deletedAt): la versión sigue en la base por si el socio la necesita de vuelta.
+model Project {
+  id             String    @id @default(cuid())
+  userId         String
+  /// sitio | app | agente
+  kind           String
+  title          String
+  summary        String    @db.Text
+  /// Llave para agrupar nuevas entregas como versiones: conversación + tipo + título normalizado.
+  groupKey       String
+  conversationId String?
+  versionCount   Int       @default(0)
+  deletedAt      DateTime?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  user     User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  versions ProjectVersion[]
+  publish  ProjectPublish?
+
+  @@index([userId, deletedAt, updatedAt])
+  @@index([userId, groupKey])
+}
+
+model ProjectVersion {
+  id             String   @id @default(cuid())
+  projectId      String
+  number         Int
+  title          String
+  summary        String   @db.Text
+  /// [{ path, content }]
+  files          Json
+  suggestions    Json?
+  sizeBytes      Int      @default(0)
+  /// Quién la generó: vega-v1 (plantilla actual), más adelante el generador v2.
+  generator      String   @default("vega-v1")
+  /// Entrega de Vega que la originó; única para no guardar dos veces la misma.
+  sourceActionId String?  @unique
+  createdAt      DateTime @default(now())
+
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@unique([projectId, number])
+}
+
+// Publicación (stub para el PR E): slug público y versión publicada.
+model ProjectPublish {
+  id          String    @id @default(cuid())
+  projectId   String    @unique
+  slug        String    @unique
+  versionId   String?
+  /// draft | published | unpublished
+  status      String    @default("draft")
+  publishedAt DateTime?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
 }
