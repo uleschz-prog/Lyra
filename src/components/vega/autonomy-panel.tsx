@@ -8,11 +8,10 @@ import { updateVegaAutonomy, vegaAutonomy } from "@/app/dashboard/super-agent/ac
 import type { AutonomySettings } from "@/lib/vega/autonomy";
 import { sheetClass } from "@/components/vega/sheet";
 
-const toggles: { key: "sendEmail" | "whatsapp" | "events" | "appActions"; label: string; hint: string }[] = [
-  { key: "sendEmail", label: "Enviar correos", hint: "Vega envía por tu Gmail sin confirmar" },
-  { key: "whatsapp", label: "Enviar WhatsApp Business", hint: "Vega envía desde tu número de Meta" },
-  { key: "events", label: "Agendar eventos", hint: "Vega crea eventos en tu Google Calendar" },
-  { key: "appActions", label: "Acciones en tus apps", hint: "Publicar, cobrar o escribir en tus apps conectadas" },
+// Correos, WhatsApp, publicaciones, cobros e invitaciones son envíos: siempre se confirman (no hay interruptor).
+const toggles: { key: "events" | "appActions"; label: string; hint: string }[] = [
+  { key: "events", label: "Agendar eventos", hint: "Eventos sin invitados en tu Google Calendar (con invitados siempre te pregunta)" },
+  { key: "appActions", label: "Acciones en tus apps", hint: "Agregar filas a tus hojas, crear documentos y reuniones de Zoom" },
 ];
 
 export function AutonomyPanel({ onClose }: { onClose: () => void }) {
@@ -90,6 +89,10 @@ export function AutonomyPanel({ onClose }: { onClose: () => void }) {
                 />
               </label>
             ))}
+            <p className="flex items-start gap-2 rounded-lg bg-[#F5F3FF] px-3 py-2 text-xs leading-5 text-[#5B21B6]">
+              <ShieldCheck className="mt-0.5 size-3.5 shrink-0" />
+              Correos, mensajes de WhatsApp, publicaciones, enlaces de pago e invitaciones siempre te piden confirmar, aunque actives la autonomía.
+            </p>
             <label className="flex items-center justify-between gap-3 rounded-lg border border-[#E7E2DA] px-3 py-2.5">
               <span className="text-sm font-medium text-[#1E1E24]">Tope diario de acciones</span>
               <input

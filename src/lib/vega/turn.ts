@@ -2,7 +2,11 @@ import type { Prisma } from "@/generated/prisma/client";
 
 import { composioConfigured } from "@/lib/ai/composio";
 import { userConnections } from "@/lib/ai/composio-user";
-import { evaluateAutonomy, autonomyPrompt } from "@/lib/vega/autonomy";
+import { autonomyPrompt } from "@/lib/vega/autonomy";
+import { expireStaleActions, recentlyDeclined } from "@/lib/vega/action-store";
+import { proposeAction } from "@/lib/vega/action-flow";
+import { wrapExternal } from "@/lib/vega/guard";
+import { externalContentTools } from "@/lib/vega/policy";
 import type { WebResult } from "@/lib/ai/search";
 import { chargeCredits, creditPrices, currentCredits, refundCharge } from "@/lib/credits";
 import { getPrisma } from "@/lib/prisma";
@@ -19,7 +23,8 @@ import { asItems, listMemories } from "@/lib/vega/memory";
 import { selectMemoriesForPrompt } from "@/lib/vega/memory-logic";
 import { getVegaProfile } from "@/lib/vega/profile";
 import { conversationTitle, vegaSystemPrompt } from "@/lib/vega/prompt";
-import { freeTools, runVegaTool, vegaTools, executeVegaAction, type ActionPayload } from "@/lib/vega/tools";
+import { connectDraft, freeTools, runVegaTool, vegaTools } from "@/lib/vega/tools";
+import { isUserToolkit, type UserToolkit } from "@/lib/vega/apps";
 import { HISTORY, SUMMARY_SLACK, scheduleSummary, summaryContext } from "@/lib/vega/summary";
 import { summarizeUsage, type ModelUsage } from "@/lib/vega/usage";
 
@@ -77,6 +82,7 @@ export function statusLabel(name: string) {
   if (name === "crear_imagen") return "Creando la imagen…";
   if (name === "crear_video") return "Creando el video…";
   if (name === "entregar_proyecto") return "Armando la vista previa…";
+  if (name === "pedir_conexion") return "Preparando el botón para conectar…";
   return "Trabajando…";
 }
 
@@ -92,6 +98,8 @@ export type VegaTurn = {
   contents: GeminiContent[];
   /** Momento (ms) en que empezó el turno; de aquí se cuenta el presupuesto de tiempo. */
   startedAt: number;
+  /** Último mensaje del socio (para la regla de «no reintentar lo cancelado»). */
+  userMessage?: string;
   first: ModelStream;
 };
 
@@ -177,10 +185,15 @@ export async function prepareVegaTurn(
     team: null,
     notes: null,
   }));
+  await expireStaleActions(user.id).catch(() => 0);
+  const declined = await recentlyDeclined(user.id).catch(() => [] as string[]);
   const system = [
     vegaSystemPrompt(user, connections, webSearch, memories, profile, new Date(), agent, { memoryOmitted: slice.omitted }),
     summaryContext(conversation.summary),
     await autonomyPrompt(user.id).catch(() => ""),
+    declined.length
+      ? `Acciones que el socio canceló hace poco (no las vuelvas a proponer salvo que él lo pida de forma explícita): ${declined.join("; ")}.`
+      : "",
     input.channelNote,
   ]
     .filter(Boolean)
@@ -194,7 +207,7 @@ export async function prepareVegaTurn(
   }
   return {
     ok: true,
-    turn: { userId: user.id, chatId, chargeId: charge.chargeId, chargeKey, balance: charge.balance, model: first.model, system, tools, contents, startedAt, first },
+    turn: { userId: user.id, chatId, chargeId: charge.chargeId, chargeKey, balance: charge.balance, model: first.model, system, tools, contents, startedAt, userMessage: input.message, first },
   };
 }
 
@@ -219,6 +232,9 @@ export async function runVegaTurn(turn: VegaTurn, emit: (event: VegaEvent) => vo
   let modelCalls = 1;
   const usage: ModelUsage[] = [];
   const models = new Set<string>();
+  /** Se vuelve true en cuanto una herramienta trae contenido de terceros. */
+  let tainted = false;
+  const connectCards = new Set<string>();
 
   const say = (text: string) => {
     const clean = text.replace(moodTagAnywhere, "");
@@ -309,14 +325,20 @@ export async function runVegaTurn(turn: VegaTurn, emit: (event: VegaEvent) => vo
         if (outcome.kind === "result") {
           statuses.push(outcome.status);
           emit({ t: "status", v: outcome.status });
+          let base = outcome.response;
           if (outcome.sources?.length) {
             const offset = sources.length;
             sources.push(...outcome.sources);
             emit({ t: "sources", v: sources });
-            response = offset
-              ? { ...outcome.response, instruccion: `Estas fuentes continúan la numeración: la primera es [${offset + 1}].` }
-              : outcome.response;
-          } else response = outcome.response;
+            if (offset) base = { ...base, instruccion: `Estas fuentes continúan la numeración: la primera es [${offset + 1}].` };
+          }
+          if (externalContentTools.has(call.name)) {
+            // Lo que escriben terceros es dato: nunca una orden para Vega.
+            tainted = true;
+            const guarded = wrapExternal(base);
+            if (guarded.suspicious) console.warn("[Vega guard] posible inyección", { tool: call.name, chatId });
+            response = guarded.wrapped;
+          } else response = base;
         } else if (outcome.kind === "delivery") {
           const action = await prisma.vegaAction.create({
             data: {
@@ -326,6 +348,9 @@ export async function runVegaTurn(turn: VegaTurn, emit: (event: VegaEvent) => vo
               payload: outcome.payload as unknown as Prisma.InputJsonValue,
               status: outcome.status ?? "done",
               result: outcome.summary,
+              riskClass: "internal",
+              decidedAt: new Date(),
+              executedBy: "system",
             },
             select: { id: true, kind: true, payload: true, status: true, result: true },
           });
@@ -335,52 +360,52 @@ export async function runVegaTurn(turn: VegaTurn, emit: (event: VegaEvent) => vo
           emit({ t: "status", v: outcome.summary });
           response = { estado: "listo", nota: outcome.modelNote };
         } else if (outcome.kind === "action") {
-          const action = await prisma.vegaAction.create({
-            data: {
-              userId,
-              conversationId: chatId,
-              kind: outcome.action,
-              payload: outcome.payload as unknown as Prisma.InputJsonValue,
-            },
-            select: { id: true },
+          const proposed = await proposeAction({
+            userId,
+            chatId,
+            kind: outcome.action,
+            payload: outcome.payload,
+            tainted,
+            userMessage: turn.userMessage ?? "",
           });
-          actionIds.push(action.id);
-
-          const verdict = await evaluateAutonomy(userId, outcome.action).catch(() => ({ ok: false, reason: "fallo la revisión" }) as const);
-          if (verdict.ok) {
-            const result = await executeVegaAction(userId, outcome.action, outcome.payload as unknown as ActionPayload).catch(() => ({
-              ok: false as const,
-              message: "El servicio no respondió. No se completó la acción.",
-            }));
-            const updated = await prisma.vegaAction
-              .update({
-                where: { id: action.id },
-                data: { status: result.ok ? "done" : "failed", result: result.message },
-                select: { id: true, kind: true, payload: true, status: true, result: true },
-              })
-              .catch(() => null);
-            if (updated) {
-              emit({ t: "action", v: actionView(updated) });
-              statuses.push(result.message);
-              emit({ t: "status", v: result.message });
-              response = {
-                estado: result.ok ? "ejecutada" : "fallo",
-                detalle: result.message,
-                nota: result.ok
-                  ? "La acción ya se ejecutó: puedes decírselo al socio con naturalidad."
-                  : "No se completó; avisa al socio y ofrece el siguiente paso.",
-              };
-            } else response = { estado: "pendiente_de_confirmacion", nota: "El socio ve una tarjeta con Confirmar o Cancelar. No digas que ya se hizo." };
-          } else {
-            emit({ t: "action", v: { id: action.id, kind: outcome.action, payload: outcome.payload, status: "pending" } });
-            response =
-              outcome.action === "whatsapp_message"
-                ? {
-                    estado: "listo_para_enviar",
-                    nota: "El socio ve el mensaje con un botón «Abrir en WhatsApp» y lo envía desde su propio número. No repitas el mensaje completo en tu respuesta.",
-                  }
-                : { estado: "pendiente_de_confirmacion", nota: "El socio ve una tarjeta con Confirmar o Cancelar. No digas que ya se hizo." };
+          if (!proposed.blocked) {
+            actionIds.push(proposed.action.id);
+            emit({ t: "action", v: proposed.action });
+            if (proposed.status) {
+              statuses.push(proposed.status);
+              emit({ t: "status", v: proposed.status });
+            }
           }
+          response = proposed.response;
+        } else if (typeof (outcome.response as Record<string, unknown>).reconectar === "string" && isUserToolkit(String((outcome.response as Record<string, unknown>).reconectar))) {
+          // La app no está conectada o su conexión venció: tarjeta para (re)conectar, sin tumbar el turno.
+          const failure = outcome.response as Record<string, unknown>;
+          const toolkit = String(failure.reconectar) as UserToolkit;
+          const expired = failure.vencida === true;
+          if (!connectCards.has(toolkit)) {
+            connectCards.add(toolkit);
+            const draft = connectDraft(toolkit, expired ? "La conexión venció; vuelve a conectarla para seguir." : "", expired);
+            const action = await prisma.vegaAction.create({
+              data: {
+                userId,
+                conversationId: chatId,
+                kind: "connect_app",
+                payload: draft as unknown as Prisma.InputJsonValue,
+                status: "done",
+                result: `Conectar ${draft.label}`,
+                riskClass: "internal",
+                decidedAt: new Date(),
+                executedBy: "system",
+              },
+              select: { id: true, kind: true, payload: true, status: true, result: true },
+            });
+            actionIds.push(action.id);
+            emit({ t: "action", v: actionView(action) });
+          }
+          response = {
+            ...outcome.response,
+            nota: `El socio ya ve un botón para ${expired ? "volver a conectar" : "conectar"} ${connectDraft(toolkit, "").label}. Explícale en una frase y pídele que te escriba «listo» cuando termine.`,
+          };
         } else response = outcome.response;
 
         responses.push({ functionResponse: { name: call.name, response } });

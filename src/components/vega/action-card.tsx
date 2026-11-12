@@ -6,10 +6,12 @@ import {
   CreditCard,
   FileText,
   Image as ImageIcon,
+  Link2,
   LoaderCircle,
   Mail,
   Megaphone,
   MessageCircle,
+  ShieldAlert,
   Sheet,
   Terminal,
   Video,
@@ -19,13 +21,13 @@ import {
 import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 
-import { decideVegaAction } from "@/app/dashboard/super-agent/actions";
+import { connectVegaApp, decideVegaAction } from "@/app/dashboard/super-agent/actions";
 import { MediaCard } from "@/components/vega/media-card";
 import { ProjectCard } from "@/components/vega/project-card";
 import type { AppOp } from "@/lib/vega/app-tools";
 import type { ProjectDraft } from "@/lib/vega/build-project";
 import type { VegaActionView } from "@/lib/vega/events";
-import type { AppDraft, CommandDraft, EmailDraft, EventDraft, ImageDraft, VideoDraft, WhatsappDraft } from "@/lib/vega/tools";
+import type { AppDraft, CommandDraft, ConnectDraft, EmailDraft, EventDraft, ImageDraft, VideoDraft, WhatsappDraft } from "@/lib/vega/tools";
 
 const appIcons: Record<AppOp, LucideIcon> = {
   sheet_append: Sheet,
@@ -127,6 +129,7 @@ export function ActionCard({
   onChange: (action: VegaActionView, message: string) => void;
   onSuggest?: (text: string) => void;
 }) {
+  if (action.kind === "connect_app") return <ConnectCard draft={action.payload as ConnectDraft} />;
   if (action.kind === "whatsapp_message") return <WhatsappCard action={action} onChange={onChange} />;
   if (action.kind === "deliver_project") {
     return <ProjectCard project={action.payload as ProjectDraft} onSuggest={onSuggest} />;
@@ -265,6 +268,7 @@ function ConfirmCard({
     done: action.result?.replace(/\[([^\]]+)\]\([^)]+\)/g, "$1") ?? "Hecho",
     failed: action.result ?? "No se completó",
     cancelled: "Cancelado",
+    expired: "Venció sin confirmación. No se envió nada.",
   };
 
   return (
@@ -279,6 +283,16 @@ function ConfirmCard({
         )}
         {headerLabel}
       </div>
+      {action.status === "pending" && (action.risk === "send" || action.tainted) ? (
+        <div className="flex items-start gap-2 border-b border-[#F0ECE6] bg-[#FFFAEB] px-4 py-2 text-xs text-[#93370D]">
+          <ShieldAlert className="mt-0.5 size-3.5 shrink-0" />
+          <span>
+            {action.risk === "send" ? "Esto sale a otras personas o no se puede deshacer. Revisa destinatario y contenido antes de confirmar." : ""}
+            {action.risk === "send" && action.tainted ? " " : ""}
+            {action.tainted ? "Vega leyó correos, páginas u hojas de terceros en este turno: confirma solo si tú lo pediste." : ""}
+          </span>
+        </div>
+      ) : null}
       <div className="space-y-1.5 px-4 py-3 text-sm text-[#1E1E24]">
         {app ? (
           <>
@@ -359,6 +373,40 @@ function ConfirmCard({
             </button>
           </div>
         ) : null}
+      </div>
+    </div>
+  );
+}
+
+function ConnectCard({ draft }: { draft: ConnectDraft }) {
+  const [busy, setBusy] = useState(false);
+
+  async function connect() {
+    setBusy(true);
+    const result = await connectVegaApp(draft.toolkit).catch(() => ({ ok: false as const, error: "No se pudo preparar la conexión." }));
+    setBusy(false);
+    if (result.ok) window.location.href = result.url;
+    else toast.error(result.error);
+  }
+
+  return (
+    <div className="mt-3 overflow-hidden rounded-2xl border border-[#E7E2DA] bg-[#FCFBF9]">
+      <div className="flex items-center gap-2 border-b border-[#F0ECE6] px-4 py-2.5 text-xs font-medium text-[#5C5854]">
+        <Link2 className="size-4 text-[#7C3AED]" />
+        {draft.reconnect ? `Vuelve a conectar ${draft.label}` : `Conecta ${draft.label}`}
+      </div>
+      <p className="px-4 py-3 text-sm text-[#1E1E24]">{draft.reason}</p>
+      <div className="flex items-center justify-between gap-2 border-t border-[#F0ECE6] px-4 py-2.5">
+        <p className="text-xs text-[#8A8680]">Lo que Vega envíe o publique por ti siempre te lo pregunta antes.</p>
+        <button
+          type="button"
+          disabled={busy}
+          onClick={() => void connect()}
+          className="inline-flex shrink-0 items-center gap-1 rounded-lg bg-[#7C3AED] px-3 py-1.5 text-xs font-medium text-white disabled:opacity-50"
+        >
+          <Link2 className="size-3.5" />
+          {busy ? "Abriendo…" : draft.reconnect ? "Reconectar" : "Conectar"}
+        </button>
       </div>
     </div>
   );

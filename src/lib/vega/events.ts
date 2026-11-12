@@ -5,8 +5,12 @@ export type VegaActionView = {
   id: string;
   kind: ActionKind;
   payload: ActionPayload;
-  status: "pending" | "running" | "done" | "failed" | "cancelled";
+  status: "pending" | "running" | "done" | "failed" | "cancelled" | "expired";
   result?: string | null;
+  /** Clase de riesgo según la política de confirmación. */
+  risk?: "read" | "internal" | "write" | "send";
+  /** Se preparó después de leer contenido externo: revisar con cuidado. */
+  tainted?: boolean;
 };
 
 export type VegaSource = Pick<WebResult, "title" | "url">;

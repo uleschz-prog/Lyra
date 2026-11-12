@@ -22,7 +22,7 @@ import { sheetClass } from "@/components/vega/sheet";
 import { connectVegaApp, disconnectVegaApp, vegaConnections } from "@/app/dashboard/super-agent/actions";
 import { toolkitHints, toolkitLabels, type UserToolkit, type VegaConnections } from "@/lib/vega/apps";
 
-type Status = { available: boolean; connections: VegaConnections };
+type Status = { available: boolean; connections: VegaConnections; expired?: UserToolkit[] };
 
 const groups: { title: string; apps: { id: UserToolkit; icon: LucideIcon }[] }[] = [
   {
@@ -109,6 +109,7 @@ export function ConnectionsPanel({ onClose }: { onClose: () => void }) {
               <ul className="space-y-1.5">
                 {group.apps.map((app) => {
                   const connected = status.connections[app.id];
+                  const expired = !connected && Boolean(status.expired?.includes(app.id));
                   const Icon = app.icon;
                   return (
                     <li key={app.id} className="rounded-xl border border-[#F0ECE6] px-3 py-2.5">
@@ -118,6 +119,7 @@ export function ConnectionsPanel({ onClose }: { onClose: () => void }) {
                           <p className="text-sm font-medium text-[#1E1E24]">
                             {toolkitLabels[app.id]}
                             {connected ? <span className="ml-1.5 text-xs font-normal text-[#067647]">· Conectado</span> : null}
+                            {expired ? <span className="ml-1.5 text-xs font-normal text-[#B54708]">· La conexión venció</span> : null}
                           </p>
                           <p className="text-xs leading-4 text-[#8A8680]">{toolkitHints[app.id]}</p>
                         </div>
@@ -137,7 +139,7 @@ export function ConnectionsPanel({ onClose }: { onClose: () => void }) {
                             onClick={() => void connect(app.id)}
                             className="shrink-0 rounded-lg bg-[#1E1E24] px-2.5 py-1.5 text-xs font-medium text-white disabled:opacity-50"
                           >
-                            {busy === app.id ? "Abriendo…" : "Conectar"}
+                            {busy === app.id ? "Abriendo…" : expired ? "Reconectar" : "Conectar"}
                           </button>
                         )}
                       </div>

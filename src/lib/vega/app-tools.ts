@@ -1,4 +1,4 @@
-import { runUserTool } from "@/lib/ai/composio-user";
+import { runUserTool, toolFailure } from "@/lib/ai/composio-user";
 import type { VegaConnections } from "@/lib/vega/apps";
 import type { FunctionDeclaration } from "@/lib/vega/gemini-stream";
 import { approvedTemplates, blockPhone, isBlocked, normalizePhone, sendBusinessWhatsapp, unblockPhone } from "@/lib/vega/whatsapp-business";
@@ -70,7 +70,7 @@ export function appTools(connections: VegaConnections): FunctionDeclaration[] {
   if (connections.googledrive) {
     tools.push(
       {
-        name: "buscar_archivos",
+        name: "buscar_en_drive",
         description: "Busca archivos del Google Drive del socio por nombre (documentos, hojas, presentaciones, PDFs). Devuelve id y enlace.",
         parameters: {
           type: "object",
@@ -80,7 +80,7 @@ export function appTools(connections: VegaConnections): FunctionDeclaration[] {
       },
       {
         name: "leer_hoja",
-        description: "Lee una hoja de Google Sheets del socio, por ejemplo su lista de prospectos. Usa el id que devuelve buscar_archivos.",
+        description: "Lee una hoja de Google Sheets del socio, por ejemplo su lista de prospectos. Usa el id que devuelve buscar_en_drive.",
         parameters: {
           type: "object",
           properties: {
@@ -235,7 +235,7 @@ export const appToolNames = new Set([
   "ver_plantillas_whatsapp",
   "preparar_whatsapp_negocio",
   "no_molestar_whatsapp",
-  "buscar_archivos",
+  "buscar_en_drive",
   "leer_hoja",
   "preparar_fila",
   "preparar_documento",
@@ -248,7 +248,7 @@ export const appToolNames = new Set([
 
 export function appStatusLabel(name: string) {
   const labels: Record<string, string> = {
-    buscar_archivos: "Buscando en tu Drive…",
+    buscar_en_drive: "Buscando en tu Drive…",
     leer_hoja: "Leyendo tu hoja…",
     preparar_fila: "Preparando la fila…",
     preparar_documento: "Preparando el documento…",
@@ -265,7 +265,7 @@ export function appStatusLabel(name: string) {
 }
 
 export async function runAppTool(userId: string, name: string, args: Record<string, unknown>): Promise<AppToolOutcome> {
-  if (name === "buscar_archivos") {
+  if (name === "buscar_en_drive") {
     const query = text(args.busqueda, 120).replace(/\\/g, "").replace(/'/g, "\\'");
     if (!query) return { kind: "invalid", response: { error: "Falta qué buscar." } };
     const result = await runUserTool(userId, "googledrive", "GOOGLEDRIVE_FIND_FILE", {
@@ -273,19 +273,19 @@ export async function runAppTool(userId: string, name: string, args: Record<stri
       pageSize: 10,
       fields: "files(id,name,mimeType,webViewLink,modifiedTime)",
     });
-    if (!result.ok) return { kind: "invalid", response: { error: result.error } };
+    if (!result.ok) return { kind: "invalid", response: toolFailure(result) };
     const files = findList(result.data, "files").slice(0, 10);
     return { kind: "result", status: `Encontré ${files.length} archivo${files.length === 1 ? "" : "s"} en tu Drive`, response: { archivos: files } };
   }
 
   if (name === "leer_hoja") {
     const id = text(args.hoja_id, 120);
-    if (!id) return { kind: "invalid", response: { error: "Falta el id de la hoja. Búscala primero con buscar_archivos." } };
+    if (!id) return { kind: "invalid", response: { error: "Falta el id de la hoja. Búscala primero con buscar_en_drive." } };
     const result = await runUserTool(userId, "googledrive", "GOOGLEDRIVE_GET_SPREADSHEET_VALUES", {
       spreadsheet_id: id,
       range: text(args.rango, 80) || "A1:Z200",
     });
-    if (!result.ok) return { kind: "invalid", response: { error: result.error } };
+    if (!result.ok) return { kind: "invalid", response: toolFailure(result) };
     return { kind: "result", status: "Leí tu hoja", response: { filas: brief(findList(result.data, "values")) } };
   }
 
@@ -347,7 +347,7 @@ export async function runAppTool(userId: string, name: string, args: Record<stri
 
   if (name === "ver_calendly") {
     const me = await runUserTool(userId, "calendly", "CALENDLY_GET_USER", { uuid: "me" });
-    if (!me.ok) return { kind: "invalid", response: { error: me.error } };
+    if (!me.ok) return { kind: "invalid", response: toolFailure(me) };
     const uri = findString(me.data, "uri", (value) => value.includes("/users/"));
     const link = findString(me.data, "scheduling_url");
     if (!uri) return { kind: "invalid", response: { error: "Calendly no devolvió el usuario." } };
@@ -358,7 +358,7 @@ export async function runAppTool(userId: string, name: string, args: Record<stri
       status: "active",
       count: 20,
     });
-    if (!events.ok) return { kind: "invalid", response: { error: events.error } };
+    if (!events.ok) return { kind: "invalid", response: toolFailure(events) };
     const list = findList(events.data, "collection").map((event) => {
       const record = (event ?? {}) as Record<string, unknown>;
       return { nombre: record.name, inicio: record.start_time, fin: record.end_time, lugar: findString(record.location, "join_url") || undefined };
@@ -386,7 +386,7 @@ export async function runAppTool(userId: string, name: string, args: Record<stri
     let page: { id: string; name: string } | null = null;
     if (network === "facebook") {
       const pages = await runUserTool(userId, "facebook", "FACEBOOK_LIST_MANAGED_PAGES", { fields: "id,name", limit: 25 });
-      if (!pages.ok) return { kind: "invalid", response: { error: pages.error } };
+      if (!pages.ok) return { kind: "invalid", response: toolFailure(pages) };
       const list = findList(pages.data, "data")
         .map((item) => item as { id?: unknown; name?: unknown })
         .filter((item): item is { id: string; name: string } => typeof item.id === "string" && typeof item.name === "string");
@@ -425,7 +425,7 @@ export async function runAppTool(userId: string, name: string, args: Record<stri
       limit: 50,
       created: { gte: Math.floor(Date.now() / 1000) - days * 86_400 },
     });
-    if (!result.ok) return { kind: "invalid", response: { error: result.error } };
+    if (!result.ok) return { kind: "invalid", response: toolFailure(result) };
     const payments = findList(result.data, "data").map((item) => {
       const record = (item ?? {}) as Record<string, unknown>;
       return {
@@ -462,7 +462,7 @@ export async function runAppTool(userId: string, name: string, args: Record<stri
 
   if (name === "ver_plantillas_whatsapp") {
     const result = await approvedTemplates(userId);
-    if (!result.ok) return { kind: "invalid", response: { error: result.error } };
+    if (!result.ok) return { kind: "invalid", response: toolFailure(result) };
     return {
       kind: "result",
       status: `Revisé tus plantillas: ${result.templates.length} aprobada${result.templates.length === 1 ? "" : "s"}`,
