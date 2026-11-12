@@ -27,6 +27,9 @@ const readTools = new Set([
   "listar_archivos",
   "buscar_archivos",
   "leer_archivo",
+  "buscar_en_x",
+  "analizar_competidor",
+  "tendencias_x",
 ]);
 
 const internalTools = new Set([
@@ -43,6 +46,7 @@ const internalTools = new Set([
   "crear_imagen",
   "crear_video",
   "entregar_proyecto",
+  "configurar_monitor_x",
 ]);
 
 /** Herramientas que preparan algo para una app externa (su riesgo final depende del borrador). */
@@ -73,7 +77,7 @@ export function classifyTool(name: string): RiskClass {
 }
 
 /** Herramientas cuyo resultado trae texto escrito por terceros (posible inyección de instrucciones). */
-export const externalContentTools = new Set(["leer_correos", "ver_agenda", "buscar_web", "buscar_en_drive", "leer_hoja", "ver_calendly", "ver_cobros", "leer_archivo"]);
+export const externalContentTools = new Set(["leer_correos", "ver_agenda", "buscar_web", "buscar_en_drive", "leer_hoja", "ver_calendly", "ver_cobros", "leer_archivo", "buscar_en_x", "analizar_competidor", "tendencias_x"]);
 
 /** Clase de una acción concreta ya preparada (lo que se guarda en VegaAction). */
 export function classifyAction(kind: string, payload: unknown): RiskClass {

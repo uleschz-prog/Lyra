@@ -16,6 +16,7 @@ import { vegaLimits } from "@/lib/vega/budget";
 import { nextRoutineRun } from "@/lib/vega/schedule";
 import { routineConcurrency, routineRunsPerHour, taskSelect } from "@/lib/vega/tasks";
 import { prepareVegaTurn, runVegaTurn } from "@/lib/vega/turn";
+import { runXMonitor, type MonitorOutcome } from "@/lib/vega/x/monitor";
 
 export const REMINDERS_CHAT_TITLE = "Recordatorios de Vega";
 /** Una corrida «running» más vieja que esto se dio por perdida (la función murió). */
@@ -23,6 +24,8 @@ export const STALE_RUN_MS = 10 * 60_000;
 /** Margen para guardar resultados y avisar después de un turno de Vega. */
 const TURN_MARGIN_MS = 5_000;
 const REMINDER_MS = 5_000;
+/** Un sondeo de monitor de X: una consulta a X API (tope de 15 s) y guardar. */
+const MONITOR_MS = 20_000;
 
 type RoutineUser = {
   id: string;
@@ -45,6 +48,8 @@ export type RunnerDeps = {
   refund: typeof refundCharge;
   turn: (user: RoutineUser, input: { agentId: string; conversationId: string; message: string; requestId: string; channelNote: string }) => Promise<TurnOutcome>;
   notify: (user: RoutineUser, heading: string, text: string) => Promise<string[]>;
+  /** Fase 8: un sondeo de monitor de X (sin modelo). */
+  monitor: (user: RoutineUser, task: { id: string; title: string }, now: Date) => Promise<MonitorOutcome>;
 };
 
 const userSelect = { id: true, name: true, email: true, role: true, package: true, suspendedUntil: true, vegaWhatsapp: true } as const;
@@ -118,6 +123,7 @@ export const defaultRunnerDeps: RunnerDeps = {
   refund: refundCharge,
   turn: backgroundTurn,
   notify: notifyOwner,
+  monitor: (user, task, now) => runXMonitor(user, task, now),
 };
 
 function isUniqueViolation(error: unknown) {
@@ -223,6 +229,26 @@ export async function executeRun(runId: string, now: Date, deps: RunnerDeps = de
 
   const late = now.getTime() - run.scheduledFor.getTime() > 30 * 60_000 ? " (con retraso)" : "";
   const chat = await deps.chat(user.id);
+
+  if (task.kind === "x_monitor") {
+    // Sondeo sin modelo ni créditos: solo cuesta la consulta a X (tope diario y tope mensual de la Fase 7).
+    const outcome = await deps
+      .monitor(user, { id: task.id, title: task.title }, now)
+      .catch((): MonitorOutcome => ({ status: "skipped", result: "Omitida: no se pudo consultar X." }));
+    if (outcome.status !== "alert") {
+      // Los sondeos sin novedad no encienden el aviso de «nuevo» en el panel de rutinas.
+      await finish(outcome.status === "quiet" ? "done" : "skipped", outcome.result, { seenAt: new Date() });
+      return outcome.status === "quiet" ? "done" : "skipped";
+    }
+    const heading = outcome.heading;
+    await prisma.vegaMessage.create({
+      data: { conversationId: chat.id, role: "assistant", content: `**${heading}**\n\n${outcome.text}`, meta: { taskId: task.id, routineRunId: run.id } },
+    });
+    await prisma.vegaConversation.updateMany({ where: { id: chat.id }, data: { updatedAt: new Date() } });
+    const channels = await deps.notify(user, heading, outcome.text).catch(() => [] as string[]);
+    await finish("done", `${outcome.result} Avisado en ${joinChannels(["Vega", ...channels])}.`, { conversationId: chat.id });
+    return "done";
+  }
 
   if (task.kind !== "task") {
     const charge = await deps.charge(user.id, creditPrices.vegaMessage, `Vega · recordatorio: ${task.title}`, `vega:${user.id}:routine-${run.id}:aviso`);
@@ -332,11 +358,11 @@ export async function dispatchRoutines(options: DispatchOptions = {}) {
       : []
     ).map((task) => [task.id, task.kind]),
   );
-  // Recordatorios primero (son rápidos); luego tareas en lotes paralelos mientras alcance un turno completo.
+  // Recordatorios y monitores de X primero (son rápidos, sin modelo); luego tareas en lotes paralelos mientras alcance un turno completo.
   const reminders = queued.filter((run) => kinds.get(run.taskId) !== "task");
   const jobs = queued.filter((run) => kinds.get(run.taskId) === "task");
   for (const run of reminders) {
-    if (budgetMs - (clock() - started) < REMINDER_MS) {
+    if (budgetMs - (clock() - started) < (kinds.get(run.taskId) === "x_monitor" ? MONITOR_MS : REMINDER_MS)) {
       bump("deferred");
       continue;
     }

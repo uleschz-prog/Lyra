@@ -228,6 +228,28 @@ describe("despachador", () => {
     expect(tasks.rows[0].runAt).toEqual(new Date("2026-11-13T15:00:00Z"));
   });
 
+  it("monitor de X sin novedad: queda listo, sin aviso ni turno de Vega", async () => {
+    await addTask({ kind: "x_monitor", title: "Mi marca", schedule: "0 */3 * * *" });
+    const monitor = vi.fn(async () => ({ status: "quiet" as const, result: "Sin alerta. 3 posts nuevos." }));
+    await dispatchRoutines({ now, budgetMs: 60_000, deps: deps({ monitor }) });
+    expect(monitor).toHaveBeenCalledTimes(1);
+    expect(runs.rows[0]).toMatchObject({ status: "done", result: "Sin alerta. 3 posts nuevos." });
+    expect(runs.rows[0].seenAt).toBeInstanceOf(Date);
+    expect(turn).not.toHaveBeenCalled();
+    expect(notify).not.toHaveBeenCalled();
+  });
+
+  it("monitor de X con pico negativo: avisa en el chat, correo y WhatsApp", async () => {
+    await addTask({ kind: "x_monitor", title: "Mi marca", schedule: "0 */3 * * *" });
+    const monitor = vi.fn(async () => ({ status: "alert" as const, heading: "Alerta en X: Mi marca", text: "La negatividad llegó a 80 %.", result: "Alerta enviada." }));
+    await dispatchRoutines({ now, budgetMs: 60_000, deps: deps({ monitor }) });
+    expect(notify).toHaveBeenCalledWith(expect.objectContaining({ id: "u1" }), "Alerta en X: Mi marca", "La negatividad llegó a 80 %.");
+    expect(messages.rows[0].content).toMatch(/Alerta en X: Mi marca/);
+    expect(runs.rows[0]).toMatchObject({ status: "done" });
+    expect(runs.rows[0].seenAt ?? null).toBeNull();
+    expect(turn).not.toHaveBeenCalled();
+  });
+
   it("con el tope mensual de costo alcanzado, la rutina queda omitida sin contar como falla", async () => {
     await addTask({});
     turn.mockResolvedValue({ ok: false, status: 429, error: "Llegaste al límite mensual de uso de IA de Vega." });

@@ -127,6 +127,14 @@ export function table(defaults: (data: Row) => Row = () => ({}), options: { uniq
       found.forEach((row) => apply(row, args.data));
       return { count: found.length };
     },
+    async upsert(args: { where: Where; create: Row; update: Row; select?: Record<string, boolean> }) {
+      const row = rows.find((candidate) => matches(candidate, args.where));
+      if (row) {
+        apply(row, args.update);
+        return pick(row, args.select);
+      }
+      return this.create({ data: args.create, select: args.select });
+    },
     async deleteMany(args: { where?: Where } = {}) {
       const before = rows.length;
       for (let index = rows.length - 1; index >= 0; index -= 1) if (matches(rows[index], args.where)) rows.splice(index, 1);

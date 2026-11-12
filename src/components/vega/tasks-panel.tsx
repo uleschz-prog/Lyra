@@ -322,7 +322,7 @@ export function RoutinesPanel({ onClose }: { onClose: () => void }) {
                 <div className="min-w-0 flex-1">
                   <p className="truncate text-sm font-medium text-[#1E1E24]">{task.title}</p>
                   <p className="mt-0.5 text-xs text-[#8A8680]">
-                    {task.kind === "task" ? "Tarea" : "Recordatorio"} · {task.label}
+                    {task.kind === "task" ? "Tarea" : task.kind === "x_monitor" ? "Monitor de X" : "Recordatorio"} · {task.label}
                   </p>
                   <p className="mt-0.5 text-xs text-[#8A8680]">
                     {task.status === "paused" ? "En pausa" : `Próxima: ${formatWhen(task.runAt, task.timezone)}`}
