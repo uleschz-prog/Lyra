@@ -175,6 +175,7 @@ model User {
   vegaMemories                 VegaMemory[]
   vegaFiles                    VegaFile[]
   vegaTasks                    VegaTask[]
+  vegaRoutineRuns              VegaRoutineRun[]
   vegaWhatsappBlocks           VegaWhatsappBlock[]
   vegaWhatsapp                 String?
   usdtTrc20                    String?
@@ -485,11 +486,45 @@ model VegaTask {
   lastResult  String?   @db.Text
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
+  // Fase 6: hora exacta y cron (5 campos) evaluado en la zona horaria del socio.
+  // schedule = null → una sola vez (o rutina vieja que avanza por `repeat`).
+  schedule    String?
+  timezone    String    @default("America/Mexico_City")
+  runCount    Int       @default(0)
+  failCount   Int       @default(0)
 
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  runs VegaRoutineRun[]
 
   @@index([status, runAt])
   @@index([userId, status])
+}
+
+// Una ejecución de rutina. (taskId, scheduledFor) es único: dos despachos
+// simultáneos no pueden crear la misma ejecución dos veces.
+model VegaRoutineRun {
+  id             String    @id @default(cuid())
+  taskId         String
+  userId         String
+  scheduledFor   DateTime
+  status         String    @default("queued") // queued | running | done | failed | skipped
+  attempts       Int       @default(0)
+  startedAt      DateTime?
+  finishedAt     DateTime?
+  conversationId String?
+  result         String?   @db.Text
+  actionIds      Json?
+  usage          Json?
+  seenAt         DateTime?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  task VegaTask @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  user User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([taskId, scheduledFor])
+  @@index([status, scheduledFor])
+  @@index([userId, createdAt])
 }
 
 model VegaWhatsappBlock {

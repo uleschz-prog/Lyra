@@ -61,9 +61,11 @@ export function statusLabel(name: string) {
   const app = appStatusLabel(name);
   if (app) return app;
   if (name === "preparar_whatsapp") return "Preparando el mensaje de WhatsApp…";
-  if (name === "programar_tarea") return "Programando…";
-  if (name === "ver_tareas") return "Revisando tus tareas…";
-  if (name === "cancelar_tarea") return "Cancelando la tarea…";
+  if (name === "programar_rutina") return "Programando la rutina…";
+  if (name === "ver_rutinas") return "Revisando tus rutinas…";
+  if (name === "pausar_rutina") return "Pausando la rutina…";
+  if (name === "reanudar_rutina") return "Reanudando la rutina…";
+  if (name === "borrar_rutina") return "Borrando la rutina…";
   if (name === "recordar") return "Guardando en memoria…";
   if (name === "buscar_memoria") return "Buscando en tu memoria…";
   if (name === "olvidar") return "Borrando de la memoria…";

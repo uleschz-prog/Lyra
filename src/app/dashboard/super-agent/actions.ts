@@ -16,7 +16,18 @@ import { deleteWorkspaceFile, listFiles, readWorkspaceFile, type VegaFileView } 
 import { forgetAllMemories, forgetMemory, listMemories, saveMemory, type VegaMemoryView } from "@/lib/vega/memory";
 import { defaultAutonomy, type AutonomySettings } from "@/lib/vega/autonomy";
 import { getVegaProfile, saveVegaProfile, type VegaProfile } from "@/lib/vega/profile";
-import { deleteTask, listTasks, setTaskStatus, type VegaTaskView } from "@/lib/vega/tasks";
+import {
+  createTask,
+  deleteTask,
+  listRoutineRuns,
+  listTasks,
+  markRoutineRunsSeen,
+  pauseTask,
+  resumeTask,
+  unseenRoutineRuns,
+  type VegaTaskView,
+} from "@/lib/vega/tasks";
+import type { TaskKind, TaskRepeat, VegaRoutineRunView } from "@/lib/vega/tasks-shared";
 import { actionLog, type ActionLogEntry } from "@/lib/vega/action-store";
 import { actionView, decideAction } from "@/lib/vega/decide";
 import {
@@ -297,8 +308,60 @@ export async function vegaTasks(): Promise<VegaTaskView[]> {
 
 export async function toggleVegaTask(id: string, paused: boolean) {
   const user = await vegaUser();
+  if (!user) return { ok: false as const, error: "Inicia sesión de nuevo." };
+  if (paused) {
+    const result = await pauseTask(user.id, id);
+    return result.ok ? { ok: true as const, runAt: null } : { ok: false as const, error: result.error };
+  }
+  const result = await resumeTask(user.id, id);
+  return result.ok ? { ok: true as const, runAt: result.runAt.toISOString() } : { ok: false as const, error: result.error };
+}
+
+const routineRepeats = new Set<TaskRepeat>(["once", "daily", "weekdays", "weekly", "monthly", "custom"]);
+
+export async function createVegaRoutine(input: {
+  title: string;
+  instruction: string;
+  kind: TaskKind;
+  repeat: TaskRepeat;
+  date: string;
+  time: string;
+  cron?: string;
+  useWeb?: boolean;
+}) {
+  const user = await vegaUser();
+  if (!user) return { ok: false as const, error: "Inicia sesión de nuevo." };
+  const title = String(input.title ?? "").trim().slice(0, 120);
+  const instruction = String(input.instruction ?? "").trim().slice(0, 1000);
+  if (!title || !instruction) return { ok: false as const, error: "Escribe un título y qué debe hacer Vega." };
+  if (!routineRepeats.has(input.repeat)) return { ok: false as const, error: "Elige cada cuánto se repite." };
+  return createTask(user.id, {
+    title,
+    instruction,
+    kind: input.kind === "task" ? "task" : "reminder",
+    repeat: input.repeat,
+    useWeb: input.useWeb === true,
+    date: String(input.date ?? ""),
+    time: String(input.time ?? ""),
+    cron: input.repeat === "custom" ? String(input.cron ?? "").slice(0, 100) : undefined,
+  });
+}
+
+export async function vegaRoutineRuns(): Promise<VegaRoutineRunView[]> {
+  const user = await vegaUser();
+  return user ? listRoutineRuns(user.id, 20) : [];
+}
+
+export async function vegaRoutineUnseen() {
+  const user = await vegaUser();
+  return user ? unseenRoutineRuns(user.id) : 0;
+}
+
+export async function markVegaRoutineRunsSeen() {
+  const user = await vegaUser();
   if (!user) return { ok: false as const };
-  return { ok: await setTaskStatus(user.id, id, paused ? "paused" : "active") };
+  await markRoutineRunsSeen(user.id);
+  return { ok: true as const };
 }
 
 export async function deleteVegaTask(id: string) {
