@@ -1,4 +1,4 @@
-import { runUserTool } from "@/lib/ai/composio-user";
+import { runUserTool, toolFailure } from "@/lib/ai/composio-user";
 import { searchWeb, type WebResult } from "@/lib/ai/search";
 import { submitHiggsfieldImage } from "@/lib/ai/higgsfield-image";
 import { appToolNames, appTools, executeAppAction, runAppTool, type AppDraft } from "@/lib/vega/app-tools";
@@ -8,7 +8,7 @@ import { buildProject, buildStoryboard, type ProjectDraft } from "@/lib/vega/bui
 import { generateClip } from "@/lib/ai/media";
 import { saveVegaImageToLibrary, saveVegaVideoToLibrary } from "@/lib/vega/library-media";
 import { scenesFromScript } from "@/lib/studio/video-plan";
-import type { VegaConnections } from "@/lib/vega/apps";
+import { isUserToolkit, toolkitHints, toolkitLabels, userToolkits, type UserToolkit, type VegaConnections } from "@/lib/vega/apps";
 import type { FunctionDeclaration } from "@/lib/vega/gemini-stream";
 import { forgetMemory, MEMORY_MAX_LENGTH, saveMemory, searchMemories } from "@/lib/vega/memory";
 import { memoryKindLabels, parseKind } from "@/lib/vega/memory-logic";
@@ -26,8 +26,24 @@ import {
 export type { VegaConnections } from "@/lib/vega/apps";
 export type { AppDraft } from "@/lib/vega/app-tools";
 
-export type ActionKind = "send_email" | "create_event" | "whatsapp_message" | "app_action" | "run_command" | "create_image" | "create_video" | "deliver_project";
-export type ActionPayload = EmailDraft | EventDraft | WhatsappDraft | AppDraft | CommandDraft | ImageDraft | VideoDraft | ProjectDraft;
+export type ActionKind =
+  | "send_email"
+  | "create_event"
+  | "whatsapp_message"
+  | "app_action"
+  | "run_command"
+  | "create_image"
+  | "create_video"
+  | "deliver_project"
+  | "connect_app";
+export type ActionPayload = EmailDraft | EventDraft | WhatsappDraft | AppDraft | CommandDraft | ImageDraft | VideoDraft | ProjectDraft | ConnectDraft;
+
+/** Tarjeta para conectar (o reconectar) una app del socio. No ejecuta nada por sí sola. */
+export type ConnectDraft = { toolkit: UserToolkit; label: string; reason: string; reconnect: boolean };
+
+export function connectDraft(toolkit: UserToolkit, reason: string, reconnect = false): ConnectDraft {
+  return { toolkit, label: toolkitLabels[toolkit], reason: reason || toolkitHints[toolkit], reconnect };
+}
 
 export type EmailDraft = { to: string; cc?: string[]; subject: string; body: string };
 export type WhatsappDraft = { phone?: string; name?: string; text: string };
@@ -59,7 +75,7 @@ const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const localDateTime = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(:\d{2})?$/;
 
 /** Herramientas que no cobran el extra de créditos. */
-export const freeTools = new Set(["recordar", "olvidar", "buscar_memoria", "programar_tarea", "ver_tareas", "cancelar_tarea", "preparar_whatsapp", "no_molestar_whatsapp", "actualizar_perfil", "listar_archivos", "buscar_archivos", "leer_archivo", "escribir_archivo", "ver_comandos"]);
+export const freeTools = new Set(["recordar", "olvidar", "buscar_memoria", "programar_tarea", "ver_tareas", "cancelar_tarea", "preparar_whatsapp", "no_molestar_whatsapp", "actualizar_perfil", "listar_archivos", "buscar_archivos", "leer_archivo", "escribir_archivo", "ver_comandos", "pedir_conexion"]);
 const taskTools: FunctionDeclaration[] = [
   {
     name: "programar_tarea",
@@ -352,6 +368,22 @@ export function vegaTools(connections: VegaConnections, webSearch: boolean): Fun
     );
   }
   tools.push(...appTools(connections));
+  const missing = userToolkits.filter((toolkit) => !connections[toolkit]);
+  if (missing.length) {
+    tools.push({
+      name: "pedir_conexion",
+      description:
+        "Muestra al socio una tarjeta con el botón para conectar una app que todavía no conecta (o que hay que reconectar) cuando su pedido la necesita. Úsala en lugar de solo decirle que vaya a Conexiones.",
+      parameters: {
+        type: "object",
+        properties: {
+          app: { type: "string", enum: missing },
+          motivo: { type: "string", description: "Para qué la necesitas, en una frase (p. ej. «para enviar el correo a Mariana»)." },
+        },
+        required: ["app"],
+      },
+    });
+  }
   return tools;
 }
 
@@ -395,6 +427,19 @@ export async function runVegaTool(userId: string, name: string, args: Record<str
   if (appToolNames.has(name)) {
     const outcome = await runAppTool(userId, name, args);
     return outcome.kind === "app" ? { kind: "action", action: "app_action", payload: outcome.payload, summary: outcome.summary } : outcome;
+  }
+
+  if (name === "pedir_conexion") {
+    const app = text(args.app, 40).toLowerCase();
+    if (!isUserToolkit(app)) return { kind: "invalid", response: { error: "Esa app no se puede conectar desde Vega." } };
+    const draft = connectDraft(app, text(args.motivo, 200));
+    return {
+      kind: "delivery",
+      action: "connect_app",
+      payload: draft,
+      summary: `Te dejé el botón para conectar ${draft.label}`,
+      modelNote: `El socio ve una tarjeta con el botón Conectar ${draft.label}. Dile en una frase para qué la necesitas y que cuando la conecte le escriba «listo» para seguir. No inventes que ya está conectada.`,
+    };
   }
 
   if (name === "recordar") {
@@ -528,7 +573,7 @@ export async function runVegaTool(userId: string, name: string, args: Record<str
       include_payload: false,
       verbose: true,
     });
-    if (!result.ok) return { kind: "invalid", response: { error: result.error } };
+    if (!result.ok) return { kind: "invalid", response: toolFailure(result) };
     return { kind: "result", status: query ? `Revisé tu Gmail: ${query}` : "Revisé tu bandeja de Gmail", response: { correos: limited(result.data) } };
   }
 
@@ -548,7 +593,7 @@ export async function runVegaTool(userId: string, name: string, args: Record<str
       ...(text(args.busqueda, 100) ? { query: text(args.busqueda, 100) } : {}),
       fields: "items(summary,start,end,location,attendees(email),htmlLink)",
     });
-    if (!result.ok) return { kind: "invalid", response: { error: result.error } };
+    if (!result.ok) return { kind: "invalid", response: toolFailure(result) };
     return { kind: "result", status: "Revisé tu agenda", response: { eventos: limited(result.data) } };
   }
 
@@ -815,6 +860,8 @@ export async function executeVegaAction(userId: string, kind: ActionKind, payloa
       ? { ok: true as const, message: `Listo, envié el correo a ${email.to}.` }
       : { ok: false as const, message: `No se envió el correo: ${result.error}` };
   }
+
+  if (kind !== "create_event") return { ok: false as const, message: "Esta acción no se ejecuta con confirmación." };
 
   const event = payload as EventDraft;
   const result = await runUserTool(userId, "googlecalendar", "GOOGLECALENDAR_CREATE_EVENT", {

@@ -3,19 +3,34 @@
 type Row = Record<string, unknown>;
 type Where = Record<string, unknown>;
 
+function num(value: unknown) {
+  return value instanceof Date ? value.getTime() : Number(value);
+}
+
 function matchValue(value: unknown, condition: unknown): boolean {
   if (condition && typeof condition === "object" && !(condition instanceof Date)) {
     const spec = condition as Record<string, unknown>;
-    if ("gt" in spec) return value instanceof Date && spec.gt instanceof Date ? value.getTime() > spec.gt.getTime() : Number(value) > Number(spec.gt);
-    if ("in" in spec) return (spec.in as unknown[]).includes(value);
-    if ("contains" in spec) {
-      const needle = String(spec.contains);
-      return spec.mode === "insensitive" ? String(value).toLowerCase().includes(needle.toLowerCase()) : String(value).includes(needle);
-    }
-    if ("equals" in spec) {
-      return spec.mode === "insensitive" ? String(value).toLowerCase() === String(spec.equals).toLowerCase() : value === spec.equals;
-    }
+    return Object.entries(spec).every(([op, target]) => {
+      if (op === "mode") return true;
+      if (op === "gt") return value != null && num(value) > num(target);
+      if (op === "gte") return value != null && num(value) >= num(target);
+      if (op === "lt") return value != null && num(value) < num(target);
+      if (op === "lte") return value != null && num(value) <= num(target);
+      if (op === "in") return (target as unknown[]).includes(value);
+      if (op === "notIn") return !(target as unknown[]).includes(value);
+      if (op === "not") return !matchValue(value, target);
+      if (op === "contains") {
+        const needle = String(target);
+        return spec.mode === "insensitive" ? String(value).toLowerCase().includes(needle.toLowerCase()) : String(value).includes(needle);
+      }
+      if (op === "equals") {
+        return spec.mode === "insensitive" ? String(value).toLowerCase() === String(target).toLowerCase() : value === target;
+      }
+      return false;
+    });
   }
+  if (condition === null) return value === null || value === undefined;
+  if (condition instanceof Date) return value instanceof Date && value.getTime() === condition.getTime();
   return value === condition;
 }
 

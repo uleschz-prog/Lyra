@@ -24,16 +24,21 @@ const QUIET_END = 9;
 export function autonomyLabel(kind: string) {
   if (kind === "send_email") return "enviar correos";
   if (kind === "whatsapp_message") return "enviar WhatsApp";
-  if (kind === "create_event") return "agendar eventos";
+  if (kind === "create_event") return "agendar eventos sin invitados";
   if (kind === "run_command") return "ejecutar comandos del servidor";
   if (kind === "create_image") return "generar imágenes";
+  if (kind === "app_action") return "agregar filas, crear documentos y reuniones de Zoom";
   return "acciones en tus apps";
 }
 
+/**
+ * Permiso de autonomía para escrituras reversibles. Los envíos (correo, WhatsApp,
+ * publicaciones, cobros, invitaciones) nunca se ejecutan solos: ver policy.ts.
+ * sendEmail y whatsapp se conservan en la base por compatibilidad, pero ya no autorizan nada.
+ */
 export function autonomyAllowed(kind: string, settings: AutonomySettings) {
   if (!settings.enabled) return false;
-  if (kind === "send_email") return settings.sendEmail;
-  if (kind === "whatsapp_message") return settings.whatsapp;
+  if (kind === "send_email" || kind === "whatsapp_message") return false;
   if (kind === "create_event") return settings.events;
   if (kind === "app_action") return settings.appActions;
   return false;
@@ -74,10 +79,11 @@ export async function evaluateAutonomy(userId: string, kind: string, now = new D
   const startOfDay = new Date(now);
   startOfDay.setUTCHours(startOfDay.getUTCHours() - 6, 0, 0, 0);
   const executed = await prisma.vegaAction.count({
-    where: { userId, createdAt: { gte: startOfDay }, status: { not: "pending" } },
+    // Solo cuenta lo que Vega ejecutó sola: lo que confirma el socio no gasta el tope de autonomía.
+    where: { userId, createdAt: { gte: startOfDay }, executedBy: "autonomy" },
   });
   if (executed >= settings.dailyLimit) {
-    return { ok: false, reason: `tope diario alcanzado (${settings.dailyLimit} acciones ejecutadas hoy)` };
+    return { ok: false, reason: `tope diario alcanzado (${settings.dailyLimit} acciones ejecutadas solas hoy)` };
   }
   return { ok: true };
 }
@@ -90,7 +96,7 @@ export function autonomyPrompt(userId: string): Promise<string> {
     if (!row || !row.enabled) {
       return "Autonomía: cada acción se queda lista para que el socio la confirme con un botón.";
     }
-    const kinds = (["send_email", "whatsapp_message", "create_event", "app_action"] as const).filter((kind) =>
+    const kinds = (["create_event", "app_action"] as const).filter((kind) =>
       autonomyAllowed(kind, {
         enabled: row.enabled,
         sendEmail: row.sendEmail,
@@ -106,7 +112,7 @@ export function autonomyPrompt(userId: string): Promise<string> {
     return [
       `Autonomía activa: puedes ejecutar directamente ${kinds.map((kind) => autonomyLabel(kind)).join(", ")}.`,
       "Cuando uses una herramienta preparar_ de esos tipos, la acción se ejecuta sola y el resultado llega en la respuesta de la herramienta: si dice ejecutada, puedes decir que ya se hizo.",
-      "Fuera de esas reglas (otro tipo de acción, fuera del horario 9:00 a 21:00 de Ciudad de México o tope diario), la acción queda pendiente de confirmación.",
+      "Correos, WhatsApp, publicaciones, enlaces de pago, invitaciones y cualquier cosa que salga a otras personas SIEMPRE quedan pendientes de confirmación, igual que todo lo demás fuera del horario 9:00 a 21:00 de Ciudad de México o del tope diario.",
     ].join(" ");
   })();
 }

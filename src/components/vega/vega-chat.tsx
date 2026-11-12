@@ -10,6 +10,7 @@ import {
   EllipsisVertical,
   FileText,
   FolderOpen,
+  History,
   Globe,
   Link2,
   MessageSquarePlus,
@@ -54,6 +55,7 @@ import { CreditRing } from "@/components/vega/credit-ring";
 import { ConnectionsPanel } from "@/components/vega/connections-panel";
 import { AutonomyPanel } from "@/components/vega/autonomy-panel";
 import { FilesPanel } from "@/components/vega/files-panel";
+import { HistoryPanel } from "@/components/vega/history-panel";
 import { MemoryPanel } from "@/components/vega/memory-panel";
 import { ProfilePanel } from "@/components/vega/profile-panel";
 import { TasksPanel } from "@/components/vega/tasks-panel";
@@ -146,7 +148,7 @@ export function VegaChat({
   const [savingAgent, setSavingAgent] = useState(false);
   const [activeId, setActiveId] = useState<string | null>(null);
   const [messages, setMessages] = useState<ChatItem[]>(initialMessages);
-  const [panel, setPanel] = useState<"connections" | "memory" | "files" | "tasks" | "profile" | "autonomy" | null>(justConnected ? "connections" : null);
+  const [panel, setPanel] = useState<"connections" | "memory" | "files" | "tasks" | "profile" | "autonomy" | "history" | null>(justConnected ? "connections" : null);
   const [draft, setDraft] = useState("");
   const [files, setFiles] = useState<DraftFile[]>([]);
   const [links, setLinks] = useState<DraftLink[]>([]);
@@ -524,6 +526,7 @@ export function VegaChat({
   const panelButtons = [
     { id: "profile", label: "Perfil", hint: "Tu negocio, metas y tono", icon: User },
     { id: "autonomy", label: "Autonomía", hint: "Lo que Vega ejecuta sin confirmar", icon: ShieldCheck },
+    { id: "history", label: "Historial", hint: "Acciones confirmadas, canceladas o vencidas", icon: History },
     { id: "tasks", label: "Tareas", hint: "Recordatorios y trabajos programados", icon: CalendarClock },
     { id: "memory", label: "Memoria", hint: "Lo que Vega recuerda de ti", icon: Brain },
     { id: "files", label: "Archivos", hint: "Notas y documentos que Vega guarda", icon: FolderOpen },
@@ -855,6 +858,7 @@ export function VegaChat({
         {panel === "profile" ? <ProfilePanel onClose={() => setPanel(null)} /> : null}
         {panel === "memory" ? <MemoryPanel onClose={() => setPanel(null)} /> : null}
         {panel === "files" ? <FilesPanel onClose={() => setPanel(null)} /> : null}
+        {panel === "history" ? <HistoryPanel onClose={() => setPanel(null)} /> : null}
         {panel === "tasks" ? <TasksPanel onClose={() => setPanel(null)} /> : null}
 
         <div className={cn("min-h-0 flex-1 overscroll-contain overflow-y-auto px-3 sm:px-8", empty ? "pt-3 pb-1 sm:pt-4" : "py-5 sm:py-6")}>

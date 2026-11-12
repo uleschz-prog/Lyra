@@ -62,7 +62,9 @@ async function handleOwner(connection: WhatsappConnection, inbound: WhatsappInbo
   const decision = inbound.text.trim().toLowerCase();
   if (ownerChat.lastPendingActionId && (decision === "confirmar" || decision === "cancelar")) {
     const decided = await decideAction(user.id, ownerChat.lastPendingActionId, decision === "confirmar");
-    await getPrisma().whatsappChat.update({ where: { id: ownerChat.id }, data: { lastPendingActionId: null } });
+    if (!decided.stillPending) {
+      await getPrisma().whatsappChat.update({ where: { id: ownerChat.id }, data: { lastPendingActionId: null } });
+    }
     await sendMetaWhatsapp(connection.userId, inbound.from, { text: decided.message });
     return "owner-decided";
   }

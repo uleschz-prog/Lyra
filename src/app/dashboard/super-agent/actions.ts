@@ -3,7 +3,7 @@
 import { headers } from "next/headers";
 
 import { composioConfigured } from "@/lib/ai/composio";
-import { disconnectUser, forgetConnections, userConnectUrl, userConnections, type UserToolkit } from "@/lib/ai/composio-user";
+import { disconnectUser, forgetConnections, userConnectUrl, userConnections, userExpiredToolkits, type UserToolkit } from "@/lib/ai/composio-user";
 import { getCurrentUser } from "@/lib/auth/profile";
 import { currentCredits } from "@/lib/credits";
 import { getPrisma } from "@/lib/prisma";
@@ -17,6 +17,7 @@ import { forgetAllMemories, forgetMemory, listMemories, saveMemory, type VegaMem
 import { defaultAutonomy, type AutonomySettings } from "@/lib/vega/autonomy";
 import { getVegaProfile, saveVegaProfile, type VegaProfile } from "@/lib/vega/profile";
 import { deleteTask, listTasks, setTaskStatus, type VegaTaskView } from "@/lib/vega/tasks";
+import { actionLog, type ActionLogEntry } from "@/lib/vega/action-store";
 import { actionView, decideAction } from "@/lib/vega/decide";
 import {
   activeMetaConnection,
@@ -130,7 +131,7 @@ export async function openVegaChat(id: string, agentId: string): Promise<VegaCha
         take: 200,
         select: { id: true, role: true, content: true, meta: true },
       },
-      actions: { select: { id: true, kind: true, payload: true, status: true, result: true } },
+      actions: { select: { id: true, kind: true, payload: true, status: true, result: true, riskClass: true, tainted: true, expiresAt: true, createdAt: true } },
     },
   });
   if (!chat) return null;
@@ -180,12 +181,13 @@ export async function decideVegaAction(id: string, confirm: boolean): Promise<{ 
 
 export async function vegaConnections() {
   const user = await vegaUser();
-  if (!user) return { available: false, connections: noConnections };
+  if (!user) return { available: false, connections: noConnections, expired: [] as UserToolkit[] };
   const connections = composioConfigured()
     ? await userConnections(user.id, true).catch(() => noConnections)
     : { ...noConnections };
   connections.whatsapp = Boolean(await connectionView(user.id));
-  return { available: true, connections };
+  const expired = composioConfigured() ? await userExpiredToolkits(user.id, connections).catch(() => [] as UserToolkit[]) : [];
+  return { available: true, connections, expired };
 }
 
 export async function vegaMemories(): Promise<VegaMemoryView[]> {
@@ -253,6 +255,12 @@ export async function addVegaMemory(content: string, kind: string = "fact") {
   const user = await vegaUser();
   if (!user) return { ok: false as const, error: "Vega está incluida en cualquier membresía activa." };
   return saveMemory(user.id, String(content ?? ""), String(kind ?? "fact"));
+}
+
+/** Bitácora de acciones de Vega del socio (lo que confirmó, canceló, venció o ejecutó la autonomía). */
+export async function vegaActionLog(): Promise<ActionLogEntry[]> {
+  const user = await vegaUser();
+  return user ? actionLog(user.id) : [];
 }
 
 export async function vegaFiles(): Promise<VegaFileView[]> {
