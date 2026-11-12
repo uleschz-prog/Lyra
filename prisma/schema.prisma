@@ -173,6 +173,7 @@ model User {
   vegaAgents                   VegaAgent[]
   vegaActions                  VegaAction[]
   vegaMemories                 VegaMemory[]
+  vegaFiles                    VegaFile[]
   vegaTasks                    VegaTask[]
   vegaWhatsappBlocks           VegaWhatsappBlock[]
   vegaWhatsapp                 String?
@@ -410,6 +411,10 @@ model VegaConversation {
   userId    String
   agentId   String
   title     String   @default("Nueva conversación")
+  /// Resumen de los mensajes viejos que ya no entran en el historial.
+  summary        String?   @db.Text
+  /// Fecha del último mensaje incluido en el resumen.
+  summaryThrough DateTime?
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -439,11 +444,31 @@ model VegaMemory {
   id        String   @id @default(cuid())
   userId    String
   content   String
+  /// profile | preference | fact | journal
+  kind      String   @default("fact")
   createdAt DateTime @default(now())
+  updatedAt DateTime @default(now()) @updatedAt
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId, createdAt])
+  @@index([userId, kind])
+}
+
+/// Archivo de texto del espacio de trabajo de Vega (notas, borradores, resultados).
+model VegaFile {
+  id        String   @id @default(cuid())
+  userId    String
+  path      String
+  content   String   @db.Text
+  bytes     Int      @default(0)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @default(now()) @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, path])
+  @@index([userId, updatedAt])
 }
 
 model VegaTask {

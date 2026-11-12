@@ -12,6 +12,7 @@ import { ensureDefaultVegaAgent } from "@/lib/vega/agents";
 import { isUserToolkit, noConnections } from "@/lib/vega/apps";
 import { attachmentChips } from "@/lib/vega/attachments";
 import type { VegaActionView, VegaSource } from "@/lib/vega/events";
+import { deleteWorkspaceFile, listFiles, readWorkspaceFile, type VegaFileView } from "@/lib/vega/files";
 import { forgetAllMemories, forgetMemory, listMemories, saveMemory, type VegaMemoryView } from "@/lib/vega/memory";
 import { defaultAutonomy, type AutonomySettings } from "@/lib/vega/autonomy";
 import { getVegaProfile, saveVegaProfile, type VegaProfile } from "@/lib/vega/profile";
@@ -248,10 +249,26 @@ export async function updateVegaAutonomy(input: AutonomySettings): Promise<{ ok:
   return { ok: true };
 }
 
-export async function addVegaMemory(content: string) {
+export async function addVegaMemory(content: string, kind: string = "fact") {
   const user = await vegaUser();
   if (!user) return { ok: false as const, error: "Vega está incluida en cualquier membresía activa." };
-  return saveMemory(user.id, content);
+  return saveMemory(user.id, String(content ?? ""), String(kind ?? "fact"));
+}
+
+export async function vegaFiles(): Promise<VegaFileView[]> {
+  const user = await vegaUser();
+  return user ? listFiles(user.id) : [];
+}
+
+export async function readVegaFile(path: string) {
+  const user = await vegaUser();
+  if (!user) return { ok: false as const, error: "Vega está incluida en cualquier membresía activa." };
+  return readWorkspaceFile(user.id, String(path ?? ""));
+}
+
+export async function deleteVegaFile(path: string) {
+  const user = await vegaUser();
+  return { ok: user ? await deleteWorkspaceFile(user.id, String(path ?? "")) : false };
 }
 
 export async function deleteVegaMemory(id: string) {

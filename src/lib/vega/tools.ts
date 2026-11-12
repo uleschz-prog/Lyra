@@ -2,23 +2,16 @@ import { runUserTool } from "@/lib/ai/composio-user";
 import { searchWeb, type WebResult } from "@/lib/ai/search";
 import { submitHiggsfieldImage } from "@/lib/ai/higgsfield-image";
 import { appToolNames, appTools, executeAppAction, runAppTool, type AppDraft } from "@/lib/vega/app-tools";
-import {
-  commandAllowlist,
-  findCommand,
-  generateImage,
-  isSafeArgument,
-  listWorkspace,
-  readWorkspaceFile,
-  searchWorkspace,
-  writeWorkspaceFile,
-} from "@/lib/vega/assistant-tools";
+import { commandAllowlist, findCommand, generateImage, isSafeArgument } from "@/lib/vega/assistant-tools";
+import { listWorkspace, MAX_FILE_BYTES, readWorkspaceFile, searchWorkspace, writeWorkspaceFile } from "@/lib/vega/files";
 import { buildProject, buildStoryboard, type ProjectDraft } from "@/lib/vega/build-project";
 import { generateClip } from "@/lib/ai/media";
 import { saveVegaImageToLibrary, saveVegaVideoToLibrary } from "@/lib/vega/library-media";
 import { scenesFromScript } from "@/lib/studio/video-plan";
 import type { VegaConnections } from "@/lib/vega/apps";
 import type { FunctionDeclaration } from "@/lib/vega/gemini-stream";
-import { forgetMemory, MEMORY_MAX_LENGTH, saveMemory } from "@/lib/vega/memory";
+import { forgetMemory, MEMORY_MAX_LENGTH, saveMemory, searchMemories } from "@/lib/vega/memory";
+import { memoryKindLabels, parseKind } from "@/lib/vega/memory-logic";
 import { saveVegaProfile } from "@/lib/vega/profile";
 import {
   createTask,
@@ -66,7 +59,7 @@ const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const localDateTime = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(:\d{2})?$/;
 
 /** Herramientas que no cobran el extra de créditos. */
-export const freeTools = new Set(["recordar", "olvidar", "programar_tarea", "ver_tareas", "cancelar_tarea", "preparar_whatsapp", "no_molestar_whatsapp", "actualizar_perfil", "listar_archivos", "buscar_archivos", "leer_archivo", "escribir_archivo", "ver_comandos"]);
+export const freeTools = new Set(["recordar", "olvidar", "buscar_memoria", "programar_tarea", "ver_tareas", "cancelar_tarea", "preparar_whatsapp", "no_molestar_whatsapp", "actualizar_perfil", "listar_archivos", "buscar_archivos", "leer_archivo", "escribir_archivo", "ver_comandos"]);
 const taskTools: FunctionDeclaration[] = [
   {
     name: "programar_tarea",
@@ -104,13 +97,27 @@ export function vegaTools(connections: VegaConnections, webSearch: boolean): Fun
     {
       name: "recordar",
       description:
-        "Guarda un dato duradero del socio para futuras conversaciones: su negocio, metas, clientes, preferencias de tono, horarios o cualquier cosa que pida recordar. No guardes datos pasajeros, contraseñas, datos bancarios ni información de salud.",
+        "Guarda un dato duradero del socio para futuras conversaciones: su negocio, metas, clientes, preferencias de tono, horarios, avances o cualquier cosa que pida recordar. Si ya existe un dato casi igual, se actualiza. No guardes datos pasajeros, contraseñas, tarjetas, datos bancarios, llaves ni información de salud.",
       parameters: {
         type: "object",
         properties: {
           dato: { type: "string", description: "El dato en una frase corta en tercera persona, por ejemplo: «Vende suplementos en Guadalajara»." },
+          tipo: {
+            type: "string",
+            enum: ["perfil", "preferencia", "dato", "diario"],
+            description: "perfil = quién es y su negocio; preferencia = cómo le gusta trabajar; dato = clientes, metas, cifras; diario = avances o sucesos con fecha.",
+          },
         },
         required: ["dato"],
+      },
+    },
+    {
+      name: "buscar_memoria",
+      description: "Busca en todo lo que recuerdas del socio por palabras clave. Úsalo antes de decir que no sabes algo de él.",
+      parameters: {
+        type: "object",
+        properties: { busqueda: { type: "string", description: "Palabras clave, p. ej. «cliente Mariana» o «meta ventas»." } },
+        required: ["busqueda"],
       },
     },
     {
@@ -166,16 +173,16 @@ export function vegaTools(connections: VegaConnections, webSearch: boolean): Fun
     },
     {
       name: "buscar_archivos",
-      description: "Busca archivos y carpetas por nombre dentro del espacio de trabajo del socio.",
+      description: "Busca archivos del espacio de trabajo del socio por nombre o por contenido.",
       parameters: {
         type: "object",
-        properties: { busqueda: { type: "string", description: "Parte del nombre a buscar." } },
+        properties: { busqueda: { type: "string", description: "Parte del nombre o del texto a buscar." } },
         required: ["busqueda"],
       },
     },
     {
       name: "leer_archivo",
-      description: "Lee un archivo de texto del espacio de trabajo del socio. Devuelve su contenido (hasta 200 KB).",
+      description: "Lee un archivo de texto del espacio de trabajo del socio. Devuelve su contenido completo.",
       parameters: {
         type: "object",
         properties: { ruta: { type: "string", description: "Ruta relativa del archivo, p. ej. «notas/ideas.md»." } },
@@ -185,12 +192,12 @@ export function vegaTools(connections: VegaConnections, webSearch: boolean): Fun
     {
       name: "escribir_archivo",
       description:
-        "Escribe o agrega texto en un archivo del espacio de trabajo del socio. Crea las carpetas necesarias. Para sobrescribir todo el archivo usa «sobrescribir: true»; por omisión agrega al final.",
+        "Crea o actualiza un archivo de texto en el espacio de trabajo persistente del socio (las carpetas salen de la ruta). Para reemplazar todo el archivo usa «sobrescribir: true»; por omisión agrega al final. Límite 200 KB por archivo.",
       parameters: {
         type: "object",
         properties: {
           ruta: { type: "string", description: "Ruta relativa del archivo." },
-          contenido: { type: "string", description: "Texto a escribir (hasta 500 KB)." },
+          contenido: { type: "string", description: "Texto a escribir (hasta 200 KB)." },
           sobrescribir: { type: "boolean", description: "true para reemplazar todo el archivo; false para agregar al final." },
         },
         required: ["ruta", "contenido"],
@@ -391,12 +398,31 @@ export async function runVegaTool(userId: string, name: string, args: Record<str
   }
 
   if (name === "recordar") {
-    const saved = await saveMemory(userId, text(args.dato, MEMORY_MAX_LENGTH));
+    const saved = await saveMemory(userId, text(args.dato, MEMORY_MAX_LENGTH), parseKind(args.tipo));
     if (!saved.ok) return { kind: "invalid", response: { error: saved.error } };
     return {
       kind: "result",
-      status: saved.duplicate ? `Ya lo tenía en memoria: ${saved.memory.content}` : `Guardé en memoria: ${saved.memory.content}`,
-      response: { guardado: true, id: saved.memory.id },
+      status: saved.duplicate
+        ? `Ya lo tenía en memoria: ${saved.memory.content}`
+        : saved.updated
+          ? `Actualicé en memoria: ${saved.memory.content}`
+          : `Guardé en memoria: ${saved.memory.content}`,
+      response: { guardado: true, id: saved.memory.id, actualizado: saved.updated },
+    };
+  }
+
+  if (name === "buscar_memoria") {
+    const query = text(args.busqueda, 120);
+    if (!query) return { kind: "invalid", response: { error: "Falta qué buscar." } };
+    const found = await searchMemories(userId, query);
+    return {
+      kind: "result",
+      status: `Busqué en tu memoria: ${found.length} dato${found.length === 1 ? "" : "s"}`,
+      response: {
+        recuerdos: found.length
+          ? found.map((item) => ({ id: item.id, tipo: memoryKindLabels[parseKind(item.kind)], dato: item.content }))
+          : "(sin coincidencias)",
+      },
     };
   }
 
@@ -614,7 +640,7 @@ export async function runVegaTool(userId: string, name: string, args: Record<str
     const route = text(args.ruta, 300);
     const content = typeof args.contenido === "string" ? args.contenido : "";
     if (!route || !content) return { kind: "invalid", response: { error: "Falta la ruta o el contenido." } };
-    const written = await writeWorkspaceFile(userId, route, content.slice(0, 500_000), args.sobrescribir === true);
+    const written = await writeWorkspaceFile(userId, route, content.slice(0, MAX_FILE_BYTES), args.sobrescribir !== true);
     if (!written.ok) return { kind: "invalid", response: { error: written.error } };
     return { kind: "result", status: `Guardé ${written.path}`, response: { archivo: written.path, bytes: written.bytes } };
   }
