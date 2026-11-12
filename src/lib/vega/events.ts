@@ -1,3 +1,4 @@
+import type { BriefRequest } from "@/lib/vega/briefing";
 import type { WebResult } from "@/lib/ai/search";
 import type { CostMeterView } from "@/lib/vega/cost-shared";
 import type { ActionKind, ActionPayload } from "@/lib/vega/tools";
@@ -26,4 +27,5 @@ export type VegaEvent =
   | { t: "action"; v: VegaActionView }
   | { t: "credits"; v: number }
   | { t: "usage"; v: CostMeterView }
+  | { t: "brief"; v: BriefRequest }
   | { t: "error"; v: string };

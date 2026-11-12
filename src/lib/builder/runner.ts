@@ -438,6 +438,14 @@ export function briefFromDelivery(args: Record<string, unknown>, payload: { titl
   const lines: string[] = [];
   const brief = typeof args.brief === "string" ? args.brief.trim() : "";
   if (brief) lines.push(brief);
+  // Respuestas del socio al briefing (con sus palabras): mandan sobre cualquier suposición.
+  if (args.briefing && typeof args.briefing === "object" && !Array.isArray(args.briefing)) {
+    const answers = Object.entries(args.briefing as Record<string, unknown>)
+      .filter(([, value]) => typeof value === "string" && value.trim())
+      .map(([key, value]) => `- ${key}: ${(value as string).trim().slice(0, 600)}`);
+    if (answers.length) lines.push(`Respuestas del socio al briefing:\n${answers.join("\n")}`);
+  }
+  if (typeof args.supuestos === "string" && args.supuestos.trim()) lines.push(`Supuestos de Vega (el socio la dejó decidir): ${args.supuestos.trim().slice(0, 600)}`);
   if (payload.title) lines.push(`Nombre: ${payload.title}`);
   if (payload.summary) lines.push(`Resumen: ${payload.summary}`);
   if (typeof args.color === "string" && /^#[0-9a-f]{6}$/i.test(args.color)) lines.push(`Color de marca: ${args.color}`);

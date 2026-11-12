@@ -26,6 +26,7 @@ import { conversationTitle, vegaSystemPrompt } from "@/lib/vega/prompt";
 import { connectDraft, freeTools, runVegaTool, vegaTools } from "@/lib/vega/tools";
 import { xStatusLabels } from "@/lib/vega/x/tools";
 import { saveDeliveredProject } from "@/lib/projects/store";
+import { briefGate } from "@/lib/vega/briefing";
 import { builderEnabled, builderPrice } from "@/lib/builder/config";
 import { briefFromDelivery, startProjectBuild, type BuildView } from "@/lib/builder/runner";
 import { isUserToolkit, type UserToolkit } from "@/lib/vega/apps";
@@ -347,6 +348,14 @@ export async function runVegaTurn(turn: VegaTurn, emit: (event: VegaEvent) => vo
       for (const part of calls) {
         const call = part.functionCall!;
         let response: Record<string, unknown>;
+        // Briefing antes de crear: sin las respuestas clave del socio no se crea nada ni se cobra.
+        // En una rutina el socio ya dejó la instrucción guardada: Vega decide y declara supuestos.
+        const gate = briefGate(call.name, call.args ?? {}, turn.source === "routine" ? "tú decide" : turn.userMessage);
+        if (!gate.ok) {
+          if (gate.response.estado === "needs_brief") emit({ t: "brief", v: gate.request });
+          responses.push({ functionResponse: { name: call.name, response: gate.response } });
+          continue;
+        }
         // PR C: sitios y apps los construye el generador v2; su precio por trabajo ya incluye la herramienta.
         const builderCall = call.name === "entregar_proyecto" && builderEnabled() && (call.args?.tipo === "sitio" || call.args?.tipo === "app");
         if (!toolCharged && !freeTools.has(call.name) && !builderCall) {
@@ -516,6 +525,7 @@ export async function runVegaTurn(turn: VegaTurn, emit: (event: VegaEvent) => vo
           };
         } else response = outcome.response;
 
+        if (gate.delegated) response = { ...response, supuestos: "El socio te dejó decidir: dile en una o dos frases qué supusiste y que puede cambiarlo." };
         responses.push({ functionResponse: { name: call.name, response } });
       }
       contents.push({ role: "user", parts: responses });

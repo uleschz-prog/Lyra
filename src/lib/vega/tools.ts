@@ -5,6 +5,7 @@ import { appToolNames, appTools, executeAppAction, runAppTool, type AppDraft } f
 import { commandAllowlist, findCommand, generateImage, isSafeArgument } from "@/lib/vega/assistant-tools";
 import { listWorkspace, MAX_FILE_BYTES, readWorkspaceFile, searchWorkspace, writeWorkspaceFile } from "@/lib/vega/files";
 import { buildProject, type ProjectDraft } from "@/lib/vega/build-project";
+import { briefingSchema } from "@/lib/vega/briefing";
 import { saveVegaImageToLibrary } from "@/lib/vega/library-media";
 import { runCreateVideo } from "@/lib/vega/video-tool";
 import { isUserToolkit, toolkitHints, toolkitLabels, userToolkits, type UserToolkit, type VegaConnections } from "@/lib/vega/apps";
@@ -242,12 +243,17 @@ export function vegaTools(connections: VegaConnections, webSearch: boolean): Fun
     {
       name: "crear_imagen",
       description:
-        "Crea ya una imagen, logo o foto a partir de una descripción y la muestra en el chat. Úsala en el mismo turno en que el socio la pide. No pidas confirmación. Escribe la descripción en español, concreta y visual.",
+        "Crea una imagen, logo o foto y la muestra en el chat. Antes necesita las respuestas del socio en «briefing» (tema, estilo y formato); si faltan responde needs_brief, no crea ni cobra, y debes preguntarlas. Escribe la descripción en español, concreta y visual, usando solo lo que dijo el socio.",
       parameters: {
         type: "object",
         properties: {
           descripcion: { type: "string", description: "Descripción visual de la imagen que se quiere generar." },
           tamano: { type: "string", enum: ["cuadrada", "horizontal", "vertical"], description: "Formato de la imagen (opcional)." },
+          briefing: briefingSchema(["imagen"]),
+          supuestos: {
+            type: "string",
+            description: "Solo si el socio dijo explícitamente «tú decide» o similar: lista corta de lo que elegiste por él. Díselas en tu respuesta.",
+          },
         },
         required: ["descripcion"],
       },
@@ -255,13 +261,18 @@ export function vegaTools(connections: VegaConnections, webSearch: boolean): Fun
     {
       name: "crear_video",
       description:
-        "Crea ya un video corto o un anuncio a partir de un guion y lo muestra en el chat. Úsala en el mismo turno en que el socio lo pide. El guion son 2 a 4 frases en español. Gasta segundos de la cuota de video del plan; si no alcanza o el video no sale, devuelve un error: dilo tal cual y no ofrezcas una versión de texto como si fuera video.",
+        "Crea un video corto o un anuncio a partir de un guion y lo muestra en el chat. Antes necesita las respuestas del socio en «briefing» (tema, estilo y formato; duración y voz si las dio); si faltan responde needs_brief, no crea ni cobra, y debes preguntarlas. El guion son 2 a 4 frases en español. Gasta segundos de la cuota de video del plan; si no alcanza o el video no sale, devuelve un error: dilo tal cual y no ofrezcas una versión de texto como si fuera video.",
       parameters: {
         type: "object",
         properties: {
           titulo: { type: "string" },
           guion: { type: "string", description: "Texto que se lee en el video, en 2 a 4 frases." },
           formato: { type: "string", enum: ["9:16", "1:1", "16:9"], description: "9:16 para teléfono, 16:9 para escritorio." },
+          briefing: briefingSchema(["video"]),
+          supuestos: {
+            type: "string",
+            description: "Solo si el socio dijo explícitamente «tú decide» o similar: lista corta de lo que elegiste por él. Díselas en tu respuesta.",
+          },
         },
         required: ["titulo", "guion"],
       },
@@ -269,7 +280,7 @@ export function vegaTools(connections: VegaConnections, webSearch: boolean): Fun
     {
       name: "entregar_proyecto",
       description:
-        "Entrega una pieza premium y específica: sitio web, app o especificación de agente. Los sitios y apps los construye el generador premium (proyecto React + Tailwind de varios archivos, con páginas o pantallas, sistema de diseño y vista previa compilada; tarda unos minutos y cobra su precio por trabajo); lo que mandes en secciones es el copy base y el respaldo. Usa nombres, oferta y tono del socio; no inventes precios, reseñas, certificaciones o resultados. Si falta un dato esencial, pregunta antes de llamar esta herramienta; si no, completa la pieza y declara las suposiciones. Sitios: portada con propuesta de valor y CTA, servicios, diferenciadores/proceso, FAQ o testimonios sólo si hay datos, contacto y pie. Apps: una tarea principal completa y probada mediante agenda, herramienta CRUD local o contacto; incluye estados vacíos/confirmación/eliminación. Agentes: misión clara, 3+ reglas concretas, flujo de atención y 3+ ejemplos. La vista previa de app guarda localmente en ese navegador; la vista previa de agente es una simulación por ejemplos. No las describas como sistemas con servidor, IA en vivo, pagos o datos compartidos. Usa mínimo 5 secciones de valor para landing y 3–6 bloques para otras piezas; copy final, no texto placeholder.",
+        "Entrega una pieza premium y específica: sitio web, app o especificación de agente. Los sitios y apps los construye el generador premium (proyecto React + Tailwind de varios archivos, con páginas o pantallas, sistema de diseño y vista previa compilada; tarda unos minutos y cobra su precio por trabajo); lo que mandes en secciones es el copy base y el respaldo. Usa nombres, oferta y tono del socio; no inventes precios, reseñas, certificaciones o resultados. Requiere «briefing» con las respuestas del socio (sitio: negocio, objetivo, público y contacto; app: propósito, usuarios y datos; agente: rol, canal, tono y conocimiento). Si faltan, responde needs_brief: no crea ni cobra, y debes preguntarlas. Nunca crees con contenido por defecto. Sitios: portada con propuesta de valor y CTA, servicios, diferenciadores/proceso, FAQ o testimonios sólo si hay datos, contacto y pie. Apps: una tarea principal completa y probada mediante agenda, herramienta CRUD local o contacto; incluye estados vacíos/confirmación/eliminación. Agentes: misión clara, 3+ reglas concretas, flujo de atención y 3+ ejemplos. La vista previa de app guarda localmente en ese navegador; la vista previa de agente es una simulación por ejemplos. No las describas como sistemas con servidor, IA en vivo, pagos o datos compartidos. Usa mínimo 5 secciones de valor para landing y 3–6 bloques para otras piezas; copy final, no texto placeholder.",
       parameters: {
         type: "object",
         properties: {
@@ -280,6 +291,11 @@ export function vegaTools(connections: VegaConnections, webSearch: boolean): Fun
             type: "string",
             description:
               "Sitios y apps: encargo completo para el generador premium (negocio, ciudad, público, oferta, tono/estilo visual, páginas o pantallas, datos de contacto, entidades y campos de la app). Todo lo que dijo el socio, sin inventar.",
+          },
+          briefing: briefingSchema(["sitio", "app", "agente"]),
+          supuestos: {
+            type: "string",
+            description: "Solo si el socio dijo explícitamente «tú decide» o similar: lista corta de lo que elegiste por él. Díselas en tu respuesta.",
           },
           color: { type: "string", description: "Color hexadecimal, por ejemplo #0F766E." },
           secciones: {
