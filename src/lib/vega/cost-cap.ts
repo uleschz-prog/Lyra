@@ -16,7 +16,8 @@ export type { CostLevel, CostMeterView, CostTier } from "@/lib/vega/cost-shared"
 type Env = Record<string, string | undefined>;
 
 export const COST_TIMEZONE = DEFAULT_TIMEZONE;
-export type UsageSource = "chat" | "whatsapp" | "routine" | "x";
+/** `builder` (generador v2) se registra pero no cuenta para el tope: el trabajo se cobra aparte en créditos. */
+export type UsageSource = "chat" | "whatsapp" | "routine" | "x" | "builder";
 
 /** Recarga mínima mensual (USD) por nivel; la misma que `rebuy` del plan. */
 const tierRecharge: Record<CostTier, number> = { inicio: 19, negocio: 49, pro: 99 };
@@ -103,7 +104,7 @@ export function costResetsAt(now: Date) {
 
 export async function spentThisMonth(userId: string, now = new Date()) {
   const result = await getPrisma().vegaUsageLog.aggregate({
-    where: { userId, month: costMonth(now) },
+    where: { userId, month: costMonth(now), source: { not: "builder" } },
     _sum: { costUsd: true },
   });
   return Number(result._sum.costUsd ?? 0);

@@ -8,9 +8,10 @@ export type ProjectDb = Pick<PrismaClient, "project" | "projectVersion">;
 export const projectKinds: readonly ProjectKind[] = ["sitio", "app", "agente"];
 export const projectKindLabels: Record<ProjectKind, string> = { sitio: "Sitio web", app: "App", agente: "Agente" };
 
-/** Tope por versión (los archivos viven en la base por ahora). */
-export const maxProjectVersionBytes = 1_500_000;
-const maxFiles = 60;
+/** Tope por versión. PR C: el generador v2 produce proyectos de varios archivos (Blob o base). */
+export const maxProjectVersionBytes = 3_000_000;
+export const maxProjectFiles = 150;
+const maxFiles = maxProjectFiles;
 
 export function isProjectKind(value: unknown): value is ProjectKind {
   return typeof value === "string" && (projectKinds as readonly string[]).includes(value);
@@ -110,13 +111,47 @@ export async function saveDeliveredProject(
   const draft = draftFromPayload(input.payload);
   if (!draft) return null;
 
+  return saveProjectVersion(db, {
+    userId: input.userId,
+    conversationId: input.conversationId,
+    actionId: input.actionId,
+    kind: draft.kind,
+    title: draft.title,
+    summary: draft.summary,
+    files: draft.files,
+    suggestions: draft.suggestions,
+    bytes: draft.bytes,
+    generator: "vega-v1",
+  });
+}
+
+export type VersionInput = {
+  userId: string;
+  conversationId: string | null;
+  actionId: string;
+  kind: ProjectKind;
+  title: string;
+  summary: string;
+  /** Vacío cuando los archivos viven en Blob (`filesUrl`). */
+  files: ProjectFile[];
+  suggestions: string[];
+  bytes: number;
+  generator: string;
+  filesUrl?: string | null;
+  previewUrl?: string | null;
+  previewHtml?: string | null;
+  buildId?: string | null;
+};
+
+/** Crea la versión siguiente del proyecto (o el proyecto). Idempotente por `actionId`. */
+export async function saveProjectVersion(db: ProjectDb, input: VersionInput): Promise<SavedProject | null> {
   const existing = await db.projectVersion.findUnique({
     where: { sourceActionId: input.actionId },
     select: { projectId: true, number: true },
   });
   if (existing) return { projectId: existing.projectId, versionNumber: existing.number, created: false };
 
-  const groupKey = projectGroupKey(input.conversationId, draft.kind, draft.title);
+  const groupKey = projectGroupKey(input.conversationId, input.kind, input.title);
   let project = await db.project.findFirst({
     where: { userId: input.userId, groupKey, deletedAt: null },
     select: { id: true, versionCount: true },
@@ -126,9 +161,9 @@ export async function saveDeliveredProject(
     project = await db.project.create({
       data: {
         userId: input.userId,
-        kind: draft.kind,
-        title: draft.title,
-        summary: draft.summary,
+        kind: input.kind,
+        title: input.title,
+        summary: input.summary,
         groupKey,
         conversationId: input.conversationId,
         versionCount: 0,
@@ -145,19 +180,23 @@ export async function saveDeliveredProject(
         data: {
           projectId: project.id,
           number,
-          title: draft.title,
-          summary: draft.summary,
-          files: draft.files,
-          suggestions: draft.suggestions,
-          sizeBytes: draft.bytes,
-          generator: "vega-v1",
+          title: input.title,
+          summary: input.summary,
+          files: input.files,
+          suggestions: input.suggestions,
+          sizeBytes: input.bytes,
+          generator: input.generator,
           sourceActionId: input.actionId,
+          ...(input.filesUrl ? { filesUrl: input.filesUrl } : {}),
+          ...(input.previewUrl ? { previewUrl: input.previewUrl } : {}),
+          ...(input.previewHtml ? { previewHtml: input.previewHtml } : {}),
+          ...(input.buildId ? { buildId: input.buildId } : {}),
         },
         select: { id: true },
       });
       await db.project.update({
         where: { id: project.id },
-        data: { versionCount: number, title: draft.title, summary: draft.summary },
+        data: { versionCount: number, title: input.title, summary: input.summary },
         select: { id: true },
       });
       return { projectId: project.id, versionNumber: number, created };
@@ -172,6 +211,13 @@ export async function saveDeliveredProject(
     }
   }
   return null;
+}
+
+/** Una entrega con construcción v2 en curso o lista no se importa como v1. */
+export function hasActiveBuild(payload: unknown) {
+  if (!payload || typeof payload !== "object") return false;
+  const build = (payload as { build?: { status?: unknown } }).build;
+  return Boolean(build && typeof build === "object" && build.status !== "failed");
 }
 
 /** Trae a Proyectos las entregas anteriores a este PR que aún no estén guardadas. */
@@ -193,6 +239,7 @@ export async function importPastDeliveries(
   });
   let imported = 0;
   for (const action of actions) {
+    if (hasActiveBuild(action.payload)) continue;
     const result = await saveDeliveredProject(db, {
       userId,
       conversationId: action.conversationId,

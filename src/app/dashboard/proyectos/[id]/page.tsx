@@ -94,7 +94,12 @@ export default async function ProjectPage({
                     }`}
                   >
                     <span className="flex items-center justify-between gap-2">
-                      <span className="font-medium">v{version.number}</span>
+                      <span className="font-medium">
+                        v{version.number}
+                        {version.generator === "vega-v2" ? (
+                          <span className="ml-1.5 rounded-full bg-[#EDE9FE] px-1.5 py-0.5 text-[10px] font-semibold text-[#6D28D9]">Premium</span>
+                        ) : null}
+                      </span>
                       <span className="text-xs text-[#8A8680]">{size(version.sizeBytes)}</span>
                     </span>
                     <span className="mt-0.5 block text-xs text-[#8A8680]">{formatProjectDate(version.createdAt)}</span>

@@ -27,6 +27,7 @@
     "bcryptjs": "^3.0.3",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
+    "esbuild": "^0.28.2",
     "jose": "^6.2.12",
     "lucide-react": "^1.47.0",
     "next": "^16.4.3",
@@ -36,6 +37,7 @@
     "sharp": "^0.35.5",
     "sonner": "^2.0.8",
     "tailwind-merge": "^3.7.0",
+    "tailwindcss": "^4",
     "zod": "^4.6.6"
   },
   "devDependencies": {
@@ -48,7 +50,6 @@
     "eslint": "^9",
     "eslint-config-next": "^16.4.3",
     "prisma": "^7.10.1",
-    "tailwindcss": "^4",
     "tsx": "^4.23.15",
     "typescript": "^5",
     "vite": "^6.4.0",

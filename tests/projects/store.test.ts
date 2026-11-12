@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import {
   cleanProjectFiles,
   draftFromPayload,
+  hasActiveBuild,
   importPastDeliveries,
   projectGroupKey,
   saveDeliveredProject,
@@ -41,7 +42,7 @@ describe("Proyectos: guardar entregas de Vega", () => {
     expect(cleanProjectFiles([{ path: "../x", content: "" }])).toBeNull();
     expect(cleanProjectFiles([{ path: "/etc/passwd", content: "" }])).toBeNull();
     expect(cleanProjectFiles([{ path: "a.txt", content: "1" }, { path: "a.txt", content: "2" }])).toBeNull();
-    expect(cleanProjectFiles([{ path: "big.txt", content: "x".repeat(1_600_000) }])).toBeNull();
+    expect(cleanProjectFiles([{ path: "big.txt", content: "x".repeat(3_100_000) }])).toBeNull();
     expect(cleanProjectFiles([{ path: "src/a.ts", content: "ok" }])).toEqual({ files: [{ path: "src/a.ts", content: "ok" }], bytes: 2 });
   });
 
@@ -103,6 +104,13 @@ describe("Proyectos: guardar entregas de Vega", () => {
     expect(await importPastDeliveries(scoped, "u1")).toBe(1);
     expect(await importPastDeliveries(scoped, "u1")).toBe(0);
     expect(projectVersion.rows).toHaveLength(1);
+  });
+
+  it("no importa como v1 una entrega con construcción v2 activa", () => {
+    expect(hasActiveBuild({ ...payload, build: { buildId: "b1", status: "running" } })).toBe(true);
+    expect(hasActiveBuild({ ...payload, build: { buildId: "b1", status: "done" } })).toBe(true);
+    expect(hasActiveBuild({ ...payload, build: { buildId: "b1", status: "failed" } })).toBe(false);
+    expect(hasActiveBuild(payload)).toBe(false);
   });
 
   it("nombra el ZIP sin acentos y con la versión", () => {

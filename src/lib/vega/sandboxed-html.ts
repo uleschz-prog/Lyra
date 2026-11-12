@@ -18,10 +18,15 @@ export const sandboxedHtmlCsp = [
   "frame-ancestors 'self'",
 ].join("; ");
 
-export function sandboxedHtmlHeaders(): Record<string, string> {
+/** PR C: los proyectos del generador v2 cargan sus fuentes de Google Fonts (solo CSS y archivos de fuente). */
+export const sandboxedHtmlCspWithFonts = sandboxedHtmlCsp
+  .replace("style-src 'unsafe-inline'", "style-src 'unsafe-inline' https://fonts.googleapis.com")
+  .replace("font-src data:", "font-src data: https://fonts.gstatic.com");
+
+export function sandboxedHtmlHeaders(options: { fonts?: boolean } = {}): Record<string, string> {
   return {
     "Content-Type": "text/html; charset=utf-8",
-    "Content-Security-Policy": sandboxedHtmlCsp,
+    "Content-Security-Policy": options.fonts ? sandboxedHtmlCspWithFonts : sandboxedHtmlCsp,
     "X-Content-Type-Options": "nosniff",
     "Referrer-Policy": "no-referrer",
     "Cache-Control": "private, no-store",
@@ -30,6 +35,6 @@ export function sandboxedHtmlHeaders(): Record<string, string> {
   };
 }
 
-export function sandboxedHtmlResponse(html: string, status = 200) {
-  return new Response(html, { status, headers: sandboxedHtmlHeaders() });
+export function sandboxedHtmlResponse(html: string, status = 200, options: { fonts?: boolean } = {}) {
+  return new Response(html, { status, headers: sandboxedHtmlHeaders(options) });
 }

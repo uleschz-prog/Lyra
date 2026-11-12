@@ -26,6 +26,8 @@ import { conversationTitle, vegaSystemPrompt } from "@/lib/vega/prompt";
 import { connectDraft, freeTools, runVegaTool, vegaTools } from "@/lib/vega/tools";
 import { xStatusLabels } from "@/lib/vega/x/tools";
 import { saveDeliveredProject } from "@/lib/projects/store";
+import { builderEnabled, builderPrice } from "@/lib/builder/config";
+import { briefFromDelivery, startProjectBuild, type BuildView } from "@/lib/builder/runner";
 import { isUserToolkit, type UserToolkit } from "@/lib/vega/apps";
 import { HISTORY, SUMMARY_SLACK, scheduleSummary, summaryContext } from "@/lib/vega/summary";
 import { summarizeUsage, type ModelUsage } from "@/lib/vega/usage";
@@ -345,7 +347,9 @@ export async function runVegaTurn(turn: VegaTurn, emit: (event: VegaEvent) => vo
       for (const part of calls) {
         const call = part.functionCall!;
         let response: Record<string, unknown>;
-        if (!toolCharged && !freeTools.has(call.name)) {
+        // PR C: sitios y apps los construye el generador v2; su precio por trabajo ya incluye la herramienta.
+        const builderCall = call.name === "entregar_proyecto" && builderEnabled() && (call.args?.tipo === "sitio" || call.args?.tipo === "app");
+        if (!toolCharged && !freeTools.has(call.name) && !builderCall) {
           const extra = await chargeCredits(userId, creditPrices.vegaTool - creditPrices.vegaMessage, "Vega · herramienta", `${chargeKey}:tool`);
           if (!extra.ok) {
             responses.push({
@@ -392,7 +396,7 @@ export async function runVegaTurn(turn: VegaTurn, emit: (event: VegaEvent) => vo
             response = guarded.wrapped;
           } else response = base;
         } else if (outcome.kind === "delivery") {
-          const action = await prisma.vegaAction.create({
+          let action = await prisma.vegaAction.create({
             data: {
               userId,
               conversationId: chatId,
@@ -407,16 +411,62 @@ export async function runVegaTurn(turn: VegaTurn, emit: (event: VegaEvent) => vo
             select: { id: true, kind: true, payload: true, status: true, result: true },
           });
           actionIds.push(action.id);
-          if (outcome.action === "deliver_project") {
+          let build: BuildView | null = null;
+          let builderNote = "";
+          if (outcome.action === "deliver_project" && builderCall) {
+            const draft = outcome.payload as { kind?: string; title?: string; summary?: string };
+            const started = await startProjectBuild(
+              {
+                user: turn.capUser ?? { id: userId, package: null },
+                conversationId: chatId,
+                actionId: action.id,
+                kind: String(draft.kind ?? ""),
+                brief: briefFromDelivery(call.args ?? {}, draft),
+              },
+              { db: prisma },
+            ).catch((error: unknown) => {
+              console.error("[Generador] no se pudo iniciar", { errorType: error instanceof Error ? error.name : typeof error });
+              return null;
+            });
+            if (started?.ok) {
+              build = started.build;
+              action = await prisma.vegaAction.update({
+                where: { id: action.id },
+                data: {
+                  status: "running",
+                  result: `Construyendo ${draft.kind === "app" ? "la app" : "el sitio"}: ${draft.title ?? ""}`.trim(),
+                  payload: { ...(outcome.payload as object), build: { buildId: build.id, status: build.status } } as unknown as Prisma.InputJsonValue,
+                },
+                select: { id: true, kind: true, payload: true, status: true, result: true },
+              });
+              if (!started.duplicate) emit({ t: "credits", v: await currentCredits(userId) });
+            } else if (started) builderNote = started.message;
+          }
+          if (outcome.action === "deliver_project" && !build) {
+            // v1 (respaldo): sin generador, o si no se pudo iniciar. Se cobra como herramienta normal.
+            if (builderCall && !toolCharged) {
+              const extra = await chargeCredits(userId, creditPrices.vegaTool - creditPrices.vegaMessage, "Vega · herramienta", `${chargeKey}:tool`);
+              if (extra.ok) {
+                toolCharged = true;
+                toolChargeId = extra.duplicate ? null : extra.chargeId;
+                emit({ t: "credits", v: extra.balance });
+              }
+            }
             // Cada sitio, app o agente entregado queda en Proyectos (nueva versión si ya existía).
             await saveDeliveredProject(prisma, { userId, conversationId: chatId, actionId: action.id, payload: outcome.payload }).catch(
               (error: unknown) => console.error("[Proyectos] no se pudo guardar la entrega", { errorType: error instanceof Error ? error.name : typeof error }),
             );
           }
           emit({ t: "action", v: actionView(action) });
-          statuses.push(outcome.summary);
-          emit({ t: "status", v: outcome.summary });
-          response = { estado: "listo", nota: outcome.modelNote };
+          const summary = build ? `Construyendo ${build.kind === "app" ? "tu app" : "tu sitio"} premium…` : outcome.summary;
+          statuses.push(summary);
+          emit({ t: "status", v: summary });
+          response = build
+            ? {
+                estado: "construyendo",
+                nota: `El socio ve una tarjeta con el avance del generador premium (plan, componentes, compilación); tarda unos 2 a 4 minutos y al terminar queda en Proyectos con vista previa y ZIP. Se cobraron ${builderPrice(build.kind)} créditos por el trabajo (se devuelven si falla). No digas que ya está listo ni pegues código: di en una frase qué vas a construir y que puede seguir platicando mientras tanto.`,
+              }
+            : { estado: "listo", nota: builderNote ? `${outcome.modelNote} Se entregó la versión básica porque: ${builderNote}` : outcome.modelNote };
         } else if (outcome.kind === "action") {
           const proposed = await proposeAction({
             userId,

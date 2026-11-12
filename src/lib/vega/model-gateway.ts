@@ -7,6 +7,7 @@ import { providerError, readJson } from "@/lib/ai/providers";
 import {
   openGeminiStream,
   type FunctionDeclaration,
+  type GenerationOptions,
   type GeminiContent,
   type GeminiPart,
   type StreamOptions,
@@ -83,7 +84,7 @@ export async function openVegaStream(
   system: string,
   contents: GeminiContent[],
   tools: FunctionDeclaration[],
-  options: { timeoutMs: number; deps?: GatewayDeps; models?: ModelOverride | null },
+  options: { timeoutMs: number; deps?: GatewayDeps; models?: ModelOverride | null; generation?: GenerationOptions },
 ): Promise<ModelStream | ModelFailure> {
   const base = options.deps ?? defaultDeps();
   const models = options.models ?? null;
@@ -95,13 +96,13 @@ export async function openVegaStream(
       }
     : base;
   const startedAt = Date.now();
-  const primary = await attempt(deps.primary, system, contents, tools, options.timeoutMs, deps.firstPartTimeoutMs ?? firstPartTimeoutMs);
+  const primary = await attempt(deps.primary, system, contents, tools, options.timeoutMs, deps.firstPartTimeoutMs ?? firstPartTimeoutMs, options.generation);
   if (primary.ok || !deps.fallback) return primary;
 
   const left = options.timeoutMs - (Date.now() - startedAt);
   if (left < 3_000) return primary;
   console.warn("[Vega gateway] usando respaldo", { status: primary.status });
-  const fallback = await attempt(deps.fallback, system, contents, tools, left, left);
+  const fallback = await attempt(deps.fallback, system, contents, tools, left, left, options.generation);
   if (fallback.ok) {
     fallback.state.fallbackReason = primary.status ? `status ${primary.status}` : primary.error;
     return fallback;
@@ -116,6 +117,7 @@ async function attempt(
   tools: FunctionDeclaration[],
   timeoutMs: number,
   firstMs: number,
+  generation?: GenerationOptions,
 ): Promise<ModelStream | ModelFailure> {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeoutMs);
@@ -127,7 +129,7 @@ async function attempt(
 
   let opened: Awaited<ReturnType<Opener>>;
   try {
-    opened = await withTimeout(open(system, contents, tools, { signal: controller.signal }), Math.min(firstMs, timeoutMs));
+    opened = await withTimeout(open(system, contents, tools, { signal: controller.signal, ...(generation ? { generation } : {}) }), Math.min(firstMs, timeoutMs));
   } catch (error) {
     return fail(408, error instanceof FirstPartTimeout ? "El modelo tardó demasiado." : "No se pudo contactar al modelo.");
   }
@@ -276,8 +278,9 @@ export async function openOpenRouter(
       },
       body: JSON.stringify({
         model,
-        temperature: 0.6,
-        max_tokens: 4096,
+        temperature: options.generation?.temperature ?? 0.6,
+        max_tokens: options.generation?.maxOutputTokens ?? 4096,
+        ...(options.generation?.json ? { response_format: { type: "json_object" } } : {}),
         messages: toOpenRouterMessages(system, contents),
         ...(tools.length
           ? { tools: tools.map((tool) => ({ type: "function", function: tool })) }

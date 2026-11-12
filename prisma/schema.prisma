@@ -180,6 +180,7 @@ model User {
   vegaXMonitors                VegaXMonitor[]
   vegaXCalls                   VegaXCall[]
   projects                     Project[]
+  projectBuilds                ProjectBuild[]
   vegaWhatsappBlocks           VegaWhatsappBlock[]
   vegaWhatsapp                 String?
   usdtTrc20                    String?
@@ -1152,6 +1153,14 @@ model ProjectVersion {
   generator      String   @default("vega-v1")
   /// Entrega de Vega que la originó; única para no guardar dos veces la misma.
   sourceActionId String?  @unique
+  /// PR C: archivos en Vercel Blob (privado) cuando hay BLOB_READ_WRITE_TOKEN; entonces `files` queda en [].
+  filesUrl       String?
+  /// PR C: vista previa ya compilada (HTML con el bundle de esbuild + Tailwind) en Blob.
+  previewUrl     String?
+  /// PR C: vista previa compilada guardada en la base cuando no hay Blob.
+  previewHtml    String?  @db.Text
+  /// PR C: construcción del generador v2 que creó esta versión.
+  buildId        String?  @unique
   createdAt      DateTime @default(now())
 
   project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
@@ -1172,4 +1181,53 @@ model ProjectPublish {
   updatedAt   DateTime  @updatedAt
 
   project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+}
+
+// PR C: trabajo del generador v2 (plan → generar → validar → reparar → guardar) en pasos cortos
+// que se pueden reanudar. Lo avanzan el sondeo del chat y el despachador de la Fase 6.
+model ProjectBuild {
+  id             String    @id @default(cuid())
+  userId         String
+  conversationId String?
+  /// Entrega de Vega (VegaAction) que muestra el progreso; única.
+  actionId       String?   @unique
+  /// sitio | app
+  kind           String
+  /// new | edit (edit llega en el PR D)
+  mode           String    @default("new")
+  brief          String    @db.Text
+  /// queued | running | done | failed
+  status         String    @default("queued")
+  /// plan | generate | validate | repair | save | done
+  step           String    @default("plan")
+  plan           Json?
+  /// { [ruta]: contenido } generado hasta ahora
+  files          Json?
+  /// Tareas por archivo: [{ path, section, state, attempts, errors }]
+  tasks          Json?
+  /// Último reporte de validación
+  report         Json?
+  repairRound    Int       @default(0)
+  /// Fallos seguidos del paso actual (se reintenta hasta 3)
+  failures       Int       @default(0)
+  credits        Int       @default(0)
+  chargeId       String?
+  refunded       Boolean   @default(false)
+  calls          Int       @default(0)
+  inputTokens    Int       @default(0)
+  outputTokens   Int       @default(0)
+  costUsd        Float     @default(0)
+  models         String[]  @default([])
+  projectId      String?
+  versionNumber  Int?
+  error          String?
+  lockedUntil    DateTime?
+  finishedAt     DateTime?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, createdAt])
+  @@index([status, updatedAt])
 }
