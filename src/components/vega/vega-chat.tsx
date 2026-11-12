@@ -44,6 +44,7 @@ import {
   openVegaChat,
   renameVegaChat,
   updateVegaAgent,
+  vegaCostMeter,
   type VegaAttachmentChip,
   type VegaAgentSummary,
   type VegaChatMessage,
@@ -59,6 +60,8 @@ import { HistoryPanel } from "@/components/vega/history-panel";
 import { MemoryPanel } from "@/components/vega/memory-panel";
 import { ProfilePanel } from "@/components/vega/profile-panel";
 import { RoutinesPanel } from "@/components/vega/tasks-panel";
+import { UsageMeter } from "@/components/vega/usage-meter";
+import type { CostMeterView } from "@/lib/vega/cost-shared";
 import { VegaGreeting, VegaMark } from "@/components/vega/vega-mark";
 import { RichText } from "@/components/vega/rich-text";
 import { attachmentAccept, attachmentLimits } from "@/lib/vega/attachment-limits";
@@ -162,6 +165,19 @@ export function VegaChat({
   const [listOpen, setListOpen] = useState(false);
   const [chatsHidden, setChatsHidden] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
+  const [costMeter, setCostMeter] = useState<CostMeterView | null>(null);
+
+  useEffect(() => {
+    let alive = true;
+    void vegaCostMeter()
+      .then((view) => {
+        if (alive) setCostMeter(view);
+      })
+      .catch(() => undefined);
+    return () => {
+      alive = false;
+    };
+  }, []);
   const abortRef = useRef<AbortController | null>(null);
   const endRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
@@ -436,8 +452,9 @@ export function VegaChat({
 
       const chatId = response.headers.get("x-conversation-id");
       if (!response.ok || !response.body) {
-        const data = (await response.json().catch(() => ({}))) as { error?: string; credits?: number };
+        const data = (await response.json().catch(() => ({}))) as { error?: string; credits?: number; capped?: boolean };
         syncBalance(data.credits);
+        if (data.capped) void vegaCostMeter().then(setCostMeter).catch(() => undefined);
         setFiles(pendingFiles);
         setLinks(pendingLinks);
         update({ content: data.error ?? "Vega no pudo responder." });
@@ -487,6 +504,8 @@ export function VegaChat({
         } else if (event.t === "credits") {
           syncBalance(event.v, charged ? undefined : "Vega · mensaje");
           charged = true;
+        } else if (event.t === "usage") {
+          setCostMeter(event.v);
         } else if (event.t === "error") {
           reply = event.v;
           update({ content: event.v, status: undefined });
@@ -797,6 +816,7 @@ export function VegaChat({
             <p className={cn("text-sm font-semibold", empty ? "text-white" : "text-[#1E1E24]")}>{activeAgent?.name ?? "Vega"}</p>
             <p className={cn("text-[11px]", empty ? "text-white/50" : "text-[#8A8680]")}>Listo</p>
           </div>
+          <UsageMeter view={costMeter} dark={empty} />
           <CreditRing balance={balance} tank={tank} />
           {panelButtons.map(({ id, label, icon: Icon }) => (
             <button

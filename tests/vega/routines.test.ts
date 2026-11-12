@@ -228,6 +228,16 @@ describe("despachador", () => {
     expect(tasks.rows[0].runAt).toEqual(new Date("2026-11-13T15:00:00Z"));
   });
 
+  it("con el tope mensual de costo alcanzado, la rutina queda omitida sin contar como falla", async () => {
+    await addTask({});
+    turn.mockResolvedValue({ ok: false, status: 429, error: "Llegaste al límite mensual de uso de IA de Vega." });
+    await dispatchRoutines({ now, budgetMs: 60_000, deps: deps() });
+    expect(runs.rows[0]).toMatchObject({ status: "skipped" });
+    expect(runs.rows[0].result).toMatch(/límite mensual de uso de IA/);
+    expect(tasks.rows[0].failCount).toBe(0);
+    expect(notify).not.toHaveBeenCalled();
+  });
+
   it("pausa las rutinas de cuentas sin Vega activa", async () => {
     await addTask({});
     await dispatchRoutines({ now, budgetMs: 60_000, deps: deps({ canRun: () => false }) });

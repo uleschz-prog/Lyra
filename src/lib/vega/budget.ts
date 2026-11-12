@@ -30,7 +30,8 @@ export function vegaLimits(env: Record<string, string | undefined> = process.env
   };
 }
 
-export type StopReason = "steps" | "time";
+/** «cost»: se alcanzó el tope mensual de costo de IA a media respuesta (Fase 7). */
+export type StopReason = "steps" | "time" | "cost";
 
 export type TurnBudget = ReturnType<typeof createTurnBudget>;
 
@@ -53,6 +54,7 @@ export function createTurnBudget(limits: VegaLimits, startedAt: number, now: () 
 }
 
 export function continueNote(reason: StopReason) {
+  if (reason === "cost") return "(Llegué a tu límite mensual de uso de IA, así que corté aquí este turno. Se renueva el día 1.)";
   return reason === "time"
     ? "(Se me acabó el tiempo de este turno. Escribe «continúa» y sigo donde me quedé.)"
     : "(Llegué al límite de pasos de este turno. Escribe «continúa» y sigo donde me quedé.)";

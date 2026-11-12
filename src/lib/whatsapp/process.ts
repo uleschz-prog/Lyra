@@ -75,6 +75,7 @@ async function handleOwner(connection: WhatsappConnection, inbound: WhatsappInbo
   const title = "WhatsApp";
   const defaultAgent = await ensureDefaultVegaAgent(user.id);
   const prepared = await prepareVegaTurn(user, {
+    source: "whatsapp",
     agentId: defaultAgent.id,
     conversationId: null,
     message: text.slice(0, 4000),

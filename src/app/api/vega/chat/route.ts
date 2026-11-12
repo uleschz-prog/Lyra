@@ -41,9 +41,9 @@ export async function POST(request: Request) {
 
   const prepared = await prepareVegaTurn(user, { agentId, conversationId, message, requestId, attachments: attachments.items });
   if (!prepared.ok) {
-    const { status, error, credits, conversationId: chatId } = prepared;
+    const { status, error, credits, conversationId: chatId, capped } = prepared;
     return NextResponse.json(
-      { error, ...(credits !== undefined ? { credits } : {}), ...(chatId ? { conversationId: chatId } : {}) },
+      { error, ...(credits !== undefined ? { credits } : {}), ...(chatId ? { conversationId: chatId } : {}), ...(capped ? { capped: true } : {}) },
       { status },
     );
   }

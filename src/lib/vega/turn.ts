@@ -27,6 +27,9 @@ import { connectDraft, freeTools, runVegaTool, vegaTools } from "@/lib/vega/tool
 import { isUserToolkit, type UserToolkit } from "@/lib/vega/apps";
 import { HISTORY, SUMMARY_SLACK, scheduleSummary, summaryContext } from "@/lib/vega/summary";
 import { summarizeUsage, type ModelUsage } from "@/lib/vega/usage";
+import { geminiCredentials } from "@/lib/ai/generate";
+import { capReachedMessage, costStatus, degradedModels, meterView, recordUsage, type UsageSource } from "@/lib/vega/cost-cap";
+import type { ModelOverride } from "@/lib/vega/model-gateway";
 
 const moodTag = /^\[\s*[aá]nimo\s*:\s*([a-záéíóú]+)\s*\]\s*/i;
 const moodTagAnywhere = /\[\s*[aá]nimo\s*:\s*[a-záéíóú]+\s*\]\s*/gi;
@@ -103,14 +106,25 @@ export type VegaTurn = {
   /** Último mensaje del socio (para la regla de «no reintentar lo cancelado»). */
   userMessage?: string;
   first: ModelStream;
+  /** Canal del turno, para el registro de costo. */
+  source?: UsageSource;
+  /** Modelos más baratos si el socio está cerca de su tope de costo. */
+  models?: ModelOverride | null;
+  /** USD que le quedan al socio este mes (null = sin tope). */
+  costRemainingUsd?: number | null;
+  /** Datos del socio para recalcular su medidor al terminar. */
+  capUser?: { id: string; package: string | null; role?: string | null };
 };
 
-type Prepared = { ok: true; turn: VegaTurn } | { ok: false; status: number; error: string; credits?: number; conversationId?: string };
+type Prepared =
+  | { ok: true; turn: VegaTurn }
+  | { ok: false; status: number; error: string; credits?: number; conversationId?: string; capped?: boolean };
 
 /** Cobra el mensaje, lo guarda y abre la primera respuesta de Gemini. */
 export async function prepareVegaTurn(
-  user: Pick<AuthProfile, "id" | "name" | "package">,
+  user: Pick<AuthProfile, "id" | "name" | "package"> & { role?: string | null },
   input: {
+    source?: UsageSource;
     agentId: string;
     conversationId: string | null;
     message: string;
@@ -134,6 +148,17 @@ export async function prepareVegaTurn(
       })
     : null;
   if (input.conversationId && !conversation) return { ok: false, status: 404, error: "Esa conversación no pertenece a este agente o ya no existe." };
+
+  // Fase 7: tope mensual de costo de IA. Al 100 % no se cobra ni se llama al modelo.
+  const capUser = { id: user.id, package: user.package ?? null, role: user.role ?? null };
+  const cost = await costStatus(capUser).catch((error: unknown) => {
+    console.error("[Vega cost] no se pudo leer el uso", error instanceof Error ? error.message : typeof error);
+    return null;
+  });
+  if (cost?.level === "capped") {
+    return { ok: false, status: 429, error: capReachedMessage(cost), capped: true, ...(conversation ? { conversationId: conversation.id } : {}) };
+  }
+  const models = cost?.degrade ? degradedModels(geminiCredentials().model) : null;
 
   const chargeKey = `vega:${user.id}:${input.requestId}`;
   const charge = await chargeCredits(user.id, creditPrices.vegaMessage, "Vega · mensaje", chargeKey);
@@ -202,14 +227,31 @@ export async function prepareVegaTurn(
     .join("\n");
 
   const budget = createTurnBudget(vegaLimits(), startedAt);
-  const first = await openVegaStream(system, contents, tools, { timeoutMs: budget.modelTimeoutMs() });
+  const first = await openVegaStream(system, contents, tools, { timeoutMs: budget.modelTimeoutMs(), models });
   if (!first.ok) {
     await refundCharge(charge.chargeId, "Reembolso: Vega no pudo responder");
     return { ok: false, status: 502, error: first.error, conversationId: chatId };
   }
   return {
     ok: true,
-    turn: { userId: user.id, chatId, chargeId: charge.chargeId, chargeKey, balance: charge.balance, model: first.model, system, tools, contents, startedAt, userMessage: input.message, first },
+    turn: {
+      userId: user.id,
+      chatId,
+      chargeId: charge.chargeId,
+      chargeKey,
+      balance: charge.balance,
+      model: first.model,
+      system,
+      tools,
+      contents,
+      startedAt,
+      userMessage: input.message,
+      first,
+      source: input.source ?? "chat",
+      models,
+      costRemainingUsd: cost?.remainingUsd ?? null,
+      capUser,
+    },
   };
 }
 
@@ -283,6 +325,11 @@ export async function runVegaTurn(turn: VegaTurn, emit: (event: VegaEvent) => vo
       }
       const calls = modelParts.filter((part) => part.functionCall);
       if (calls.length === 0) break;
+      // Fase 7: si este turno ya agotó lo que le quedaba del tope mensual, no sigue llamando al modelo.
+      if (turn.costRemainingUsd != null && summarizeUsage(usage).costUsd >= turn.costRemainingUsd) {
+        stopReason = "cost";
+        break;
+      }
       // Solo ejecuta herramientas si después queda una llamada para usar sus resultados.
       const room = budget.canCallModel(modelCalls);
       if (!room.ok) {
@@ -420,7 +467,7 @@ export async function runVegaTurn(turn: VegaTurn, emit: (event: VegaEvent) => vo
         stopReason = stillRoom.reason;
         break;
       }
-      const next = await openVegaStream(system, contents, tools, { timeoutMs: budget.modelTimeoutMs() });
+      const next = await openVegaStream(system, contents, tools, { timeoutMs: budget.modelTimeoutMs(), models: turn.models ?? null });
       modelCalls += 1;
       if (!next.ok) {
         failed = true;
@@ -448,6 +495,15 @@ export async function runVegaTurn(turn: VegaTurn, emit: (event: VegaEvent) => vo
     durationMs: budget.elapsedMs(),
     stopReason,
     failed,
+  });
+
+  await recordUsage({
+    userId,
+    conversationId: chatId,
+    source: turn.source ?? "chat",
+    usage: turnUsage,
+    degraded: Boolean(turn.models),
+    stopReason,
   });
 
   if (toolChargeId && !paidToolSucceeded) {
@@ -481,5 +537,9 @@ export async function runVegaTurn(turn: VegaTurn, emit: (event: VegaEvent) => vo
   await prisma.vegaConversation.update({ where: { id: chatId }, data: { updatedAt: new Date() } });
   if (content) scheduleSummary(chatId);
   emit({ t: "credits", v: await currentCredits(userId) });
+  if (turn.capUser) {
+    const after = await costStatus(turn.capUser).catch(() => null);
+    if (after && after.level !== "unlimited") emit({ t: "usage", v: meterView(after) });
+  }
   return { content, actionIds, sources, failed, stopReason, usage: turnUsage };
 }

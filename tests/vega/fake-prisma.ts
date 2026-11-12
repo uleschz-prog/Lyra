@@ -95,6 +95,13 @@ export function table(defaults: (data: Row) => Row = () => ({}), options: { uniq
       const row = rows.find((candidate) => matches(candidate, args.where));
       return row ? pick(row, args.select) : null;
     },
+    async aggregate(args: { where?: Where; _sum?: Record<string, boolean> } = {}) {
+      const found = rows.filter((row) => matches(row, args.where));
+      const sum = Object.fromEntries(
+        Object.keys(args._sum ?? {}).map((key) => [key, found.length ? found.reduce((total, row) => total + Number(row[key] ?? 0), 0) : null]),
+      );
+      return { _sum: sum };
+    },
     async count(args: { where?: Where } = {}) {
       return rows.filter((row) => matches(row, args.where)).length;
     },
