@@ -4,10 +4,9 @@ import { submitHiggsfieldImage } from "@/lib/ai/higgsfield-image";
 import { appToolNames, appTools, executeAppAction, runAppTool, type AppDraft } from "@/lib/vega/app-tools";
 import { commandAllowlist, findCommand, generateImage, isSafeArgument } from "@/lib/vega/assistant-tools";
 import { listWorkspace, MAX_FILE_BYTES, readWorkspaceFile, searchWorkspace, writeWorkspaceFile } from "@/lib/vega/files";
-import { buildProject, buildStoryboard, type ProjectDraft } from "@/lib/vega/build-project";
-import { generateClip } from "@/lib/ai/media";
-import { saveVegaImageToLibrary, saveVegaVideoToLibrary } from "@/lib/vega/library-media";
-import { scenesFromScript } from "@/lib/studio/video-plan";
+import { buildProject, type ProjectDraft } from "@/lib/vega/build-project";
+import { saveVegaImageToLibrary } from "@/lib/vega/library-media";
+import { runCreateVideo } from "@/lib/vega/video-tool";
 import { isUserToolkit, toolkitHints, toolkitLabels, userToolkits, type UserToolkit, type VegaConnections } from "@/lib/vega/apps";
 import type { FunctionDeclaration } from "@/lib/vega/gemini-stream";
 import { runXTool, xToolNames, xTools } from "@/lib/vega/x/tools";
@@ -256,7 +255,7 @@ export function vegaTools(connections: VegaConnections, webSearch: boolean): Fun
     {
       name: "crear_video",
       description:
-        "Crea ya un video corto o un anuncio a partir de un guion y lo muestra en el chat. Úsala en el mismo turno en que el socio lo pide. El guion son 2 a 4 frases en español.",
+        "Crea ya un video corto o un anuncio a partir de un guion y lo muestra en el chat. Úsala en el mismo turno en que el socio lo pide. El guion son 2 a 4 frases en español. Gasta segundos de la cuota de video del plan; si no alcanza o el video no sale, devuelve un error: dilo tal cual y no ofrezcas una versión de texto como si fuera video.",
       parameters: {
         type: "object",
         properties: {
@@ -789,47 +788,29 @@ export async function runVegaTool(userId: string, name: string, args: Record<str
     const script = text(args.guion, 800);
     if (title.length < 3 || script.length < 12) return { kind: "invalid", response: { error: "El video necesita título y un guion de al menos una frase." } };
     const format = text(args.formato, 8);
-    const scenes = scenesFromScript(script).map((scene) => scene.line);
-    const html = buildStoryboard(title || "Video", scenes);
-    const clip = await generateClip({
+    const video = await runCreateVideo(userId, {
       title,
       script,
       format: format === "16:9" || format === "1:1" ? format : "9:16",
-      duration: "15 s",
-      styleId: "cine",
     });
-    const videoUrl = clip.ok ? clip.url : undefined;
-    const savedVideo = await saveVegaVideoToLibrary(userId, {
-      title,
-      script,
-      scenes,
-      html,
-      ...(videoUrl ? { videoUrl } : {}),
-      files: [],
-    });
-    const libraryVideoUrl = savedVideo.media
-      ? `/api/library/video?pieceId=${encodeURIComponent(savedVideo.id)}`
-      : undefined;
-    const files = [
-      { path: "guion.txt", content: `${title}\n\n${script}\n` },
-      { path: "pieza.html", content: html },
-    ];
+    // Sin clip real no hay entrega: nada de storyboards de texto presentados como video.
+    if (!video.ok) return { kind: "invalid", response: { error: video.error } };
     return {
       kind: "delivery",
       action: "create_video",
       payload: {
         title,
         script,
-        scenes,
-        html,
-        libraryPieceId: savedVideo.id,
-        ...(libraryVideoUrl ? { videoUrl: libraryVideoUrl } : {}),
-        files,
+        scenes: [],
+        html: "",
+        videoUrl: video.videoUrl,
+        ...(video.libraryPieceId ? { libraryPieceId: video.libraryPieceId } : {}),
+        files: [{ path: "guion.txt", content: `${title}\n\n${script}\n` }],
       },
-      summary: videoUrl ? "Video listo" : "Pieza de video lista para ver",
-      modelNote: videoUrl
-        ? "El video ya se reproduce en el chat, se puede descargar y quedó guardado en la Biblioteca. No pidas confirmación."
-        : "La pieza ya se ve en el chat como secuencia de escenas, se puede descargar y el guion quedó guardado en la Biblioteca. El archivo mp4 no salió en este servidor; no digas que el mp4 está listo.",
+      summary: "Video listo",
+      modelNote: video.savedToLibrary
+        ? `El video (${video.seconds} s) ya se reproduce en el chat, se puede descargar y quedó guardado en la Biblioteca. Se descontaron ${video.seconds} s de la cuota de video del plan. No pidas confirmación.`
+        : `El video (${video.seconds} s) ya se reproduce en el chat y se puede descargar, pero no se pudo guardar en la Biblioteca: sugiere descargarlo hoy porque el enlace del proveedor caduca.`,
     };
   }
 

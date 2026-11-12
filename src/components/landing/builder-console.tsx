@@ -13,7 +13,7 @@ const ideas = [
     label: "Apps",
     prompts: [
       "Una app de reservas para mi clínica",
-      "Una app para cobrar membresías de mi gimnasio",
+      "Una app para registrar las membresías de mi gimnasio",
       "Un panel donde mi equipo vea las citas del día",
     ],
   },

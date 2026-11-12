@@ -1,10 +1,10 @@
 import { NextResponse } from "next/server";
 
 import { createSoulReference, listSoulReferences, parseSoulReferenceInput } from "@/lib/ai/higgsfield-references";
-import { requireMember } from "@/lib/auth/api";
+import { requireAdmin } from "@/lib/auth/api";
 
 export async function GET() {
-  const guard = await requireMember();
+  const guard = await requireAdmin();
   if (!guard.ok) return guard.response;
 
   const result = await listSoulReferences();
@@ -13,7 +13,7 @@ export async function GET() {
 }
 
 export async function POST(request: Request) {
-  const guard = await requireMember();
+  const guard = await requireAdmin();
   if (!guard.ok) return guard.response;
 
   const body = await request.json().catch(() => null);

@@ -132,7 +132,7 @@ export function ActionCard({
   if (action.kind === "connect_app") return <ConnectCard draft={action.payload as ConnectDraft} />;
   if (action.kind === "whatsapp_message") return <WhatsappCard action={action} onChange={onChange} />;
   if (action.kind === "deliver_project") {
-    return <ProjectCard project={action.payload as ProjectDraft} onSuggest={onSuggest} />;
+    return <ProjectCard project={action.payload as ProjectDraft} actionId={action.id} onSuggest={onSuggest} />;
   }
   if (action.kind === "create_video") return <MediaCard video={action.payload as VideoDraft} />;
   if (action.kind === "create_image" && action.status === "running" && (action.payload as ImageDraft).requestId) {

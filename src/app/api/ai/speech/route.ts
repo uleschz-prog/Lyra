@@ -2,13 +2,13 @@ import { NextResponse } from "next/server";
 
 import { providerError, readJson } from "@/lib/ai/providers";
 import { isStudioVoice, studioVoices } from "@/lib/ai/voices";
-import { requireMember } from "@/lib/auth/api";
+import { requireAdmin } from "@/lib/auth/api";
 import { creditPrices, withCharge } from "@/lib/credits";
 
 export const maxDuration = 60;
 
 export async function POST(request: Request) {
-  const guard = await requireMember();
+  const guard = await requireAdmin();
   if (!guard.ok) return guard.response;
 
   const body = (await request.json().catch(() => null)) as {

@@ -2,12 +2,12 @@ import { NextResponse } from "next/server";
 
 import { parseSoul2ImageOptions, parseWanVideoOptions } from "@/lib/ai/higgsfield-api";
 import { beginHiggsfieldGeneration, getActiveHiggsfieldGeneration } from "@/lib/ai/higgsfield-generation";
-import { requireMember } from "@/lib/auth/api";
+import { requireAdmin } from "@/lib/auth/api";
 
 export const maxDuration = 30;
 
 export async function GET() {
-  const guard = await requireMember();
+  const guard = await requireAdmin();
   if (!guard.ok) return guard.response;
 
   const generation = await getActiveHiggsfieldGeneration(guard.user.id);
@@ -17,7 +17,7 @@ export async function GET() {
 }
 
 export async function POST(request: Request) {
-  const guard = await requireMember();
+  const guard = await requireAdmin();
   if (!guard.ok) return guard.response;
 
   const body = (await request.json().catch(() => null)) as

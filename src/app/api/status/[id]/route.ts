@@ -1,12 +1,12 @@
 import { NextResponse } from "next/server";
 
 import { getHiggsfieldGeneration } from "@/lib/ai/higgsfield-generation";
-import { requireMember } from "@/lib/auth/api";
+import { requireAdmin } from "@/lib/auth/api";
 
 export const maxDuration = 60;
 
 export async function GET(_request: Request, context: { params: Promise<{ id: string }> }) {
-  const guard = await requireMember();
+  const guard = await requireAdmin();
   if (!guard.ok) return guard.response;
 
   const { id } = await context.params;

@@ -1,6 +1,13 @@
+import type { Metadata } from "next";
+import { notFound } from "next/navigation";
+
 import { CreditProvider } from "@/components/dashboard/credit-provider";
 import { VegaChat } from "@/components/vega/vega-chat";
+import { getCurrentUser } from "@/lib/auth/profile";
 import { buildProject } from "@/lib/vega/build-project";
+
+export const metadata: Metadata = { title: "Vista de prueba de Vega", robots: { index: false, follow: false } };
+export const dynamic = "force-dynamic";
 
 const clinic = buildProject({
   titulo: "Clínica Luna",
@@ -33,6 +40,9 @@ const clinic = buildProject({
 });
 
 export default async function PreviewVega({ searchParams }: { searchParams: Promise<{ pieza?: string }> }) {
+  // Página de prueba interna: solo para administradores; para todos los demás no existe.
+  const user = await getCurrentUser();
+  if (!user || user.role !== "ADMIN") notFound();
   const { pieza } = await searchParams;
   const now = new Date().toISOString();
   const project = clinic.ok ? clinic.project : null;

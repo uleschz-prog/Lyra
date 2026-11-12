@@ -18,7 +18,7 @@ export const metadata: Metadata = {
 const powers = [
   { title: "Atiende", text: "Responde en WhatsApp a cualquier hora con el tono de tu marca." },
   { title: "Vende", text: "Presenta tu oferta, resuelve dudas y envía la liga de pago." },
-  { title: "Cobra", text: "Confirma cada transferencia y te avisa en cuanto llega el dinero." },
+  { title: "Crea", text: "Hace imágenes, videos, sitios y apps para tu negocio desde el chat." },
   { title: "Coordina", text: "Dirige a tus agentes para que cada cliente reciba seguimiento." },
 ];
 
@@ -48,7 +48,7 @@ export default async function SuperAgentPage({ searchParams }: { searchParams: P
         <p className="text-[11px] font-medium tracking-[0.22em] text-[#7C3AED] uppercase">Incluido en tu membresía</p>
         <h1 className="mt-3 text-3xl font-semibold tracking-tight text-[#1E1E24] sm:text-4xl">Vega, tu superagente</h1>
         <p className="mx-auto mt-3 max-w-xl text-sm leading-relaxed text-[#5C5854]">
-          Un agente que vende y cobra por ti mientras duermes, al mando de todos tus agentes.
+          Un agente que atiende, vende y da seguimiento por ti, al mando de todos tus agentes.
         </p>
       </header>
 

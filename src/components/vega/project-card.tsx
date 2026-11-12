@@ -1,7 +1,6 @@
 "use client";
 
 import { Download, ExternalLink } from "lucide-react";
-import { toast } from "sonner";
 
 import { projectHtml, projectZip, type ProjectDraft } from "@/lib/vega/build-project";
 
@@ -22,9 +21,12 @@ function save(name: string, bytes: BlobPart, type: string) {
 
 export function ProjectCard({
   project,
+  actionId,
   onSuggest,
 }: {
   project: ProjectDraft;
+  /** Id de la entrega guardada; con él la pestaña de vista previa se sirve aislada desde el servidor. */
+  actionId?: string;
   onSuggest?: (text: string) => void;
 }) {
   const html = projectHtml(project);
@@ -35,23 +37,6 @@ export function ProjectCard({
     save(fileName, zip, "application/zip");
   }
 
-  function openPreview() {
-    const url = URL.createObjectURL(new Blob([html], { type: "text/html;charset=utf-8" }));
-    const tab = window.open(url, "_blank");
-    if (!tab) {
-      URL.revokeObjectURL(url);
-      toast.error("Permite las ventanas emergentes para ver la vista previa en una pestaña.");
-      return;
-    }
-    window.setTimeout(() => {
-      try {
-        tab.opener = null;
-      } catch {
-        /* la pestaña ya quedó aparte */
-      }
-    }, 400);
-  }
-
   return (
     <div className="mt-3 overflow-hidden rounded-2xl border border-[#E7E2DA] bg-[#FCFBF9]">
       <div className="flex items-center justify-between gap-3 border-b border-[#F0ECE6] px-4 py-2.5">
@@ -59,15 +44,18 @@ export function ProjectCard({
           {labels[project.kind]} · {project.title}
         </p>
         <div className="flex gap-2">
-          <button
-            type="button"
-            onClick={openPreview}
-            className="inline-flex items-center gap-1 rounded-lg border border-[#E7E2DA] bg-white px-2.5 py-1.5 text-xs font-medium text-[#1E1E24]"
-            aria-label={`Vista previa de ${project.title} en una pestaña nueva`}
-          >
-            <ExternalLink className="size-3.5" />
-            Vista previa
-          </button>
+          {actionId ? (
+            <a
+              href={`/api/vega/preview/${encodeURIComponent(actionId)}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-1 rounded-lg border border-[#E7E2DA] bg-white px-2.5 py-1.5 text-xs font-medium text-[#1E1E24]"
+              aria-label={`Vista previa de ${project.title} en una pestaña nueva`}
+            >
+              <ExternalLink className="size-3.5" />
+              Vista previa
+            </a>
+          ) : null}
           <button type="button" onClick={download} className="inline-flex items-center gap-1 rounded-lg bg-[#7C3AED] px-2.5 py-1.5 text-xs font-medium text-white">
             <Download className="size-3.5" />
             Descargar código

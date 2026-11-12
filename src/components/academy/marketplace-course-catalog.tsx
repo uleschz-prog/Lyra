@@ -267,10 +267,10 @@ export function MarketplaceCourseCatalog({ courses }: { courses: MarketplaceCour
   }
 
   return (
-    <section className="mb-10" aria-label="Marketplace de cursos">
+    <section className="mb-10" aria-label="Catálogo de cursos">
       <div className="mb-4 flex flex-wrap items-end justify-between gap-3">
         <div>
-          <p className="text-sm text-[#8A8680]">Marketplace de creadores</p>
+          <p className="text-sm text-[#8A8680]">Cursos de creadores</p>
           <h2 className="mt-1 text-2xl font-semibold text-[#1E1E24]">Descubre tu próximo curso</h2>
         </div>
         <Link href="/dashboard/academy/creator" className="text-sm font-medium text-[#5C5854] underline underline-offset-4">

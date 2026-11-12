@@ -6,7 +6,7 @@ import { redirect } from "next/navigation";
 import { getCurrentUser } from "@/lib/auth/profile";
 import { getPrisma } from "@/lib/prisma";
 
-const notificationsPath = "/dashboard/academy/notificaciones";
+const notificationsPath = "/dashboard/notificaciones";
 
 export async function openAcademyNotification(formData: FormData) {
   const user = await getCurrentUser();

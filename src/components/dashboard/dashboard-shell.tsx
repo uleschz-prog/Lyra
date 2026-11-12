@@ -6,6 +6,7 @@ import { usePathname } from "next/navigation";
 import { useEffect, useState, type ReactNode } from "react";
 
 import { Logo } from "@/components/brand/logo";
+import { NotificationBell } from "@/components/dashboard/notification-bell";
 import { Sidebar } from "@/components/dashboard/sidebar";
 import { ThemeToggle } from "@/components/app/theme-toggle";
 import { brand } from "@/config/brand";
@@ -82,7 +83,10 @@ export function DashboardShell({
           <Link href={brand.links.dashboard} aria-label="LYRA, ir al inicio">
             <Logo compact ink />
           </Link>
-          <ThemeToggle />
+          <div className="flex items-center gap-2">
+            <NotificationBell unread={unreadNotifications} className="h-11 w-11" />
+            <ThemeToggle />
+          </div>
         </header>
         <main className="mx-auto w-full min-w-0 max-w-6xl px-4 pt-4 pb-[calc(var(--lyra-tab)+1.5rem)] sm:px-6 sm:pt-8 md:pb-8 lg:px-10 lg:pt-10">{children}</main>
       </div>

@@ -151,7 +151,7 @@ export default async function AcademyPage({
     <>
       <PageHeader
         eyebrow="Academia"
-        title="Marketplace de cursos"
+        title="Catálogo de cursos"
         description="Descubre cursos publicados por la comunidad o crea los tuyos desde el panel del creador."
         section="academy"
       />

@@ -1,7 +1,7 @@
 import { handleUpload, type HandleUploadBody } from "@vercel/blob/client";
 import { NextResponse } from "next/server";
 
-import { requireMember } from "@/lib/auth/api";
+import { requireAdmin } from "@/lib/auth/api";
 import { getPrisma } from "@/lib/prisma";
 import { finalizeVideoGeneration } from "@/lib/studio/video-generations";
 
@@ -28,7 +28,7 @@ export async function POST(request: Request) {
   const body = (await request.json().catch(() => null)) as HandleUploadBody | null;
   if (!body) return NextResponse.json({ error: "Solicitud de carga inválida." }, { status: 400 });
   const isCallback = body.type === "blob.upload-completed";
-  const guard = isCallback ? null : await requireMember();
+  const guard = isCallback ? null : await requireAdmin();
   if (guard && !guard.ok) return guard.response;
 
   try {
