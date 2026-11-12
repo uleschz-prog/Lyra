@@ -12,14 +12,16 @@ import { attachmentMeta, excerptsFromMeta, inlineParts, type ReadyAttachment } f
 import { noConnections } from "@/lib/vega/apps";
 import { actionView } from "@/lib/vega/decide";
 import type { VegaEvent, VegaMood } from "@/lib/vega/events";
-import { openGeminiStream, type FunctionDeclaration, type GeminiContent, type GeminiPart } from "@/lib/vega/gemini-stream";
+import { continueNote, createTurnBudget, vegaLimits, type StopReason } from "@/lib/vega/budget";
+import type { FunctionDeclaration, GeminiContent, GeminiPart } from "@/lib/vega/gemini-stream";
+import { openVegaStream, type ModelStream } from "@/lib/vega/model-gateway";
 import { listMemories } from "@/lib/vega/memory";
 import { getVegaProfile } from "@/lib/vega/profile";
 import { conversationTitle, vegaSystemPrompt } from "@/lib/vega/prompt";
 import { freeTools, runVegaTool, vegaTools, executeVegaAction, type ActionPayload } from "@/lib/vega/tools";
+import { summarizeUsage, type ModelUsage } from "@/lib/vega/usage";
 
 const HISTORY = 24;
-const MAX_STEPS = 4;
 
 const moodTag = /^\[\s*[aá]nimo\s*:\s*([a-záéíóú]+)\s*\]\s*/i;
 const moodTagAnywhere = /\[\s*[aá]nimo\s*:\s*[a-záéíóú]+\s*\]\s*/gi;
@@ -87,7 +89,9 @@ export type VegaTurn = {
   system: string;
   tools: FunctionDeclaration[];
   contents: GeminiContent[];
-  first: Extract<Awaited<ReturnType<typeof openGeminiStream>>, { ok: true }>;
+  /** Momento (ms) en que empezó el turno; de aquí se cuenta el presupuesto de tiempo. */
+  startedAt: number;
+  first: ModelStream;
 };
 
 type Prepared = { ok: true; turn: VegaTurn } | { ok: false; status: number; error: string; credits?: number; conversationId?: string };
@@ -105,6 +109,7 @@ export async function prepareVegaTurn(
     attachments?: ReadyAttachment[];
   },
 ): Promise<Prepared> {
+  const startedAt = Date.now();
   const prisma = getPrisma();
   const agent = await prisma.vegaAgent.findFirst({
     where: { id: input.agentId, userId: user.id },
@@ -171,14 +176,15 @@ export async function prepareVegaTurn(
     .filter(Boolean)
     .join("\n");
 
-  const first = await openGeminiStream(system, contents, tools);
+  const budget = createTurnBudget(vegaLimits(), startedAt);
+  const first = await openVegaStream(system, contents, tools, { timeoutMs: budget.modelTimeoutMs() });
   if (!first.ok) {
     await refundCharge(charge.chargeId, "Reembolso: Vega no pudo responder");
     return { ok: false, status: 502, error: first.error, conversationId: chatId };
   }
   return {
     ok: true,
-    turn: { userId: user.id, chatId, chargeId: charge.chargeId, chargeKey, balance: charge.balance, model: first.model, system, tools, contents, first },
+    turn: { userId: user.id, chatId, chargeId: charge.chargeId, chargeKey, balance: charge.balance, model: first.model, system, tools, contents, startedAt, first },
   };
 }
 
@@ -186,6 +192,7 @@ export async function prepareVegaTurn(
 export async function runVegaTurn(turn: VegaTurn, emit: (event: VegaEvent) => void) {
   const prisma = getPrisma();
   const { userId, chatId, chargeKey, system, tools, contents } = turn;
+  const budget = createTurnBudget(vegaLimits(), turn.startedAt);
   emit({ t: "credits", v: turn.balance });
 
   let reply = "";
@@ -198,6 +205,10 @@ export async function runVegaTurn(turn: VegaTurn, emit: (event: VegaEvent) => vo
   const statuses: string[] = [];
   let current = turn.first;
   let pending = "";
+  let stopReason: StopReason | null = null;
+  let modelCalls = 1;
+  const usage: ModelUsage[] = [];
+  const models = new Set<string>();
 
   const say = (text: string) => {
     const clean = text.replace(moodTagAnywhere, "");
@@ -223,18 +234,33 @@ export async function runVegaTurn(turn: VegaTurn, emit: (event: VegaEvent) => vo
   };
 
   try {
-    for (let step = 0; step < MAX_STEPS; step += 1) {
+    while (true) {
       const modelParts: GeminiPart[] = [];
-      for await (const part of current.parts) {
-        modelParts.push(part);
-        if (part.text && !part.thought) {
-          if (pending || !reply) readText(part.text);
-          else say(part.text);
+      try {
+        for await (const part of current.parts) {
+          modelParts.push(part);
+          if (part.text && !part.thought) {
+            if (pending || !reply) readText(part.text);
+            else say(part.text);
+          }
         }
+      } finally {
+        usage.push(current.usage);
+        models.add(`${current.provider}:${current.model}`);
       }
       flush();
+      if (current.state.truncated) {
+        stopReason = "time";
+        break;
+      }
       const calls = modelParts.filter((part) => part.functionCall);
-      if (calls.length === 0 || step === MAX_STEPS - 1) break;
+      if (calls.length === 0) break;
+      // Solo ejecuta herramientas si después queda una llamada para usar sus resultados.
+      const room = budget.canCallModel(modelCalls);
+      if (!room.ok) {
+        stopReason = room.reason;
+        break;
+      }
 
       contents.push({ role: "model", parts: modelParts });
       const responses: GeminiPart[] = [];
@@ -351,7 +377,14 @@ export async function runVegaTurn(turn: VegaTurn, emit: (event: VegaEvent) => vo
       }
       contents.push({ role: "user", parts: responses });
 
-      const next = await openGeminiStream(system, contents, tools);
+      // Las herramientas pueden tardar: vuelve a revisar el tiempo antes de llamar al modelo.
+      const stillRoom = budget.canCallModel(modelCalls);
+      if (!stillRoom.ok) {
+        stopReason = stillRoom.reason;
+        break;
+      }
+      const next = await openVegaStream(system, contents, tools, { timeoutMs: budget.modelTimeoutMs() });
+      modelCalls += 1;
       if (!next.ok) {
         failed = true;
         break;
@@ -362,6 +395,23 @@ export async function runVegaTurn(turn: VegaTurn, emit: (event: VegaEvent) => vo
     console.error("[Vega turn] failed", error instanceof Error ? error.name : typeof error);
     failed = true;
   }
+
+  if (stopReason && (reply.trim() || statuses.length || actionIds.length)) {
+    say(`${reply.trim() ? "\n\n" : ""}${continueNote(stopReason)}`);
+  }
+
+  const turnUsage = summarizeUsage(usage);
+  console.info("[Vega usage]", {
+    chatId,
+    modelCalls: turnUsage.calls,
+    providers: turnUsage.providers,
+    inputTokens: turnUsage.inputTokens,
+    outputTokens: turnUsage.outputTokens,
+    costUsd: turnUsage.costUsd,
+    durationMs: budget.elapsedMs(),
+    stopReason,
+    failed,
+  });
 
   if (toolChargeId && !paidToolSucceeded) {
     await refundCharge(toolChargeId, "Reembolso: Vega no pudo completar la herramienta");
@@ -376,7 +426,10 @@ export async function runVegaTurn(turn: VegaTurn, emit: (event: VegaEvent) => vo
         content,
         meta: {
           model: turn.model,
-          partial: failed,
+          models: [...models],
+          partial: failed || Boolean(stopReason),
+          ...(stopReason ? { stopReason } : {}),
+          usage: turnUsage,
           ...(sources.length ? { sources: sources.map(({ title, url }) => ({ title, url })) } : {}),
           ...(actionIds.length ? { actions: actionIds } : {}),
           ...(statuses.length ? { statuses } : {}),
@@ -390,5 +443,5 @@ export async function runVegaTurn(turn: VegaTurn, emit: (event: VegaEvent) => vo
   }
   await prisma.vegaConversation.update({ where: { id: chatId }, data: { updatedAt: new Date() } });
   emit({ t: "credits", v: await currentCredits(userId) });
-  return { content, actionIds, sources, failed };
+  return { content, actionIds, sources, failed, stopReason, usage: turnUsage };
 }
