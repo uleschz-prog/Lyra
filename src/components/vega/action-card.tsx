@@ -23,6 +23,7 @@ import { toast } from "sonner";
 
 import { connectVegaApp, decideVegaAction } from "@/app/dashboard/super-agent/actions";
 import { MediaCard } from "@/components/vega/media-card";
+import { BuildCard, buildRefOf } from "@/components/vega/build-card";
 import { ProjectCard } from "@/components/vega/project-card";
 import type { AppOp } from "@/lib/vega/app-tools";
 import type { ProjectDraft } from "@/lib/vega/build-project";
@@ -132,6 +133,9 @@ export function ActionCard({
   if (action.kind === "connect_app") return <ConnectCard draft={action.payload as ConnectDraft} />;
   if (action.kind === "whatsapp_message") return <WhatsappCard action={action} onChange={onChange} />;
   if (action.kind === "deliver_project") {
+    // PR C: generador v2. Si falló sin respaldo guardado, se muestra la versión v1 del chat.
+    const build = buildRefOf(action.payload);
+    if (build && (build.status !== "failed" || build.projectId)) return <BuildCard action={action} onChange={onChange} onSuggest={onSuggest} />;
     return <ProjectCard project={action.payload as ProjectDraft} actionId={action.id} onSuggest={onSuggest} />;
   }
   if (action.kind === "create_video") return <MediaCard video={action.payload as VideoDraft} />;

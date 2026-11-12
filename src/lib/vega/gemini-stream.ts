@@ -23,8 +23,21 @@ export function vegaConfigured() {
   return Boolean(geminiCredentials().apiKey);
 }
 
+/** Ajustes de generación (el generador v2 pide respuestas más largas o JSON). */
+export type GenerationOptions = { maxOutputTokens?: number; temperature?: number; json?: boolean; thinkingBudget?: number };
+
 /** `model` reemplaza el modelo configurado (p. ej. uno más barato cerca del tope de costo). */
-export type StreamOptions = { signal?: AbortSignal; model?: string };
+export type StreamOptions = { signal?: AbortSignal; model?: string; generation?: GenerationOptions };
+
+export function geminiGenerationConfig(model: string, generation: GenerationOptions | undefined) {
+  return {
+    temperature: generation?.temperature ?? 0.6,
+    maxOutputTokens: generation?.maxOutputTokens ?? 4096,
+    ...(generation?.json ? { responseMimeType: "application/json" } : {}),
+    // Solo la familia 2.5 Flash acepta fijar el presupuesto de razonamiento (0 lo apaga).
+    ...(generation?.thinkingBudget !== undefined && /^gemini-2\.5-flash/.test(model) ? { thinkingConfig: { thinkingBudget: generation.thinkingBudget } } : {}),
+  };
+}
 
 /**
  * Abre la respuesta de Gemini en modo SSE y entrega cada parte tal como llega.
@@ -52,7 +65,7 @@ export async function openGeminiStream(
           systemInstruction: { parts: [{ text: system }] },
           contents,
           ...(tools.length > 0 ? { tools: [{ functionDeclarations: tools }] } : {}),
-          generationConfig: { temperature: 0.6, maxOutputTokens: 4096 },
+          generationConfig: geminiGenerationConfig(model, options.generation),
         }),
         signal: options.signal,
       },

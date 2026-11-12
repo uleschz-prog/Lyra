@@ -7,6 +7,11 @@ import { dispatchRoutines } from "@/lib/vega/routine-runner";
 /** Tiempo de la invocación que usa el despachador (la ruta tiene maxDuration = 60). */
 export const DISPATCH_BUDGET_MS = 55_000;
 
+async function resumeIdleBuilds(budgetMs: number) {
+  const [{ resumeBuilds }, { getPrisma }] = await Promise.all([import("@/lib/builder/runner"), import("@/lib/prisma")]);
+  return resumeBuilds({ db: getPrisma() }, { budgetMs });
+}
+
 export function authorizedCron(request: Request, secret = process.env.CRON_SECRET) {
   if (!secret) return false;
   const given = Buffer.from(request.headers.get("authorization") ?? "");
@@ -23,7 +28,14 @@ export function authorizedCron(request: Request, secret = process.env.CRON_SECRE
 export async function handleDispatch(request: Request, options: { horizonMs?: number } = {}) {
   const started = Date.now();
   if (!authorizedCron(request)) return NextResponse.json({ error: "No autorizado." }, { status: 401 });
-  const run = () => dispatchRoutines({ budgetMs: DISPATCH_BUDGET_MS - (Date.now() - started), horizonMs: options.horizonMs });
+  const run = async () => {
+    const routines = await dispatchRoutines({ budgetMs: DISPATCH_BUDGET_MS - (Date.now() - started), horizonMs: options.horizonMs });
+    // PR C: con el tiempo que sobre, retoma construcciones del generador v2 que nadie está sondeando.
+    const left = DISPATCH_BUDGET_MS - (Date.now() - started);
+    if (left < 20_000) return routines;
+    const builds = await resumeIdleBuilds(left - 5_000).catch((error: unknown) => ({ error: error instanceof Error ? error.message : "builds failed" }));
+    return { ...routines, builds };
+  };
   if (new URL(request.url).searchParams.get("wait") === "1") {
     return NextResponse.json(await run());
   }

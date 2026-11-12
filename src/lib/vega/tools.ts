@@ -269,13 +269,18 @@ export function vegaTools(connections: VegaConnections, webSearch: boolean): Fun
     {
       name: "entregar_proyecto",
       description:
-        "Entrega una pieza premium y específica: sitio web, prototipo de app o especificación de agente. Usa nombres, oferta y tono del socio; no inventes precios, reseñas, certificaciones o resultados. Si falta un dato esencial, pregunta antes de llamar esta herramienta; si no, completa la pieza y declara las suposiciones. Sitios: portada con propuesta de valor y CTA, servicios, diferenciadores/proceso, FAQ o testimonios sólo si hay datos, contacto y pie. Apps: una tarea principal completa y probada mediante agenda, herramienta CRUD local o contacto; incluye estados vacíos/confirmación/eliminación. Agentes: misión clara, 3+ reglas concretas, flujo de atención y 3+ ejemplos. La vista previa de app guarda localmente en ese navegador; la vista previa de agente es una simulación por ejemplos. No las describas como sistemas con servidor, IA en vivo, pagos o datos compartidos. Usa mínimo 5 secciones de valor para landing y 3–6 bloques para otras piezas; copy final, no texto placeholder.",
+        "Entrega una pieza premium y específica: sitio web, app o especificación de agente. Los sitios y apps los construye el generador premium (proyecto React + Tailwind de varios archivos, con páginas o pantallas, sistema de diseño y vista previa compilada; tarda unos minutos y cobra su precio por trabajo); lo que mandes en secciones es el copy base y el respaldo. Usa nombres, oferta y tono del socio; no inventes precios, reseñas, certificaciones o resultados. Si falta un dato esencial, pregunta antes de llamar esta herramienta; si no, completa la pieza y declara las suposiciones. Sitios: portada con propuesta de valor y CTA, servicios, diferenciadores/proceso, FAQ o testimonios sólo si hay datos, contacto y pie. Apps: una tarea principal completa y probada mediante agenda, herramienta CRUD local o contacto; incluye estados vacíos/confirmación/eliminación. Agentes: misión clara, 3+ reglas concretas, flujo de atención y 3+ ejemplos. La vista previa de app guarda localmente en ese navegador; la vista previa de agente es una simulación por ejemplos. No las describas como sistemas con servidor, IA en vivo, pagos o datos compartidos. Usa mínimo 5 secciones de valor para landing y 3–6 bloques para otras piezas; copy final, no texto placeholder.",
       parameters: {
         type: "object",
         properties: {
           titulo: { type: "string" },
           tipo: { type: "string", enum: ["app", "sitio", "agente"] },
           resumen: { type: "string", description: "Una frase de qué hace." },
+          brief: {
+            type: "string",
+            description:
+              "Sitios y apps: encargo completo para el generador premium (negocio, ciudad, público, oferta, tono/estilo visual, páginas o pantallas, datos de contacto, entidades y campos de la app). Todo lo que dijo el socio, sin inventar.",
+          },
           color: { type: "string", description: "Color hexadecimal, por ejemplo #0F766E." },
           secciones: {
             type: "array",

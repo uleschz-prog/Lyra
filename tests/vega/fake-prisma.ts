@@ -72,6 +72,9 @@ function apply(row: Row, data: Row) {
   for (const [key, value] of Object.entries(data)) {
     if (value && typeof value === "object" && !(value instanceof Date) && "increment" in (value as Row)) {
       row[key] = Number(row[key] ?? 0) + Number((value as Row).increment);
+    } else if (value && typeof value === "object" && !(value instanceof Date) && !Array.isArray(value) && "push" in (value as Row)) {
+      const pushed = (value as Row).push;
+      row[key] = [...((row[key] as unknown[]) ?? []), ...(Array.isArray(pushed) ? pushed : [pushed])];
     } else {
       row[key] = value;
     }
