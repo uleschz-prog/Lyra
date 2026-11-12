@@ -38,6 +38,7 @@ vi.mock("@/lib/vega/tools", () => ({
 vi.mock("@/lib/vega/autonomy", () => ({ evaluateAutonomy: vi.fn(), autonomyPrompt: async () => "" }));
 vi.mock("@/lib/ai/composio", () => ({ composioConfigured: () => false }));
 vi.mock("@/lib/ai/composio-user", () => ({ userConnections: vi.fn() }));
+vi.mock("@/lib/vega/summary", () => ({ HISTORY: 24, SUMMARY_SLACK: 8, scheduleSummary: vi.fn(), summaryContext: () => "" }));
 
 const { runVegaTurn } = await import("@/lib/vega/turn");
 

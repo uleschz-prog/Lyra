@@ -6,7 +6,8 @@ import { chargeCredits, creditPrices, refundCharge } from "@/lib/credits";
 import { getPrisma } from "@/lib/prisma";
 import { ensureDefaultVegaAgent } from "@/lib/vega/agents";
 import { canUseVega } from "@/lib/vega/access";
-import { listMemories, memoryPrompt } from "@/lib/vega/memory";
+import { asItems, listMemories } from "@/lib/vega/memory";
+import { memoryPrompt, selectMemoriesForPrompt } from "@/lib/vega/memory-logic";
 import { type TaskKind, type TaskRepeat, type VegaTaskView } from "@/lib/vega/tasks-shared";
 
 export { DAILY_HOUR, repeatLabels, type TaskKind, type TaskRepeat, type VegaTaskView } from "@/lib/vega/tasks-shared";
@@ -158,11 +159,12 @@ async function produce(task: { title: string; instruction: string; kind: string;
     }
   }
   const memories = await listMemories(user.id).catch(() => []);
+  const slice = selectMemoriesForPrompt(asItems(memories), `${task.title} ${task.instruction}`);
   const result = await generateText({
     system: [
       `Eres Vega, el superagente de LYRA de ${user.name}. Estás ejecutando una tarea programada que el socio te pidió.`,
       "Responde en español, directo y útil, en menos de 250 palabras. Si usas resultados de búsqueda, cita con [n] y lista las fuentes al final.",
-      memoryPrompt(memories),
+      memoryPrompt(slice.selected, slice.omitted),
     ].join("\n"),
     user: `Tarea: ${task.title}\nInstrucción: ${task.instruction}${context}`,
     temperature: 0.5,

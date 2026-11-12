@@ -15,13 +15,13 @@ import type { VegaEvent, VegaMood } from "@/lib/vega/events";
 import { continueNote, createTurnBudget, vegaLimits, type StopReason } from "@/lib/vega/budget";
 import type { FunctionDeclaration, GeminiContent, GeminiPart } from "@/lib/vega/gemini-stream";
 import { openVegaStream, type ModelStream } from "@/lib/vega/model-gateway";
-import { listMemories } from "@/lib/vega/memory";
+import { asItems, listMemories } from "@/lib/vega/memory";
+import { selectMemoriesForPrompt } from "@/lib/vega/memory-logic";
 import { getVegaProfile } from "@/lib/vega/profile";
 import { conversationTitle, vegaSystemPrompt } from "@/lib/vega/prompt";
 import { freeTools, runVegaTool, vegaTools, executeVegaAction, type ActionPayload } from "@/lib/vega/tools";
+import { HISTORY, SUMMARY_SLACK, scheduleSummary, summaryContext } from "@/lib/vega/summary";
 import { summarizeUsage, type ModelUsage } from "@/lib/vega/usage";
-
-const HISTORY = 24;
 
 const moodTag = /^\[\s*[aá]nimo\s*:\s*([a-záéíóú]+)\s*\]\s*/i;
 const moodTagAnywhere = /\[\s*[aá]nimo\s*:\s*[a-záéíóú]+\s*\]\s*/gi;
@@ -60,6 +60,7 @@ export function statusLabel(name: string) {
   if (name === "ver_tareas") return "Revisando tus tareas…";
   if (name === "cancelar_tarea") return "Cancelando la tarea…";
   if (name === "recordar") return "Guardando en memoria…";
+  if (name === "buscar_memoria") return "Buscando en tu memoria…";
   if (name === "olvidar") return "Borrando de la memoria…";
   if (name === "actualizar_perfil") return "Actualizando tu perfil…";
   if (name === "buscar_web") return "Buscando en la web…";
@@ -116,8 +117,11 @@ export async function prepareVegaTurn(
     select: { id: true, name: true, specialty: true, instructions: true, isDefault: true },
   });
   if (!agent) return { ok: false, status: 404, error: "Ese agente ya no existe." };
-  let conversation = input.conversationId
-    ? await prisma.vegaConversation.findFirst({ where: { id: input.conversationId, userId: user.id, agentId: agent.id }, select: { id: true } })
+  let conversation: { id: string; summary?: string | null; summaryThrough?: Date | null } | null = input.conversationId
+    ? await prisma.vegaConversation.findFirst({
+        where: { id: input.conversationId, userId: user.id, agentId: agent.id },
+        select: { id: true, summary: true, summaryThrough: true },
+      })
     : null;
   if (input.conversationId && !conversation) return { ok: false, status: 404, error: "Esa conversación no pertenece a este agente o ya no existe." };
 
@@ -143,10 +147,12 @@ export async function prepareVegaTurn(
     },
   });
 
+  // Con resumen, el historial empieza donde termina el resumen (sin huecos).
+  const summaryThrough = conversation.summaryThrough ?? null;
   const rows = await prisma.vegaMessage.findMany({
-    where: { conversationId: chatId },
+    where: { conversationId: chatId, ...(summaryThrough ? { createdAt: { gt: summaryThrough } } : {}) },
     orderBy: { createdAt: "desc" },
-    take: HISTORY,
+    take: summaryThrough ? HISTORY + SUMMARY_SLACK : HISTORY,
     select: { role: true, content: true, meta: true },
   });
   const contents = history(rows.reverse());
@@ -157,7 +163,10 @@ export async function prepareVegaTurn(
   const connections = composioConfigured() ? await userConnections(user.id).catch(() => noConnections) : noConnections;
   const webSearch = Boolean(process.env.EXA_API_KEY);
   const tools = vegaTools(connections, webSearch);
-  const memories = await listMemories(user.id).catch(() => []);
+  const allMemories = await listMemories(user.id).catch(() => []);
+  const slice = selectMemoriesForPrompt(asItems(allMemories), input.message);
+  const chosen = new Set(slice.selected.map((item) => item.id));
+  const memories = allMemories.filter((memory) => chosen.has(memory.id));
   const profile = await getVegaProfile(user.id).catch(() => ({
     business: null,
     goals: null,
@@ -169,7 +178,8 @@ export async function prepareVegaTurn(
     notes: null,
   }));
   const system = [
-    vegaSystemPrompt(user, connections, webSearch, memories, profile, new Date(), agent),
+    vegaSystemPrompt(user, connections, webSearch, memories, profile, new Date(), agent, { memoryOmitted: slice.omitted }),
+    summaryContext(conversation.summary),
     await autonomyPrompt(user.id).catch(() => ""),
     input.channelNote,
   ]
@@ -442,6 +452,7 @@ export async function runVegaTurn(turn: VegaTurn, emit: (event: VegaEvent) => vo
     emit({ t: "error", v: "Vega no alcanzó a responder. No se descontó el crédito; intenta de nuevo." });
   }
   await prisma.vegaConversation.update({ where: { id: chatId }, data: { updatedAt: new Date() } });
+  if (content) scheduleSummary(chatId);
   emit({ t: "credits", v: await currentCredits(userId) });
   return { content, actionIds, sources, failed, stopReason, usage: turnUsage };
 }
