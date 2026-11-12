@@ -181,6 +181,8 @@ model User {
   vegaXCalls                   VegaXCall[]
   projects                     Project[]
   projectBuilds                ProjectBuild[]
+  marketplaceTemplates         MarketplaceTemplate[]
+  marketplacePurchases         MarketplacePurchase[]
   vegaWhatsappBlocks           VegaWhatsappBlock[]
   vegaWhatsapp                 String?
   usdtTrc20                    String?
@@ -1230,4 +1232,106 @@ model ProjectBuild {
 
   @@index([userId, createdAt])
   @@index([status, updatedAt])
+}
+
+// PR H: Marketplace de plantillas (sitios, apps y agentes). Cada plantilla guarda una copia fija
+// (snapshot) de los archivos al publicarse; las oficiales no tienen autor y son gratuitas.
+model MarketplaceTemplate {
+  id                  String    @id @default(cuid())
+  slug                String    @unique
+  /// null = plantilla oficial de LYRA
+  authorId            String?
+  official            Boolean   @default(false)
+  /// sitio | app | agente
+  kind                String
+  title               String
+  summary             String    @db.Text
+  description         String    @db.Text
+  category            String    @default("")
+  tags                String[]  @default([])
+  /// 0 = gratis; si no, créditos
+  price               Int       @default(0)
+  /// pending | approved | rejected | unpublished
+  status              String    @default("pending")
+  rejectReason        String?
+  generator           String    @default("vega-v2")
+  /// [{ path, content }] copiados al publicar
+  files               Json
+  previewHtml         String?   @db.Text
+  /// Agentes: { name, specialty, instructions, avatar } (forma de VegaAgent)
+  agentConfig         Json?
+  sizeBytes           Int       @default(0)
+  sourceProjectId     String?
+  sourceVersionNumber Int?
+  usesCount           Int       @default(0)
+  salesCount          Int       @default(0)
+  approvedAt          DateTime?
+  createdAt           DateTime  @default(now())
+  updatedAt           DateTime  @updatedAt
+
+  author    User?                 @relation(fields: [authorId], references: [id], onDelete: SetNull)
+  purchases MarketplacePurchase[]
+  uses      MarketplaceUse[]
+
+  @@index([status, kind, createdAt])
+  @@index([authorId, createdAt])
+}
+
+// Compra con créditos: 10% para la plataforma, el resto al vendedor (retenido 7 días). Sin Bono Órbita.
+model MarketplacePurchase {
+  id           String   @id @default(cuid())
+  templateId   String
+  buyerId      String
+  sellerId     String?
+  price        Int
+  fee          Int
+  sellerAmount Int
+  chargeId     String?
+  /// paid | refunded
+  status       String   @default("paid")
+  createdAt    DateTime @default(now())
+
+  template MarketplaceTemplate @relation(fields: [templateId], references: [id], onDelete: Cascade)
+  buyer    User                @relation(fields: [buyerId], references: [id], onDelete: Cascade)
+  earning  MarketplaceEarning?
+
+  @@unique([templateId, buyerId])
+  @@index([buyerId, createdAt])
+}
+
+// Ganancia del vendedor en créditos (sin retiro en efectivo): se libera 7 días después de la venta.
+model MarketplaceEarning {
+  id            String    @id @default(cuid())
+  purchaseId    String    @unique
+  sellerId      String
+  templateId    String
+  amount        Int
+  /// held | released | cancelled
+  status        String    @default("held")
+  releaseAt     DateTime
+  releasedAt    DateTime?
+  transactionId String?
+  createdAt     DateTime  @default(now())
+
+  purchase MarketplacePurchase @relation(fields: [purchaseId], references: [id], onDelete: Cascade)
+
+  @@index([sellerId, status, releaseAt])
+  @@index([status, releaseAt])
+}
+
+// Cada vez que alguien usa una plantilla: el proyecto (y el agente) que se le creó.
+model MarketplaceUse {
+  id         String   @id @default(cuid())
+  /// Llave de idempotencia del clic «Usar plantilla»
+  requestKey String   @unique
+  templateId String
+  userId     String
+  projectId  String?
+  agentId    String?
+  createdAt  DateTime @default(now())
+
+  template MarketplaceTemplate @relation(fields: [templateId], references: [id], onDelete: Cascade)
+
+  @@index([templateId, createdAt])
+  @@index([userId, createdAt])
 }

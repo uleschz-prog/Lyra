@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import Link from "next/link";
 import { redirect } from "next/navigation";
 
 import { AdminUsers, type AdminUserRow } from "@/components/admin/admin-users";
@@ -163,6 +164,12 @@ export default async function AdminPage() {
         description="Cierra el mes, valida inscripciones, cambia patrocinios, ajusta créditos, cambia paquetes, administra wallets USDT, corta comisiones, edita datos de acceso, suspende o borra cuentas y descarga el respaldo de socios."
       />
       <CloseMonth />
+      <Link
+        href="/dashboard/marketplace/moderacion"
+        className="mt-5 inline-flex rounded-full border border-[#E7E2DA] bg-white px-4 py-2 text-sm font-medium text-[#1E1E24] hover:border-[#C4B5FD]"
+      >
+        Moderación del Marketplace
+      </Link>
       <div className="mt-5">
         <CompanyUsdtWallet address={companyUsdt} />
       </div>

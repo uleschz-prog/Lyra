@@ -16,6 +16,7 @@ function matchValue(value: unknown, condition: unknown): boolean {
       if (op === "gte") return value != null && num(value) >= num(target);
       if (op === "lt") return value != null && num(value) < num(target);
       if (op === "lte") return value != null && num(value) <= num(target);
+      if (op === "has") return Array.isArray(value) && value.includes(target);
       if (op === "in") return (target as unknown[]).includes(value);
       if (op === "notIn") return !(target as unknown[]).includes(value);
       if (op === "not") return !matchValue(value, target);
@@ -118,6 +119,18 @@ export function table(defaults: (data: Row) => Row = () => ({}), options: { uniq
       }
       rows.push(row);
       return pick(row, args.select);
+    },
+    async createMany(args: { data: Row[]; skipDuplicates?: boolean }) {
+      let count = 0;
+      for (const data of args.data) {
+        try {
+          await this.create({ data });
+          count += 1;
+        } catch (error) {
+          if (!args.skipDuplicates || (error as { code?: string }).code !== "P2002") throw error;
+        }
+      }
+      return { count };
     },
     async update(args: { where: Where; data: Row; select?: Record<string, boolean> }) {
       const row = rows.find((candidate) => matches(candidate, args.where));
