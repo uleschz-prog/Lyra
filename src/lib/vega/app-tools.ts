@@ -568,7 +568,7 @@ export async function executeAppAction(userId: string, draft: AppDraft): Promise
         : { text: String(data.text ?? "") },
     );
     return sent.ok
-      ? { ok: true, message: `Listo, envié el WhatsApp a +${phone}${sent.from ? ` desde ${sent.from}` : ""}.` }
+      ? { ok: true, message: `Listo, envié el WhatsApp a +${phone}${sent.phone ? ` desde ${sent.phone}` : ""}.` }
       : { ok: false, message: `No se envió el WhatsApp: ${sent.error}` };
   }
 

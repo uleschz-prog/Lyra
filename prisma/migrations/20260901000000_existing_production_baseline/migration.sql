@@ -1,0 +1,2 @@
+-- Marker for the pre-existing production schema, which was created before Prisma Migrate was introduced.
+-- Production builds mark this baseline and the already-present historical schema migrations as applied.

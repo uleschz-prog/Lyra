@@ -43,13 +43,13 @@ export async function listWorkspace(userId: string, relative = "."): Promise<{ o
   await ensureWorkspace(userId);
   let dirents;
   try {
-    dirents = await fs.readdir(target.absolute, { withFileTypes: true });
+    dirents = await fs.readdir(/*turbopackIgnore: true*/ target.absolute, { withFileTypes: true });
   } catch {
     return { ok: false, error: "Esa carpeta no existe en tu espacio de trabajo." };
   }
   const entries: WorkspaceEntry[] = [];
   for (const dirent of dirents) {
-    const child = path.join(target.absolute, dirent.name);
+    const child = path.join(/*turbopackIgnore: true*/ target.absolute, dirent.name);
     const childRelative = path.relative(workspaceDir(userId), child).split(path.sep).join("/");
     if (dirent.isDirectory()) {
       entries.push({ nombre: dirent.name, ruta: childRelative, tipo: "carpeta", bytes: null });
@@ -68,9 +68,9 @@ const MAX_WRITE_BYTES = 500_000;
 export async function readWorkspaceFile(userId: string, relative: string): Promise<{ ok: true; path: string; contenido: string; truncado: boolean; bytes: number } | { ok: false; error: string }> {
   const target = resolveWorkspacePath(userId, relative);
   if (!target.ok) return target;
-  const stat = await fs.stat(target.absolute).catch(() => null);
+  const stat = await fs.stat(/*turbopackIgnore: true*/ target.absolute).catch(() => null);
   if (!stat || !stat.isFile()) return { ok: false, error: "Ese archivo no existe en tu espacio de trabajo." };
-  const handle = await fs.open(target.absolute, "r");
+  const handle = await fs.open(/*turbopackIgnore: true*/ target.absolute, "r");
   try {
     const length = Math.min(stat.size, MAX_READ_BYTES);
     const buffer = Buffer.alloc(length);
@@ -102,7 +102,7 @@ export async function writeWorkspaceFile(
   await fs.mkdir(path.dirname(target.absolute), { recursive: true });
   if (append) await fs.appendFile(target.absolute, content, "utf8");
   else await fs.writeFile(target.absolute, content, "utf8");
-  const stat = await fs.stat(target.absolute).catch(() => null);
+  const stat = await fs.stat(/*turbopackIgnore: true*/ target.absolute).catch(() => null);
   return { ok: true, path: target.relative, bytes: stat?.size ?? 0 };
 }
 

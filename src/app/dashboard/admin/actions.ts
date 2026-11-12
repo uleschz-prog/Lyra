@@ -2,13 +2,18 @@
 
 import { randomBytes } from "node:crypto";
 
-import { Prisma } from "@prisma/client";
+import { Prisma } from "@/generated/prisma/client";
 import bcrypt from "bcryptjs";
 import { revalidatePath } from "next/cache";
 
 import {
-  creditRechargeUsd,
+  bonusCreditsForRecharge,
+  creditedRechargeCredits,
+  creditRechargeUsdForCredits,
+  creditUsd,
   getPackage,
+  isValidCreditRecharge,
+  minimumCreditRecharge,
   isSignupPlanId,
   toPackageType,
   type SignupPlanId,
@@ -17,8 +22,10 @@ import { applySponsorChange, rebuildUpline } from "@/lib/admin/sponsor-move";
 import { getCurrentUser } from "@/lib/auth/profile";
 import { INDEFINITE_YEAR } from "@/lib/auth/suspension";
 import { payCommissions } from "@/lib/compensation/payout";
+import { rebuyPaidFilter } from "@/lib/compensation/activity";
 import { applyCredits, creditCredits } from "@/lib/credits/ledger";
 import { activateMembership } from "@/lib/payments/activate";
+import { grantVideoQuota } from "@/lib/studio/video-quotas";
 import { setCompanyUsdtWallet as persistCompanyWallet } from "@/lib/payments/usdt";
 import { trongridReady, verifyUsdtTransfer } from "@/lib/payments/usdt-verify";
 import { getPrisma } from "@/lib/prisma";
@@ -42,6 +49,35 @@ async function target(id: string) {
 function done() {
   revalidatePath("/dashboard/admin");
   revalidatePath("/dashboard/network");
+}
+
+export async function markAcademyCreatorPayoutPaid(
+  transactionId: string,
+  reference: string,
+): Promise<Result> {
+  if (!(await requireAdmin())) return denied;
+  const payoutReference = reference.trim();
+  if (transactionId.length > 128 || payoutReference.length > 160) {
+    return { ok: false, error: "El pago o su referencia excede el límite permitido." };
+  }
+  const updated = await getPrisma().academyTransaction.updateMany({
+    where: {
+      id: transactionId,
+      paymentGatewayStatus: "APPROVED",
+      creatorPayoutStatus: "PENDING",
+    },
+    data: {
+      creatorPayoutStatus: "PAID",
+      creatorPaidAt: new Date(),
+      creatorPayoutReference: payoutReference || null,
+    },
+  });
+  if (updated.count !== 1) {
+    return { ok: false, error: "El pago ya fue registrado, fue reembolsado o no existe." };
+  }
+  revalidatePath("/dashboard/admin");
+  revalidatePath("/dashboard/academy/creator");
+  return { ok: true };
 }
 
 export async function validateRegistration(id: string): Promise<Result> {
@@ -158,9 +194,12 @@ export async function changePackage(id: string, packageId: string): Promise<Resu
   if (!user) return { ok: false, error: "Esa cuenta ya no existe." };
   if (user.package === packageId) return { ok: false, error: "La cuenta ya tiene ese paquete." };
 
-  await getPrisma().user.update({
-    where: { id },
-    data: { package: toPackageType(packageId), pendingPackage: null },
+  await getPrisma().$transaction(async (tx) => {
+    await tx.user.update({
+      where: { id },
+      data: { package: toPackageType(packageId), pendingPackage: null },
+    });
+    await grantVideoQuota(tx, id, packageId);
   });
   done();
   return { ok: true, package: packageId };
@@ -251,6 +290,7 @@ export async function approveUsdtOrder(orderId: string): Promise<Result> {
           externalRef: `usdt:${order.id}`,
         },
       });
+      await grantVideoQuota(tx, user.id, user.package);
       await payCommissions(
         tx,
         { id: user.id, name: user.name, sponsorId: user.sponsorId, package: user.package },
@@ -259,28 +299,40 @@ export async function approveUsdtOrder(orderId: string): Promise<Result> {
       );
     });
   } else if (order.purpose === "credits") {
-    const extra = creditRechargeUsd(user.package as Parameters<typeof creditRechargeUsd>[0]);
-    if (!extra) return { ok: false, error: "Esta membresía no tiene una recarga definida." };
+    const amount = Number(order.amountUsd) || 0;
+    const purchased = amount / creditUsd;
+    if (!isValidCreditRecharge(purchased) || creditRechargeUsdForCredits(purchased) !== amount) {
+      return { ok: false, error: `La recarga debe ser de al menos ${minimumCreditRecharge} créditos enteros.` };
+    }
+    const credited = creditedRechargeCredits(purchased);
+    const promo = bonusCreditsForRecharge(purchased);
+    const firstRecharge = !(await prisma.transaction.findFirst({
+      where: { userId: user.id, ...rebuyPaidFilter() },
+      select: { id: true },
+    }));
     await prisma.$transaction(async (tx) => {
-      const credited = await creditCredits(
+      const credit = await creditCredits(
         {
           userId: user.id,
-          credits: extra,
-          amountUsd: extra,
+          credits: credited,
+          amountUsd: amount,
           externalRef: `usdt:${order.id}`,
-          kind: "CREDIT_PURCHASE",
+          kind: "REBUY",
           reason: "admin.usdt.credits",
-          description: `Recarga ${extra} créditos · USDT TRC20 · ${order.trxHash}`,
+          description: `Recarga de ${purchased} créditos${promo ? ` + ${promo} de promoción` : ""} · USDT TRC20 · ${order.trxHash}`,
         },
         tx,
       );
-      if (!credited.ok) {
+      if (!credit.ok) {
         throw new Error("No se pudieron acreditar los créditos de la recarga USDT.");
       }
+      // Doble aprobación de la misma orden: no se repiten cuota ni comisiones.
+      if (credit.already) return;
+      if (firstRecharge) await grantVideoQuota(tx, user.id, user.package);
       await payCommissions(
         tx,
         { id: user.id, name: user.name, sponsorId: user.sponsorId, package: user.package },
-        Number(order.amountUsd) || extra,
+        amount,
         "rebuy",
       );
     });
@@ -290,9 +342,12 @@ export async function approveUsdtOrder(orderId: string): Promise<Result> {
     const target = match?.[1]?.toUpperCase();
     if (!target || !isSignupPlanId(target)) return { ok: false, error: "No se pudo identificar el paquete de destino del upgrade." };
     if (user.package === target) return { ok: false, error: "El usuario ya tiene ese paquete." };
-    await prisma.user.update({
-      where: { id: user.id },
-      data: { package: toPackageType(target), pendingPackage: null },
+    await prisma.$transaction(async (tx) => {
+      await tx.user.update({
+        where: { id: user.id },
+        data: { package: toPackageType(target), pendingPackage: null },
+      });
+      await grantVideoQuota(tx, user.id, target);
     });
   } else {
     return { ok: false, error: "El propósito de la orden no es válido." };

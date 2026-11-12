@@ -1,7 +1,17 @@
+import { execFileSync } from "node:child_process";
+
 import { describe, expect, it } from "vitest";
 
 import { renderStudioVideo } from "@/lib/studio/render-video";
 import { scenesFromScript, secondsFor, wrapLine } from "@/lib/studio/video-plan";
+
+const supportsDrawtext = (() => {
+  try {
+    return execFileSync("ffmpeg", ["-hide_banner", "-filters"], { encoding: "utf8" }).includes("drawtext");
+  } catch {
+    return false;
+  }
+})();
 
 describe("plan de video del estudio", () => {
   it("parte el guion en planos y envuelve el texto", () => {
@@ -14,7 +24,7 @@ describe("plan de video del estudio", () => {
     expect(secondsFor("30 s")).toBe(9);
   });
 
-  it("escribe un mp4 que se puede reproducir", async () => {
+  it.skipIf(!supportsDrawtext)("escribe un mp4 que se puede reproducir", async () => {
     const video = await renderStudioVideo({
       title: "Bienvenida",
       script: "LYRA arma el plano. El guion entra en pantalla. Guárdalo cuando quede listo.",

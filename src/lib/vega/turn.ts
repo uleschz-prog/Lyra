@@ -1,4 +1,4 @@
-import type { Prisma } from "@prisma/client";
+import type { Prisma } from "@/generated/prisma/client";
 
 import { composioConfigured } from "@/lib/ai/composio";
 import { userConnections } from "@/lib/ai/composio-user";
@@ -96,6 +96,7 @@ type Prepared = { ok: true; turn: VegaTurn } | { ok: false; status: number; erro
 export async function prepareVegaTurn(
   user: Pick<AuthProfile, "id" | "name" | "package">,
   input: {
+    agentId: string;
     conversationId: string | null;
     message: string;
     requestId: string;
@@ -105,10 +106,15 @@ export async function prepareVegaTurn(
   },
 ): Promise<Prepared> {
   const prisma = getPrisma();
+  const agent = await prisma.vegaAgent.findFirst({
+    where: { id: input.agentId, userId: user.id },
+    select: { id: true, name: true, specialty: true, instructions: true, isDefault: true },
+  });
+  if (!agent) return { ok: false, status: 404, error: "Ese agente ya no existe." };
   let conversation = input.conversationId
-    ? await prisma.vegaConversation.findFirst({ where: { id: input.conversationId, userId: user.id }, select: { id: true } })
+    ? await prisma.vegaConversation.findFirst({ where: { id: input.conversationId, userId: user.id, agentId: agent.id }, select: { id: true } })
     : null;
-  if (input.conversationId && !conversation) return { ok: false, status: 404, error: "Esa conversación ya no existe." };
+  if (input.conversationId && !conversation) return { ok: false, status: 404, error: "Esa conversación no pertenece a este agente o ya no existe." };
 
   const chargeKey = `vega:${user.id}:${input.requestId}`;
   const charge = await chargeCredits(user.id, creditPrices.vegaMessage, "Vega · mensaje", chargeKey);
@@ -118,7 +124,7 @@ export async function prepareVegaTurn(
   const attachments = input.attachments ?? [];
   const titleSource = input.message || attachments[0]?.name || "Archivos";
   conversation ??= await prisma.vegaConversation.create({
-    data: { userId: user.id, title: input.title ?? conversationTitle(titleSource) },
+    data: { userId: user.id, agentId: agent.id, title: input.title ?? conversationTitle(titleSource) },
     select: { id: true },
   });
   const chatId = conversation.id;
@@ -158,7 +164,7 @@ export async function prepareVegaTurn(
     notes: null,
   }));
   const system = [
-    vegaSystemPrompt(user, connections, webSearch, memories, profile),
+    vegaSystemPrompt(user, connections, webSearch, memories, profile, new Date(), agent),
     await autonomyPrompt(user.id).catch(() => ""),
     input.channelNote,
   ]
@@ -185,6 +191,8 @@ export async function runVegaTurn(turn: VegaTurn, emit: (event: VegaEvent) => vo
   let reply = "";
   let failed = false;
   let toolCharged = false;
+  let toolChargeId: string | null = null;
+  let paidToolSucceeded = false;
   const sources: WebResult[] = [];
   const actionIds: string[] = [];
   const statuses: string[] = [];
@@ -245,14 +253,22 @@ export async function runVegaTurn(turn: VegaTurn, emit: (event: VegaEvent) => vo
             continue;
           }
           toolCharged = true;
+          toolChargeId = extra.duplicate ? null : extra.chargeId;
           emit({ t: "credits", v: extra.balance });
         }
 
         emit({ t: "status", v: statusLabel(call.name) });
-        const outcome = await runVegaTool(userId, call.name, call.args ?? {}).catch(() => ({
-          kind: "invalid" as const,
-          response: { error: "La herramienta falló. Intenta de otra forma o avisa al socio." },
-        }));
+        const outcome = await runVegaTool(userId, call.name, call.args ?? {}).catch((error: unknown) => {
+          console.error("[Vega tool] execution failed", {
+            tool: call.name,
+            errorType: error instanceof Error ? error.name : typeof error,
+          });
+          return {
+            kind: "invalid" as const,
+            response: { error: "La herramienta falló. Intenta de otra forma o avisa al socio." },
+          };
+        });
+        if (!freeTools.has(call.name) && outcome.kind !== "invalid") paidToolSucceeded = true;
 
         if (outcome.kind === "result") {
           statuses.push(outcome.status);
@@ -272,7 +288,7 @@ export async function runVegaTurn(turn: VegaTurn, emit: (event: VegaEvent) => vo
               conversationId: chatId,
               kind: outcome.action,
               payload: outcome.payload as unknown as Prisma.InputJsonValue,
-              status: "done",
+              status: outcome.status ?? "done",
               result: outcome.summary,
             },
             select: { id: true, kind: true, payload: true, status: true, result: true },
@@ -342,8 +358,13 @@ export async function runVegaTurn(turn: VegaTurn, emit: (event: VegaEvent) => vo
       }
       current = next;
     }
-  } catch {
+  } catch (error) {
+    console.error("[Vega turn] failed", error instanceof Error ? error.name : typeof error);
     failed = true;
+  }
+
+  if (toolChargeId && !paidToolSucceeded) {
+    await refundCharge(toolChargeId, "Reembolso: Vega no pudo completar la herramienta");
   }
 
   const content = reply.trim() || (actionIds.length ? "Te dejé la acción lista para que la confirmes." : "");

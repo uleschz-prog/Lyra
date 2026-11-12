@@ -28,10 +28,11 @@ async function downloadPiece(piece: CreationRecord) {
     const response = await fetch(piece.media);
     if (!response.ok) throw new Error("sin archivo");
     const blob = await response.blob();
+    const extension = piece.kind === "video" ? (blob.type.includes("webm") ? "webm" : "mp4") : fallback;
     const href = URL.createObjectURL(blob);
     const link = document.createElement("a");
     link.href = href;
-    link.download = `${piece.title.slice(0, 40) || "pieza-lyra"}.${fallback}`;
+    link.download = `${piece.title.slice(0, 40) || "pieza-lyra"}.${extension}`;
     link.click();
     URL.revokeObjectURL(href);
   } catch {
@@ -80,17 +81,17 @@ export function StudioLibrary({ initialPieces }: { initialPieces: CreationRecord
     <div className="space-y-6">
       <header className="flex flex-wrap items-end justify-between gap-4">
         <div>
-          <p className="text-[11px] font-medium tracking-[0.22em] text-[#7C3AED] uppercase">Estudio creativo</p>
+          <p className="text-[11px] font-medium tracking-[0.22em] text-[#7C3AED] uppercase">Tus creaciones</p>
           <h1 className="mt-2 text-3xl font-semibold tracking-tight text-[#1E1E24] dark:text-[#F2F0F7]">Biblioteca</h1>
           <p className="mt-2 max-w-xl text-sm leading-relaxed text-[#5C5854] dark:text-[#9B96AC]">
-            Aquí queda cada video e imagen que creas en el estudio.
+            Aquí encuentras los videos e imágenes guardados desde tus herramientas de LYRA.
           </p>
         </div>
         <Link
-          href="/dashboard/studio"
+          href="/dashboard/super-agent"
           className="inline-flex rounded-full bg-[#7C3AED] px-4 py-2 text-sm font-medium text-white hover:bg-[#6D28D9]"
         >
-          Crear en el estudio
+          Crear con Vega
         </Link>
       </header>
 
@@ -137,7 +138,7 @@ export function StudioLibrary({ initialPieces }: { initialPieces: CreationRecord
                 <span className="relative block aspect-video bg-[#100818]">
                   {piece.kind === "image" && piece.media ? (
                     <img src={piece.media} alt="" className="h-full w-full object-cover" />
-                  ) : piece.kind === "video" && piece.media ? (
+                  ) : piece.kind === "video" && piece.media && !piece.media.startsWith("/api/library/video?") ? (
                     <video src={piece.media} muted playsInline preload="metadata" className="h-full w-full object-cover" />
                   ) : (
                     <span className="grid h-full place-items-center text-white/50">

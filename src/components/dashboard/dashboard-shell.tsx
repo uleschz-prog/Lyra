@@ -1,6 +1,6 @@
 "use client";
 
-import { Bot, Home, Menu, Users, Wallet, X } from "lucide-react";
+import { Bot, Home, Menu, Network, Wallet, X } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useState, type ReactNode } from "react";
@@ -16,7 +16,7 @@ const tabs = [
   { href: "/dashboard", label: "Inicio", icon: Home },
   { href: "/dashboard/super-agent", label: "Vega", icon: Bot },
   { href: "/dashboard/wallet", label: "Billetera", icon: Wallet },
-  { href: "/dashboard/network", label: "Red", icon: Users },
+  { href: "/dashboard/network", label: "Partners", icon: Network },
 ] as const;
 
 function isActiveTab(href: string, pathname: string) {
@@ -26,9 +26,11 @@ function isActiveTab(href: string, pathname: string) {
 
 export function DashboardShell({
   user,
+  unreadNotifications,
   children,
 }: {
   user: AuthProfile;
+  unreadNotifications: number;
   children: ReactNode;
 }) {
   const pathname = usePathname();
@@ -54,7 +56,7 @@ export function DashboardShell({
           open ? "translate-x-0" : "-translate-x-full",
         )}
       >
-        <Sidebar user={user} onClose={() => setMenuPath(null)} />
+        <Sidebar user={user} unreadNotifications={unreadNotifications} onClose={() => setMenuPath(null)} />
       </aside>
 
       {open ? (

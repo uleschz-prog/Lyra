@@ -30,12 +30,5 @@
     ".next/dev/types/**/*.ts",
     "**/*.mts"
   ],
-  "exclude": [
-    "node_modules",
-    "hardhat.config.ts",
-    "test",
-    "typechain-types",
-    "artifacts",
-    "cache"
-  ]
+  "exclude": ["node_modules"]
 }

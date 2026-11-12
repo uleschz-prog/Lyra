@@ -165,7 +165,7 @@ export function GenealogyTree({ root }: { root: NetworkNode }) {
       </section>
 
       <aside className="h-fit rounded-2xl border border-border bg-surface/80 backdrop-blur-md transition-colors hover:border-border-bright p-5">
-        <p className="text-[10px] uppercase tracking-[0.22em] text-lyra-cyan">Ficha</p>
+        <p className="text-[10px] uppercase tracking-[0.22em] text-lyra-cyan">Perfil partner</p>
         <h2 className="mt-3 text-xl tracking-wide text-[#1E1E24]">{selected.name}</h2>
         <dl className="mt-6 space-y-4 text-sm">
           <div>

@@ -1,10 +1,11 @@
 "use client";
 
-import { Gift, ShieldCheck, X } from "lucide-react";
+import { Bell, Gift, ShieldCheck, X } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 
 import { Logo } from "@/components/brand/logo";
+import { ThemeToggle } from "@/components/app/theme-toggle";
 import { useCredits } from "@/components/dashboard/credit-provider";
 import { UserNav } from "@/components/dashboard/user-nav";
 import { brand, officeModes } from "@/config/brand";
@@ -19,7 +20,15 @@ function isActive(href: string, pathname: string) {
   return pathname === href || pathname.startsWith(`${href}/`);
 }
 
-export function Sidebar({ user, onClose }: { user: AuthProfile; onClose?: () => void }) {
+export function Sidebar({
+  user,
+  unreadNotifications,
+  onClose,
+}: {
+  user: AuthProfile;
+  unreadNotifications: number;
+  onClose?: () => void;
+}) {
   const pathname = usePathname();
   const { balance } = useCredits();
   const mode = officeModes[0];
@@ -72,9 +81,32 @@ export function Sidebar({ user, onClose }: { user: AuthProfile; onClose?: () => 
             </Link>
           );
         })}
+        <Link
+          href="/dashboard/academy/notificaciones"
+          aria-current={isActive("/dashboard/academy/notificaciones", pathname) ? "page" : undefined}
+          onClick={onClose}
+          className={cn(
+            "flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm transition-colors",
+            isActive("/dashboard/academy/notificaciones", pathname)
+              ? "bg-[#EDE9FE] text-[#1E1E24] dark:bg-[#221F30] dark:text-[#F2F0F7]"
+              : "text-[#5C5854] hover:bg-[#F6F4F1] hover:text-[#1E1E24] dark:text-[#9B96AC] dark:hover:bg-[#221F30] dark:hover:text-[#F2F0F7]",
+          )}
+        >
+          <Bell className={cn("h-4 w-4", isActive("/dashboard/academy/notificaciones", pathname) ? "text-[#7C3AED]" : "text-[#8A8680]")} aria-hidden />
+          <span className="flex-1">Notificaciones</span>
+          {unreadNotifications > 0 ? (
+            <span className="min-w-5 rounded-full bg-violet-700 px-1.5 py-0.5 text-center text-[10px] font-semibold text-white">
+              {unreadNotifications > 99 ? "99+" : unreadNotifications}
+            </span>
+          ) : null}
+        </Link>
       </nav>
 
       <div className="space-y-2 p-3">
+        <ThemeToggle
+          showLabel
+          className="hidden min-h-10 w-full items-center gap-3 rounded-xl border border-[#E7E2DA] bg-white px-3 text-left text-sm font-medium text-[#5C5854] transition-colors hover:bg-[#F6F4F1] dark:border-white/12 dark:bg-[#181625] dark:text-[#F2F0F7] dark:hover:bg-[#221F30] md:flex"
+        />
         {user.role === "ADMIN" ? (
           <Link
             href="/dashboard/admin"

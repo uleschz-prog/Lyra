@@ -21,7 +21,8 @@ export function SiteHeader() {
     <header className="sticky top-0 z-50 bg-[#F9F8F6]/85 pt-[env(safe-area-inset-top)] backdrop-blur-md">
       <div className="mx-auto flex h-16 w-full max-w-7xl items-center justify-between gap-3 px-4 sm:px-6">
         <Link href={brand.links.home} aria-label="LYRA, ir al inicio" className="min-w-0" onClick={() => setOpen(false)}>
-          <Logo ink />
+          <span className="sm:hidden"><Logo compact ink /></span>
+          <span className="hidden sm:inline-flex"><Logo ink /></span>
         </Link>
         <nav aria-label="Principal" className="hidden items-center gap-6 lg:flex">
           {links.map((link) => (
@@ -38,18 +39,19 @@ export function SiteHeader() {
           ))}
         </nav>
         <div className="flex items-center gap-2 sm:gap-3">
-          <ThemeToggle className="hidden h-10 w-10 place-items-center rounded-[6px] text-[#1E1E24] transition-colors hover:bg-black/5 dark:text-[#F2F0F7] dark:hover:bg-white/10 sm:grid" />
+          <ThemeToggle className="hidden h-10 w-10 place-items-center rounded-xl border border-[#E7E2DA] bg-white/70 text-[#1E1E24] transition-colors hover:bg-black/5 dark:border-white/15 dark:bg-white/5 dark:text-[#F2F0F7] dark:hover:bg-white/10 sm:grid" />
           <Link
             href={brand.links.login}
-            className="inline-flex min-h-10 shrink-0 items-center text-sm font-medium text-[#1E1E24] hover:text-black sm:text-base"
+            className="hidden min-h-10 shrink-0 items-center text-sm font-medium text-[#1E1E24] hover:text-black sm:inline-flex sm:text-base"
           >
             Iniciar sesión
           </Link>
           <Link
             href={brand.links.register}
-            className="inline-flex shrink-0 items-center rounded-[6px] bg-[#312F2F] px-3 py-2 text-sm font-medium whitespace-nowrap text-white transition-colors hover:bg-[#1E1E24] sm:px-4 sm:py-2.5 sm:text-base"
+            className="inline-flex min-h-10 shrink-0 items-center rounded-xl bg-[#312F2F] px-3 py-2 text-xs font-semibold whitespace-nowrap text-white transition-colors hover:bg-[#1E1E24] sm:rounded-[6px] sm:px-4 sm:py-2.5 sm:text-base"
           >
-            Empieza a Construir
+            <span className="sm:hidden">Crear cuenta</span>
+            <span className="hidden sm:inline">Empieza a Construir</span>
           </Link>
           <button
             type="button"
@@ -77,6 +79,12 @@ export function SiteHeader() {
           <Link href={brand.links.login} className="block min-h-11 rounded-lg px-3 py-3 text-base text-[#1E1E24]" onClick={() => setOpen(false)}>
             Iniciar sesión
           </Link>
+          <div className="mt-2 border-t border-[#D9D5CE] pt-3 dark:border-white/10">
+            <ThemeToggle
+              showLabel
+              className="flex min-h-11 w-full items-center gap-3 rounded-xl border border-[#E7E2DA] bg-white px-3 text-left text-sm font-medium text-[#5C5854] dark:border-white/12 dark:bg-[#181625] dark:text-[#F2F0F7]"
+            />
+          </div>
         </nav>
       ) : null}
     </header>

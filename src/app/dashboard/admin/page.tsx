@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 
 import { AdminUsers, type AdminUserRow } from "@/components/admin/admin-users";
 import { CompanyUsdtWallet } from "@/components/admin/company-usdt-wallet";
+import { AcademyCreatorPayouts, type AcademyCreatorPayoutRow } from "@/components/admin/academy-creator-payouts";
 import { PromoCodes } from "@/components/admin/promo-codes";
 import { SettleCommissions } from "@/components/admin/settle-commissions";
 import { UsdtOrders } from "@/components/admin/usdt-orders";
@@ -44,6 +45,60 @@ export default async function AdminPage() {
   });
 
   const companyUsdt = await getCompanyUsdtWallet();
+
+  const creatorPayouts = await getPrisma().academyTransaction.findMany({
+    where: { paymentGatewayStatus: "APPROVED", creatorPayoutStatus: "PENDING" },
+    orderBy: { paidAt: "asc" },
+    take: 100,
+    select: {
+      id: true,
+      totalAmount: true,
+      creatorPayout93Percent: true,
+      currency: true,
+      paidAt: true,
+      course: { select: { title: true } },
+      creator: { select: { name: true, username: true } },
+      buyer: { select: { name: true } },
+    },
+  });
+  const recentCreatorPayouts = await getPrisma().academyTransaction.findMany({
+    where: { creatorPayoutStatus: "PAID" },
+    orderBy: { creatorPaidAt: "desc" },
+    take: 50,
+    select: {
+      id: true,
+      creatorPayout93Percent: true,
+      currency: true,
+      creatorPaidAt: true,
+      creatorPayoutReference: true,
+      course: { select: { title: true } },
+      creator: { select: { name: true, username: true } },
+      buyer: { select: { name: true } },
+    },
+  });
+  const creatorPayoutRows: AcademyCreatorPayoutRow[] = creatorPayouts.map((payout) => ({
+    id: payout.id,
+    totalAmount: Number(payout.totalAmount),
+    creatorAmount: Number(payout.creatorPayout93Percent),
+    currency: payout.currency,
+    paidAt: (payout.paidAt ?? new Date()).toISOString(),
+    courseTitle: payout.course.title,
+    creatorName: payout.creator.name,
+    creatorUsername: payout.creator.username,
+    buyerName: payout.buyer.name,
+  }));
+  const paidCreatorPayoutRows: AcademyCreatorPayoutRow[] = recentCreatorPayouts.map((payout) => ({
+    id: payout.id,
+    totalAmount: 0,
+    creatorAmount: Number(payout.creatorPayout93Percent),
+    currency: payout.currency,
+    paidAt: (payout.creatorPaidAt ?? new Date()).toISOString(),
+    courseTitle: payout.course.title,
+    creatorName: payout.creator.name,
+    creatorUsername: payout.creator.username,
+    buyerName: payout.buyer.name,
+    reference: payout.creatorPayoutReference,
+  }));
 
   const promoRows = await getPrisma().promoCode.findMany({
     orderBy: { createdAt: "desc" },
@@ -110,6 +165,9 @@ export default async function AdminPage() {
       <CloseMonth />
       <div className="mt-5">
         <CompanyUsdtWallet address={companyUsdt} />
+      </div>
+      <div className="mt-5">
+        <AcademyCreatorPayouts initialPayouts={creatorPayoutRows} recentPayouts={paidCreatorPayoutRows} />
       </div>
       <div className="mt-5">
         <UsdtOrders initialOrders={usdtOrderRows} verifyEnabled={trongridReady()} />

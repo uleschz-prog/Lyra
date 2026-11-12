@@ -1,7 +1,12 @@
-import { PrismaClient } from "@prisma/client";
+import { PrismaPg } from "@prisma/adapter-pg";
+
+import { PrismaClient } from "../src/generated/prisma/client";
 import bcrypt from "bcryptjs";
 
-const prisma = new PrismaClient();
+const connectionString = process.env.DATABASE_URL;
+if (!connectionString) throw new Error("DATABASE_URL no está configurada.");
+
+const prisma = new PrismaClient({ adapter: new PrismaPg({ connectionString }) });
 
 const rootPassword = "Lyra2026!Admin";
 

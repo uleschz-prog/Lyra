@@ -111,7 +111,7 @@ const previews: Record<ExampleCategory, Preview[]> = {
     },
     {
       prompt: "Un panel para ver el avance de mi red",
-      label: "Red",
+      label: "Partners",
       className: "h-[136px] w-[210px] bg-[#E8F4F4] text-[#1E1E24]",
       frame: "app",
     },

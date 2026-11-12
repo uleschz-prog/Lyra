@@ -10,11 +10,13 @@ import type { UsdtPurpose } from "@/lib/payments/usdt";
 
 export function UsdtPayment({
   purpose,
+  credits,
   amountUsd,
   label,
   note,
 }: {
   purpose: UsdtPurpose;
+  credits?: number;
   amountUsd: number;
   label: string;
   note?: string;
@@ -26,7 +28,7 @@ export function UsdtPayment({
 
   async function start() {
     setPending(true);
-    const result = await startUsdtOrder(purpose);
+    const result = await startUsdtOrder(purpose, credits);
     setPending(false);
     if (!result.ok) {
       toast.error(result.error);

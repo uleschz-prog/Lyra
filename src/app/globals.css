@@ -301,19 +301,19 @@ body {
 }
 
 :root {
-  color-scheme: dark;
-  --background: #08090a;
-  --surface: #0d0e11;
-  --surface-hover: #141519;
-  --foreground: #edeef0;
-  --muted: #8a8f9e;
-  --card: #0d0e11;
-  --card-foreground: #edeef0;
+  color-scheme: light;
+  --background: #f9f8f6;
+  --surface: #ffffff;
+  --surface-hover: #f4f1ec;
+  --foreground: #1e1e24;
+  --muted: #5c5854;
+  --card: #ffffff;
+  --card-foreground: #1e1e24;
   --primary: #7c3aed;
-  --primary-foreground: #08090a;
-  --muted-foreground: #8a8f9e;
-  --border: #1c1d22;
-  --border-bright: #2e3038;
+  --primary-foreground: #ffffff;
+  --muted-foreground: #6a6662;
+  --border: #d9d5ce;
+  --border-bright: #c9c3ba;
   --ring: #7c3aed;
 }
 
@@ -437,6 +437,236 @@ body::before {
   color: #1e1e24;
 }
 
+/* Ajusta las utilidades de color heredadas para que el tema sea legible en toda la app. */
+.dark body {
+  background-color: var(--background);
+}
+
+.dark .lyra-office,
+.dark .lyra-paper {
+  background-color: var(--background);
+  background-image: none;
+  color: var(--foreground);
+}
+
+.dark [class~="bg-white"] {
+  background-color: #181625;
+}
+
+.dark [class~="bg-white/70"],
+.dark [class~="bg-white/80"] {
+  background-color: rgb(24 22 37 / 82%);
+}
+
+.dark [class~="bg-[#F9F8F6]"],
+.dark [class~="bg-[#F6F4F1]"],
+.dark [class~="bg-[#F4F1EC]"],
+.dark [class~="bg-[#F3F1EE]"],
+.dark [class~="bg-[#FAF9F7]"],
+.dark [class~="bg-[#FAF9FC]"],
+.dark [class~="bg-[#FAF8F5]"],
+.dark [class~="bg-[#FBFAF8]"],
+.dark [class~="bg-[#FCFBF9]"],
+.dark [class~="bg-[#F0ECE6]"],
+.dark [class~="bg-[#F1EEE9]"],
+.dark [class~="bg-[#F4EFE6]"],
+.dark [class~="bg-[#F7F1E8]"],
+.dark [class~="bg-[#F5F7F8]"],
+.dark [class~="bg-[#F7F5F1]"],
+.dark [class~="bg-[#F7F5F2]"],
+.dark [class~="bg-[#F5F3F7]"],
+.dark [class~="bg-[#F4F1F8]"],
+.dark [class~="bg-[#F0EEEB]"] {
+  background-color: #14121c;
+}
+
+.dark [class~="from-white"][class~="via-white"] {
+  background-color: #181625;
+  background-image: none;
+}
+
+.dark [class~="bg-violet-50"],
+.dark [class~="bg-violet-50/50"],
+.dark [class~="bg-violet-50/60"],
+.dark [class~="bg-violet-50/80"],
+.dark [class~="bg-violet-100"],
+.dark [class~="bg-purple-50"],
+.dark [class~="bg-purple-100"],
+.dark [class~="bg-indigo-100"],
+.dark [class~="bg-indigo-50"],
+.dark [class~="bg-fuchsia-50"],
+.dark [class~="bg-pink-50"] {
+  background-color: #241d35;
+}
+
+.dark [class~="bg-cyan-50"],
+.dark [class~="bg-sky-50"],
+.dark [class~="bg-teal-50"] {
+  background-color: #142a32;
+}
+
+.dark [class~="bg-emerald-50"],
+.dark [class~="bg-emerald-100"],
+.dark [class~="bg-green-50"] {
+  background-color: #142a24;
+}
+
+.dark [class~="bg-amber-50"],
+.dark [class~="bg-yellow-50"],
+.dark [class~="bg-orange-50"] {
+  background-color: #302718;
+}
+
+.dark [class~="bg-red-50"],
+.dark [class~="bg-red-100"],
+.dark [class~="bg-rose-50"] {
+  background-color: #321b22;
+}
+
+.dark [class~="bg-[#F5F3FF]"],
+.dark [class~="bg-[#F5F1FE]"],
+.dark [class~="bg-[#F5F0FF]"] {
+  background-color: #241d35;
+}
+
+.dark [class~="bg-[#EDE9FE]"],
+.dark [class~="bg-[#E9E4FF]"],
+.dark [class~="bg-[#E6EDF8]"],
+.dark [class~="bg-[#D9CCFB]"] {
+  background-color: #241d35;
+}
+
+.dark [class~="bg-[#E7F6EC]"],
+.dark [class~="bg-[#ECFDF5]"],
+.dark [class~="bg-[#D1FAE5]"] {
+  background-color: #142a24;
+}
+
+.dark [class~="bg-[#FFF4E0]"],
+.dark [class~="bg-[#FFFAEB]"],
+.dark [class~="bg-[#FEF3C7]"] {
+  background-color: #302718;
+}
+
+.dark [class~="bg-[#FDECEC]"] {
+  background-color: #321b22;
+}
+
+.dark [class~="bg-[#E8F4F4]"] {
+  background-color: #142a32;
+}
+
+.dark [class~="text-[#1E1E24]"],
+.dark [class~="text-[#312F2F]"],
+.dark [class~="text-[#252525]"],
+.dark [class~="text-[#1e1e24]"],
+.dark [class~="text-[#312f2f]"] {
+  color: #f2f0f7;
+}
+
+.dark [class~="text-[#5C5854]"],
+.dark [class~="text-[#6A6662]"],
+.dark [class~="text-[#77716A]"],
+.dark [class~="text-[#817B85]"],
+.dark [class~="text-[#8A8680]"],
+.dark [class~="text-[#96909A]"],
+.dark [class~="text-[#99939C]"],
+.dark [class~="text-[#716B76]"],
+.dark [class~="text-[#817B8A]"],
+.dark [class~="text-[#5c5854]"],
+.dark [class~="text-[#6a6662]"],
+.dark [class~="text-[#8a8680]"] {
+  color: #b6b0c2;
+}
+
+.dark [class~="text-violet-700"],
+.dark [class~="text-violet-800"],
+.dark [class~="text-indigo-700"],
+.dark [class~="text-indigo-800"] {
+  color: #c4b5fd;
+}
+
+.dark [class~="text-cyan-700"],
+.dark [class~="text-cyan-800"],
+.dark [class~="text-teal-700"],
+.dark [class~="text-teal-800"] {
+  color: #a5f3fc;
+}
+
+.dark [class~="text-emerald-700"],
+.dark [class~="text-emerald-800"],
+.dark [class~="text-green-700"] {
+  color: #a7f3d0;
+}
+
+.dark [class~="text-amber-700"],
+.dark [class~="text-amber-800"],
+.dark [class~="text-orange-700"] {
+  color: #fde68a;
+}
+
+.dark [class~="text-red-700"],
+.dark [class~="text-red-800"],
+.dark [class~="text-rose-700"],
+.dark [class~="text-[#B42318]"],
+.dark [class~="text-[#9F1239]"] {
+  color: #fecdd3;
+}
+
+.dark [class~="text-[#B45309]"],
+.dark [class~="text-[#B54708]"],
+.dark [class~="text-amber-700"] {
+  color: #fde68a;
+}
+
+.dark [class~="text-[#065F46]"],
+.dark [class~="text-[#059669]"] {
+  color: #a7f3d0;
+}
+
+.dark [class~="text-[#5B21B6]"] {
+  color: #c4b5fd;
+}
+
+.dark [class*="border-[#E7E2DA]"],
+.dark [class*="border-[#D9D5CE]"],
+.dark [class*="border-[#E6E2EC]"],
+.dark [class*="border-[#E8E4ED]"],
+.dark [class*="border-[#EDE9F2]"],
+.dark [class*="border-[#ECE8F1]"] {
+  border-color: rgb(255 255 255 / 14%);
+}
+
+.dark [class~="border-violet-100"],
+.dark [class~="border-violet-200"],
+.dark [class~="border-emerald-200"],
+.dark [class~="border-amber-200"],
+.dark [class~="border-red-200"] {
+  border-color: rgb(255 255 255 / 16%);
+}
+
+.dark input,
+.dark textarea,
+.dark select {
+  color-scheme: dark;
+}
+
+.dark input::placeholder,
+.dark textarea::placeholder {
+  color: #8d879a;
+  opacity: 1;
+}
+
+.dark :focus-visible {
+  outline-color: #a78bfa;
+}
+
+@media (max-width: 640px) {
+  table {
+    font-size: 0.8125rem;
+  }
+}
+
 /* Vega Partner: bot animado */
 @keyframes vega-bot-float {
   0%, 100% { transform: translateY(0) rotate(0deg); }
@@ -531,7 +761,7 @@ body {
 .safe-bottom { padding-bottom: env(safe-area-inset-bottom); }
 /* En standalone (instalada como app) el fondo del theme morado rodea todo */
 @media all and (display-mode: standalone) {
-  html, body { background: #2E1065; }
+  html, body { background: var(--background); }
 }
 /* Targets táctiles cómodos en móvil */
 @media (max-width: 768px) {

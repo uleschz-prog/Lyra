@@ -66,7 +66,7 @@ export function ActivationCodes({
       </div>
       <p className="mt-3 max-w-2xl text-sm leading-relaxed text-white/70">
         Puedes usar hasta 500 de tus 1,000 créditos iniciales para crear códigos y pagar cuentas nuevas. Quien entra
-        con el código no genera comisión de inscripción. Las recompras de esa cuenta sí.
+        con el código no genera comisión de inscripción. Las recargas de créditos de esa cuenta sí.
       </p>
       <div className="mt-5 flex flex-wrap items-center gap-2">
         {options.map((option) => (

@@ -1,4 +1,4 @@
-import { Prisma } from "@prisma/client";
+import { Prisma } from "@/generated/prisma/client";
 import bcrypt from "bcryptjs";
 
 import { compensationPlan, getPackage, isSignupPlanId, toPackageType, type SignupPlanId } from "@/config/compensation-plan";
@@ -6,6 +6,7 @@ import { payCommissions } from "@/lib/compensation/payout";
 import { mercadoPagoReady } from "@/lib/payments/mercadopago";
 import { PROMO_PREFIX, checkPromoCode, redeemPromoCode } from "@/lib/payments/promo";
 import { getPrisma } from "@/lib/prisma";
+import { grantVideoQuota } from "@/lib/studio/video-quotas";
 
 const usernamePattern = /^[a-z0-9](?:[a-z0-9-]{1,22}[a-z0-9])$/;
 
@@ -180,6 +181,7 @@ export async function registerMember(input: RegisterInput) {
         },
         select: { id: true, name: true },
       });
+      if (!pending && packageId) await grantVideoQuota(tx, created.id, packageId);
 
       await tx.networkRelation.createMany({
         data: upline.map((ancestor, index) => ({

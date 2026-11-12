@@ -6,19 +6,22 @@ import { headers } from "next/headers";
 import { revalidatePath } from "next/cache";
 
 import {
+  creditedRechargeCredits,
+  creditRechargeUsdForCredits,
   canSpendSignupCreditsOnCodes,
-  creditRechargeUsd,
   founderSignupCodeCredits,
   getPackage,
+  hasActiveMembership,
+  isValidCreditRecharge,
   isFounderPackage,
   isSignupPlanId,
-  rebuyStatus,
+  minimumCreditRecharge,
   toPackageType,
   type SignupPlanId,
 } from "@/config/compensation-plan";
 import { getCurrentUser } from "@/lib/auth/profile";
 import { debitCredits } from "@/lib/credits/ledger";
-import { createMercadoPagoCheckout, mercadoPagoReady, type MpPurpose } from "@/lib/payments/mercadopago";
+import { createMercadoPagoCheckout, mercadoPagoQuote, mercadoPagoReady, type MpPurpose } from "@/lib/payments/mercadopago";
 import { signupCheckout } from "@/lib/payments/signup";
 import {
   getCompanyUsdtWallet,
@@ -46,7 +49,13 @@ export async function saveUsdtWallet(
   return { ok: true, usdtTrc20: value || null };
 }
 
-export async function startCheckout(purpose: MpPurpose) {
+export async function quoteCreditRecharge(credits: number) {
+  const user = await getCurrentUser();
+  if (!user || !hasActiveMembership(user.package) || !isValidCreditRecharge(credits) || !mercadoPagoReady()) return null;
+  return mercadoPagoQuote(creditRechargeUsdForCredits(credits));
+}
+
+export async function startCheckout(purpose: MpPurpose, credits?: number) {
   const user = await getCurrentUser();
   if (!user) return { ok: false as const, error: "Inicia sesión para pagar." };
   if (!mercadoPagoReady()) return { ok: false as const, error: "Los pagos con Mercado Pago aún no están configurados." };
@@ -64,16 +73,15 @@ export async function startCheckout(purpose: MpPurpose) {
   let usd: number;
   let title: string;
   if (purpose === "rebuy") {
-    if (user.rebuyPaidThisMonth) return { ok: false as const, error: "Tu recompra de este mes ya está pagada." };
-    const status = rebuyStatus(user.package, user.activeDirects);
-    if (status.exempt) return { ok: false as const, error: `${status.label}. No tienes que pagar este mes.` };
-    usd = status.amount;
-    title = isFounderPackage(user.package) ? "LYRA · Mensualidad Founder" : `LYRA · Recompra de ${usd} créditos`;
+    return { ok: false as const, error: `La recarga ahora es flexible: elige desde ${minimumCreditRecharge} créditos.` };
+  } else if (purpose === "credits") {
+    if (!hasActiveMembership(user.package)) return { ok: false as const, error: "Activa una membresía antes de recargar créditos." };
+    if (!isValidCreditRecharge(credits)) return { ok: false as const, error: `La recarga mínima es de ${minimumCreditRecharge} créditos enteros.` };
+    usd = creditRechargeUsdForCredits(credits);
+    const credited = creditedRechargeCredits(credits);
+    title = `LYRA · Recarga de ${credited} créditos`;
   } else {
-    const extra = creditRechargeUsd(user.package);
-    if (!extra) return { ok: false as const, error: "Tu membresía no tiene una recarga definida." };
-    usd = extra;
-    title = `LYRA · ${extra} créditos extra`;
+    return { ok: false as const, error: "Este tipo de pago no se puede iniciar desde la billetera." };
   }
 
   const checkout = await createMercadoPagoCheckout({
@@ -104,7 +112,7 @@ export type UsdtOrderResult = {
  * Pago por USDT (TRC20). Calcula el monto del propósito, verifica que la empresa
  * tenga wallet configurada y registra la orden pendiente para que el admin la valide.
  */
-export async function startUsdtOrder(purpose: UsdtPurpose): Promise<UsdtOrderResult> {
+export async function startUsdtOrder(purpose: UsdtPurpose, credits?: number): Promise<UsdtOrderResult> {
   const user = await getCurrentUser();
   if (!user) return { ok: false, error: "Inicia sesión para pagar." };
 
@@ -120,14 +128,13 @@ export async function startUsdtOrder(purpose: UsdtPurpose): Promise<UsdtOrderRes
     const plan = getPackage(user.pendingPackage as SignupPlanId);
     usd = plan.price;
   } else if (purpose === "rebuy") {
-    if (user.rebuyPaidThisMonth) return { ok: false, error: "Tu recompra de este mes ya está pagada." };
-    const status = rebuyStatus(user.package, user.activeDirects);
-    if (status.exempt) return { ok: false, error: `${status.label}. No tienes que pagar este mes.` };
-    usd = status.amount;
+    return { ok: false, error: `La recarga ahora es flexible: elige desde ${minimumCreditRecharge} créditos.` };
+  } else if (purpose === "credits") {
+    if (!hasActiveMembership(user.package)) return { ok: false, error: "Activa una membresía antes de recargar créditos." };
+    if (!isValidCreditRecharge(credits)) return { ok: false, error: `La recarga mínima es de ${minimumCreditRecharge} créditos enteros.` };
+    usd = creditRechargeUsdForCredits(credits);
   } else {
-    const extra = creditRechargeUsd(user.package);
-    if (!extra) return { ok: false, error: "Tu membresía no tiene una recarga definida." };
-    usd = extra;
+    return { ok: false, error: "Este tipo de orden no se puede iniciar desde la billetera." };
   }
 
   const prisma = getPrisma();
@@ -138,6 +145,9 @@ export async function startUsdtOrder(purpose: UsdtPurpose): Promise<UsdtOrderRes
       amountUsd: usd,
       companyWallet,
       status: "pending",
+      ...(purpose === "credits" && credits
+        ? { note: `Recarga de ${credits} créditos · se acreditarán ${creditedRechargeCredits(credits)}` }
+        : {}),
     },
     select: { id: true },
   });

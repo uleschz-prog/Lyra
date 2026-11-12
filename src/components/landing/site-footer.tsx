@@ -8,8 +8,8 @@ const columns = [
     title: "Producto",
     links: [
       { href: brand.links.dashboard, label: "Super agente" },
-      { href: brand.links.studio, label: "Estudio creativo" },
-      { href: brand.links.notebook, label: "Notebook" },
+      { href: brand.links.library, label: "Biblioteca" },
+      { href: brand.links.academy, label: "Academia" },
       { href: "#planes", label: "Planes" },
     ],
   },
@@ -17,16 +17,16 @@ const columns = [
     title: "Soluciones",
     links: [
       { href: brand.links.dashboard, label: "Super agente" },
-      { href: brand.links.studio, label: "Estudio creativo" },
+      { href: brand.links.network, label: "Partners" },
       { href: brand.links.academy, label: "Academia" },
-      { href: brand.links.notebook, label: "Notebook" },
+      { href: brand.links.library, label: "Biblioteca" },
     ],
   },
   {
     title: "Documentación",
     links: [
       { href: brand.links.academy, label: "Academia" },
-      { href: brand.links.network, label: "Red" },
+      { href: brand.links.network, label: "Partners" },
       { href: brand.links.wallet, label: "Créditos" },
     ],
   },
@@ -35,7 +35,7 @@ const columns = [
     links: [
       { href: brand.links.login, label: "Iniciar sesión" },
       { href: brand.links.register, label: "Empieza a Construir" },
-      { href: brand.links.plan, label: "Planes" },
+      { href: "/pago", label: "Planes" },
     ],
   },
   {

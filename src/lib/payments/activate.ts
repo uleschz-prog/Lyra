@@ -1,8 +1,9 @@
-import type { Prisma } from "@prisma/client";
+import type { Prisma } from "@/generated/prisma/client";
 
 import { getPackage, toPackageType, type SignupPlanId } from "@/config/compensation-plan";
 import { payCommissions } from "@/lib/compensation/payout";
 import { creditCredits } from "@/lib/credits/ledger";
+import { grantVideoQuota } from "@/lib/studio/video-quotas";
 
 export async function activateMembership(
   tx: Prisma.TransactionClient,
@@ -21,6 +22,7 @@ export async function activateMembership(
     },
   });
   if (claimed.count === 0) return false;
+  await grantVideoQuota(tx, user.id, packageId);
 
   if (plan.credits > 0) {
     const credited = await creditCredits(

@@ -29,16 +29,21 @@ import {
   type LucideIcon,
 } from "lucide-react";
 import Link from "next/link";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type FormEvent } from "react";
 import { toast } from "sonner";
 
 import {
+  createVegaAgent,
+  deleteVegaAgent,
   deleteVegaChat,
+  listVegaAgents,
   listVegaChats,
   myCredits,
   openVegaChat,
   renameVegaChat,
+  updateVegaAgent,
   type VegaAttachmentChip,
+  type VegaAgentSummary,
   type VegaChatMessage,
   type VegaChatSummary,
 } from "@/app/dashboard/super-agent/actions";
@@ -106,9 +111,9 @@ async function shrinkImage(file: File) {
 }
 
 const launches: { icon: LucideIcon; label: string; prompt: string }[] = [
-  { icon: Smartphone, label: "App", prompt: "Quiero una app para agendar citas en mi clínica" },
-  { icon: Globe, label: "Sitio", prompt: "Hazme un sitio web para mi estudio de diseño" },
-  { icon: Bot, label: "Agente", prompt: "Crea un agente que confirme citas y responda dudas" },
+  { icon: Smartphone, label: "App", prompt: "Diseña un prototipo premium para agendar citas de mi clínica. Atiendo medicina general y pediatría. Quiero que el paciente elija servicio, fecha y hora; el personal pueda revisar y cancelar citas. Tono cálido y profesional. Usa precios editables, no inventes datos clínicos." },
+  { icon: Globe, label: "Sitio", prompt: "Crea una landing premium, mobile-first y enfocada en convertir para mi estudio de diseño. Ofrezco branding, sitios web y contenido para redes. Quiero propuesta de valor clara, proceso, paquetes sin precios inventados, preguntas frecuentes y contacto por WhatsApp. Estilo editorial moderno, elegante y sobrio." },
+  { icon: Bot, label: "Agente", prompt: "Diseña un agente de atención para mi clínica que responda dudas frecuentes y ayude a solicitar citas. Debe hablar con calidez sin dar diagnósticos, recopilar nombre, servicio y horario preferido, confirmar qué queda pendiente y escalar urgencias a una persona. Incluye reglas, flujo y ejemplos; marca claramente qué requiere conexión real." },
   { icon: Clapperboard, label: "Video", prompt: "Hazme un video corto para anunciar mi negocio" },
   { icon: Sparkles, label: "Imagen", prompt: "Hazme el logo de mi clínica" },
   { icon: Search, label: "Buscar", prompt: "Búscame ideas para crecer mi negocio esta semana" },
@@ -116,19 +121,27 @@ const launches: { icon: LucideIcon; label: string; prompt: string }[] = [
 
 export function VegaChat({
   firstName,
+  initialAgents,
+  initialAgentId,
   initialChats,
   justConnected,
   initialMessages = [],
   creditAllowance = 0,
 }: {
   firstName: string;
+  initialAgents: VegaAgentSummary[];
+  initialAgentId: string;
   initialChats: VegaChatSummary[];
   justConnected?: string | null;
   initialMessages?: ChatItem[];
   creditAllowance?: number;
 }) {
   const { balance, syncBalance } = useCredits();
+  const [agents, setAgents] = useState(initialAgents);
+  const [activeAgentId, setActiveAgentId] = useState(initialAgentId);
   const [chats, setChats] = useState(initialChats);
+  const [agentForm, setAgentForm] = useState<{ id?: string; name: string; specialty: string; instructions: string; avatar: string } | null>(null);
+  const [savingAgent, setSavingAgent] = useState(false);
   const [activeId, setActiveId] = useState<string | null>(null);
   const [messages, setMessages] = useState<ChatItem[]>(initialMessages);
   const [panel, setPanel] = useState<"connections" | "memory" | "tasks" | "profile" | "autonomy" | null>(justConnected ? "connections" : null);
@@ -149,6 +162,7 @@ export function VegaChat({
   const endRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const fileRef = useRef<HTMLInputElement>(null);
+  const activeAgent = agents.find((agent) => agent.id === activeAgentId) ?? agents[0];
 
   useEffect(() => {
     if (messages.length === 0) return;
@@ -156,7 +170,10 @@ export function VegaChat({
   }, [messages, files, links]);
 
   useEffect(() => {
-    setTank((current) => Math.max(current, balance, creditAllowance));
+    const frame = window.requestAnimationFrame(() => {
+      setTank((current) => Math.max(current, balance, creditAllowance));
+    });
+    return () => window.cancelAnimationFrame(frame);
   }, [balance, creditAllowance]);
 
   useEffect(() => {
@@ -168,11 +185,14 @@ export function VegaChat({
   }, [justConnected]);
 
   useEffect(() => {
-    try {
-      if (sessionStorage.getItem("lyra-vega-chats") === "0") setChatsHidden(true);
-    } catch {
-      /* modo privado */
-    }
+    const frame = window.requestAnimationFrame(() => {
+      try {
+        if (sessionStorage.getItem("lyra-vega-chats") === "0") setChatsHidden(true);
+      } catch {
+        /* modo privado */
+      }
+    });
+    return () => window.cancelAnimationFrame(frame);
   }, []);
 
   function setChatsCollapsed(hidden: boolean) {
@@ -203,11 +223,11 @@ export function VegaChat({
     if (streaming || id === activeId) return;
     setListOpen(false);
     setLoadingChat(true);
-    const loaded = await openVegaChat(id);
+    const loaded = await openVegaChat(id, activeAgentId);
     setLoadingChat(false);
     if (!loaded) {
       toast.error("Esa conversación ya no existe.");
-      setChats(await listVegaChats());
+      setChats(await listVegaChats(activeAgentId));
       return;
     }
     setActiveId(id);
@@ -224,9 +244,72 @@ export function VegaChat({
     inputRef.current?.focus();
   }
 
+  async function selectAgent(agent: VegaAgentSummary) {
+    if (streaming || agent.id === activeAgentId) return;
+    setActiveAgentId(agent.id);
+    setActiveId(null);
+    setMessages([]);
+    setListOpen(false);
+    setChats(await listVegaChats(agent.id));
+  }
+
+  async function saveAgent(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!agentForm || savingAgent) return;
+    setSavingAgent(true);
+    try {
+      if (agentForm.id) {
+        const result = await updateVegaAgent({ ...agentForm, id: agentForm.id });
+        if (!result.ok) {
+          toast.error("error" in result ? result.error : "No se pudo guardar el agente.");
+          return;
+        }
+      } else {
+        const result = await createVegaAgent(agentForm);
+        if (!result.ok) {
+          toast.error(result.error);
+          return;
+        }
+        setActiveAgentId(result.agent.id);
+        setActiveId(null);
+        setMessages([]);
+        setChats([]);
+      }
+      setAgents(await listVegaAgents());
+      setAgentForm(null);
+      toast.success(agentForm.id ? "Agente actualizado." : "Agente creado.");
+    } catch {
+      toast.error("No se pudo guardar el agente. Intenta de nuevo.");
+    } finally {
+      setSavingAgent(false);
+    }
+  }
+
+  async function removeAgent(agent: VegaAgentSummary) {
+    if (streaming || agent.isDefault || !window.confirm(`¿Eliminar a ${agent.name} y todas sus conversaciones?`)) return;
+    try {
+      const result = await deleteVegaAgent(agent.id);
+      if (!result.ok) {
+        toast.error("No se pudo eliminar el agente.");
+        return;
+      }
+      const nextAgents = await listVegaAgents();
+      setAgents(nextAgents);
+      if (activeAgentId === agent.id && nextAgents[0]) {
+        setActiveAgentId(nextAgents[0].id);
+        setActiveId(null);
+        setMessages([]);
+        setChats(await listVegaChats(nextAgents[0].id));
+      }
+      toast.success("Agente eliminado.");
+    } catch {
+      toast.error("No se pudo eliminar el agente. Intenta de nuevo.");
+    }
+  }
+
   async function removeChat(id: string) {
     if (!window.confirm("¿Borrar esta conversación? No se puede recuperar.")) return;
-    const result = await deleteVegaChat(id);
+    const result = await deleteVegaChat(id, activeAgentId);
     if (!result.ok) return;
     setChats((current) => current.filter((chat) => chat.id !== id));
     if (id === activeId) newChat();
@@ -235,7 +318,7 @@ export function VegaChat({
   async function renameChat(chat: VegaChatSummary) {
     const title = window.prompt("Nuevo nombre de la conversación", chat.title);
     if (!title?.trim()) return;
-    const result = await renameVegaChat(chat.id, title);
+    const result = await renameVegaChat(chat.id, title, activeAgentId);
     if (result.ok) setChats((current) => current.map((item) => (item.id === chat.id ? { ...item, title: title.trim() } : item)));
   }
 
@@ -330,6 +413,7 @@ export function VegaChat({
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
+          agentId: activeAgentId,
           conversationId: activeId,
           message,
           requestId: replyId,
@@ -362,7 +446,7 @@ export function VegaChat({
       if (chatId && chatId !== activeId) {
         setActiveId(chatId);
         setChats((current) => [
-          { id: chatId, title: label.length > 60 ? `${label.slice(0, 57)}…` : label, updatedAt: new Date().toISOString() },
+          { id: chatId, agentId: activeAgentId, title: label.length > 60 ? `${label.slice(0, 57)}…` : label, updatedAt: new Date().toISOString() },
           ...current.filter((chat) => chat.id !== chatId),
         ]);
       } else if (chatId) {
@@ -496,6 +580,67 @@ export function VegaChat({
             <X className="size-4" />
           </button>
         </div>
+        <div className="border-b border-[#F0ECE6] px-3 pb-3 dark:border-white/10">
+          <div className="mb-2 flex items-center justify-between px-1">
+            <p className="text-[11px] font-semibold tracking-wide text-[#8A8680] uppercase">Mis agentes</p>
+            <button
+              type="button"
+              onClick={() => setAgentForm({ name: "", specialty: "", instructions: "", avatar: "✦" })}
+              disabled={streaming}
+              className="inline-flex items-center gap-1 rounded-full px-2 py-1 text-xs font-medium text-[#7C3AED] hover:bg-[#F5F3FF] disabled:opacity-50 dark:hover:bg-[#221F30]"
+            >
+              <Bot className="size-3.5" /> Crear
+            </button>
+          </div>
+          <ul className="flex gap-2 overflow-x-auto pb-1 md:flex-col md:overflow-x-visible">
+            {agents.map((agent) => (
+              <li key={agent.id} className="group relative min-w-[145px] md:min-w-0">
+                <button
+                  type="button"
+                  onClick={() => void selectAgent(agent)}
+                  disabled={streaming}
+                  className={cn(
+                    "flex w-full items-center gap-2.5 rounded-xl px-2.5 py-2 text-left transition",
+                    agent.id === activeAgentId
+                      ? "bg-[#EDE9FE] text-[#1E1E24] dark:bg-[#30254A] dark:text-white"
+                      : "text-[#5C5854] hover:bg-[#F3F0EB] dark:text-[#C7C2D3] dark:hover:bg-[#221F30]",
+                  )}
+                  aria-pressed={agent.id === activeAgentId}
+                >
+                  <span className="grid size-9 shrink-0 place-items-center rounded-full bg-gradient-to-br from-[#C4B5FD] to-[#7C3AED] text-lg text-white shadow-sm">
+                    {agent.avatar}
+                  </span>
+                  <span className="min-w-0 flex-1">
+                    <span className="block truncate text-sm font-medium">{agent.name}</span>
+                    <span className="block truncate text-[11px] opacity-70">{agent.specialty}</span>
+                  </span>
+                </button>
+                {!agent.isDefault ? (
+                  <span className="absolute top-1 right-1 hidden gap-0.5 rounded-lg bg-white/90 p-0.5 group-hover:flex group-focus-within:flex dark:bg-[#181625]">
+                    <button
+                      type="button"
+                      disabled={streaming}
+                      onClick={() => setAgentForm({ id: agent.id, name: agent.name, specialty: agent.specialty, instructions: agent.instructions, avatar: agent.avatar })}
+                      className="rounded p-1 text-[#8A8680] hover:text-[#1E1E24] disabled:opacity-40"
+                      aria-label={`Editar ${agent.name}`}
+                    >
+                      <Pencil className="size-3" />
+                    </button>
+                    <button
+                      type="button"
+                      disabled={streaming}
+                      onClick={() => void removeAgent(agent)}
+                      className="rounded p-1 text-[#8A8680] hover:text-[#B42318] disabled:opacity-40"
+                      aria-label={`Eliminar ${agent.name}`}
+                    >
+                      <Trash2 className="size-3" />
+                    </button>
+                  </span>
+                ) : null}
+              </li>
+            ))}
+          </ul>
+        </div>
         <ul className="flex-1 space-y-0.5 overflow-y-auto px-2 pb-3">
           {chats.length === 0 ? <li className="px-3 py-6 text-xs leading-5 text-[#8A8680]">Todavía no hay conversaciones.</li> : null}
           {chats.map((chat) => (
@@ -530,13 +675,79 @@ export function VegaChat({
         </Link>
       </aside>
 
+      {agentForm ? (
+        <div className="fixed inset-0 z-[80] grid place-items-center bg-black/50 p-4" role="presentation">
+          <form
+            onSubmit={(event) => void saveAgent(event)}
+            className="w-full max-w-md space-y-4 rounded-3xl border border-[#E7E2DA] bg-white p-5 shadow-2xl dark:border-white/10 dark:bg-[#181625]"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="vega-agent-title"
+          >
+            <div>
+              <h2 id="vega-agent-title" className="text-lg font-semibold text-[#1E1E24] dark:text-white">
+                {agentForm.id ? "Editar agente" : "Crear agente"}
+              </h2>
+              <p className="mt-1 text-sm text-[#8A8680]">Tendrá su propia personalidad y especialidad, con las conexiones compartidas de Vega.</p>
+            </div>
+            <label className="block space-y-1.5 text-sm font-medium text-[#5C5854] dark:text-[#C7C2D3]">
+              Nombre
+              <input
+                autoFocus
+                required
+                maxLength={40}
+                value={agentForm.name}
+                onChange={(event) => setAgentForm({ ...agentForm, name: event.target.value })}
+                className="w-full rounded-xl border border-[#E7E2DA] bg-white px-3 py-2.5 text-[#1E1E24] outline-none focus:border-[#7C3AED] dark:border-white/15 dark:bg-[#14121C] dark:text-white"
+                placeholder="Ej. Luna"
+              />
+            </label>
+            <label className="block space-y-1.5 text-sm font-medium text-[#5C5854] dark:text-[#C7C2D3]">
+              Especialidad
+              <input
+                required
+                maxLength={80}
+                value={agentForm.specialty}
+                onChange={(event) => setAgentForm({ ...agentForm, specialty: event.target.value })}
+                className="w-full rounded-xl border border-[#E7E2DA] bg-white px-3 py-2.5 text-[#1E1E24] outline-none focus:border-[#7C3AED] dark:border-white/15 dark:bg-[#14121C] dark:text-white"
+                placeholder="Ej. Marketing y redes sociales"
+              />
+            </label>
+            <label className="block space-y-1.5 text-sm font-medium text-[#5C5854] dark:text-[#C7C2D3]">
+              Instrucciones y personalidad
+              <textarea
+                maxLength={2000}
+                rows={3}
+                value={agentForm.instructions}
+                onChange={(event) => setAgentForm({ ...agentForm, instructions: event.target.value })}
+                className="w-full resize-y rounded-xl border border-[#E7E2DA] bg-white px-3 py-2.5 text-[#1E1E24] outline-none focus:border-[#7C3AED] dark:border-white/15 dark:bg-[#14121C] dark:text-white"
+                placeholder="Define su tono, enfoque y cómo debe ayudarte."
+              />
+            </label>
+            <label className="block space-y-1.5 text-sm font-medium text-[#5C5854] dark:text-[#C7C2D3]">
+              Avatar (emoji)
+              <input
+                maxLength={8}
+                value={agentForm.avatar}
+                onChange={(event) => setAgentForm({ ...agentForm, avatar: event.target.value })}
+                className="w-24 rounded-xl border border-[#E7E2DA] bg-white px-3 py-2.5 text-center text-lg outline-none focus:border-[#7C3AED] dark:border-white/15 dark:bg-[#14121C] dark:text-white"
+              />
+            </label>
+            <div className="flex justify-end gap-2 pt-1">
+              <button type="button" disabled={savingAgent} onClick={() => setAgentForm(null)} className="rounded-xl px-4 py-2 text-sm text-[#5C5854] hover:bg-[#F3F0EB] disabled:opacity-50 dark:text-[#C7C2D3] dark:hover:bg-[#221F30]">Cancelar</button>
+              <button type="submit" disabled={savingAgent} className="rounded-xl bg-[#7C3AED] px-4 py-2 text-sm font-medium text-white hover:bg-[#6D28D9] disabled:opacity-50">{savingAgent ? "Guardando…" : "Guardar agente"}</button>
+            </div>
+          </form>
+        </div>
+      ) : null}
+
       <section className={cn("flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden", empty && "bg-[#0C0A12] bg-[radial-gradient(ellipse_at_50%_0%,#5B21B6_0%,#0C0A12_62%)]")}>
         <header className={cn("flex items-center gap-2 px-2 pt-[max(0.5rem,env(safe-area-inset-top))] pb-2 backdrop-blur md:hidden", empty ? "border-b border-white/10 bg-transparent text-white" : "border-b border-[#F0ECE6] bg-white/95 dark:border-white/10 dark:bg-[#14121C]/95")}>
           <Link href="/dashboard" className={cn("grid size-10 place-items-center rounded-full active:bg-white/10", empty ? "text-white" : "text-[#1E1E24] active:bg-[#F3F0EB] dark:text-[#F2F0F7]")} aria-label="Volver a LYRA">
             <ChevronLeft className="size-6" />
           </Link>
           <div className="min-w-0 flex-1">
-            <p className={cn("text-[15px] leading-tight font-semibold", empty ? "text-white" : "text-[#1E1E24]")}>Vega</p>
+            <p className={cn("text-[15px] leading-tight font-semibold", empty ? "text-white" : "text-[#1E1E24]")}>{activeAgent?.name ?? "Vega"}</p>
             <p className={cn("truncate text-xs", streaming ? "text-[#C4B5FD]" : empty ? "text-white/55" : "text-[#8A8680]")}>
               {streaming ? "Escribiendo…" : "Listo"}
             </p>
@@ -577,7 +788,7 @@ export function VegaChat({
             </button>
           ) : null}
           <div className="min-w-0 flex-1">
-            <p className={cn("text-sm font-semibold", empty ? "text-white" : "text-[#1E1E24]")}>Vega</p>
+            <p className={cn("text-sm font-semibold", empty ? "text-white" : "text-[#1E1E24]")}>{activeAgent?.name ?? "Vega"}</p>
             <p className={cn("text-[11px]", empty ? "text-white/50" : "text-[#8A8680]")}>Listo</p>
           </div>
           <CreditRing balance={balance} tank={tank} />
@@ -878,7 +1089,7 @@ export function VegaChat({
               rows={1}
               maxLength={4000}
               enterKeyHint="send"
-              placeholder={empty ? "Pídeselo a Vega…" : "Escríbele a Vega, adjunta archivos o un enlace…"}
+              placeholder={empty ? `Pídeselo a ${activeAgent?.name ?? "Vega"}…` : `Escríbele a ${activeAgent?.name ?? "Vega"}, adjunta archivos o un enlace…`}
               className={cn("max-h-32 min-h-10 flex-1 resize-none bg-transparent px-1 py-2 text-base outline-none field-sizing-content sm:max-h-40 sm:text-sm", empty ? "text-white placeholder:text-white/40" : "text-[#1E1E24] placeholder:text-[#A8A29E]")}
             />
             <CreditRing balance={balance} tank={tank} size={26} className="mb-2 md:hidden" />

@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 
 import { RegisterForm } from "@/components/auth/register-form";
+import { ThemeToggle } from "@/components/app/theme-toggle";
 import { brand } from "@/config/brand";
 import { isSignupPlanId } from "@/config/compensation-plan";
 import { getCurrentUser } from "@/lib/auth/profile";
@@ -46,15 +47,11 @@ export default async function RegisterPage({
   const profile = await readOauthProfile().catch(() => null);
 
   return (
-    <main
-      className="grid min-h-screen place-items-center px-4 py-10"
-      style={{
-        backgroundColor: "#E6EDF8",
-        backgroundImage: "radial-gradient(#c9d4e8 1.1px, transparent 1.1px)",
-        backgroundSize: "14px 14px",
-      }}
-    >
-      <section className="w-full max-w-[440px] bg-white px-8 py-12 shadow-[0_12px_40px_rgba(40,60,110,0.08)]">
+    <main className="lyra-office relative grid min-h-screen place-items-center px-4 py-10">
+      <div className="absolute right-4 top-[max(1rem,env(safe-area-inset-top))] z-10 sm:right-6 sm:top-6">
+        <ThemeToggle />
+      </div>
+      <section className="w-full max-w-[440px] rounded-2xl border border-border bg-surface px-6 py-8 shadow-[0_12px_40px_rgba(40,60,110,0.08)] sm:px-8 sm:py-12">
         <RegisterForm
           refCode={profile?.ref || refCode}
           aviso={params.aviso ?? ""}

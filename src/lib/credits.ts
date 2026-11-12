@@ -1,22 +1,8 @@
 import { debitCredits, readCreditBalance, refundCredits } from "@/lib/credits/ledger";
+import { creditPrices } from "@/lib/credits/prices";
 import { getPrisma } from "@/lib/prisma";
 
-/**
- * Precios en créditos (1 crédito = 1 USD, entero).
- * El video sale más caro que la imagen (5) porque llama a Veo o Runway,
- * cuyo costo por clip es varias veces el de una imagen fija. 15 es un
- * piso conservador para no subsidiar esas llamadas.
- */
-export const creditPrices = {
-  notebook: 5,
-  image: 5,
-  video: 15,
-  speech: 3,
-  search: 2,
-  vegaMessage: 1,
-  vegaTool: 3,
-  botReply: 1,
-} as const;
+export { creditPrices };
 
 export type Charge =
   | { ok: true; chargeId: string | null; balance: number; duplicate: boolean }

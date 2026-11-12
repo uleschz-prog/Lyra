@@ -1,4 +1,6 @@
-import type { Prisma } from "@prisma/client";
+import type { Prisma } from "@/generated/prisma/client";
+
+import { creditUsd, minimumCreditRecharge } from "@/config/compensation-plan";
 
 export function monthStart(date = new Date()) {
   return new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), 1));
@@ -35,7 +37,17 @@ export function paysOwnWay(member: ActivityInput, month: Date) {
 }
 
 export function rebuyPaidFilter(month = new Date()): Prisma.TransactionWhereInput {
-  return { kind: "REBUY", createdAt: { gte: monthStart(month), lt: nextMonthStart(month) } };
+  return {
+    createdAt: { gte: monthStart(month), lt: nextMonthStart(month) },
+    OR: [
+      { kind: "REBUY", amount: { gte: minimumCreditRecharge * creditUsd } },
+      {
+        kind: "CREDIT_PURCHASE",
+        description: { startsWith: "Recarga" },
+        amount: { gte: minimumCreditRecharge * creditUsd },
+      },
+    ],
+  };
 }
 
 export const activitySelect = (month = new Date()) =>

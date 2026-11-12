@@ -1,4 +1,4 @@
-import { Prisma, type PrismaClient, type TransactionKind } from "@prisma/client";
+import { Prisma, type PrismaClient, type TransactionKind } from "@/generated/prisma/client";
 
 import { canonicalBalance, planLedgerOp } from "@/lib/credits/ledger-logic";
 import { getPrisma } from "@/lib/prisma";
