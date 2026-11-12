@@ -1,12 +1,13 @@
 "use client";
 
-import { Bell, Gift, ShieldCheck, X } from "lucide-react";
+import { Gift, Presentation, ShieldCheck, X } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 
 import { Logo } from "@/components/brand/logo";
 import { ThemeToggle } from "@/components/app/theme-toggle";
 import { useCredits } from "@/components/dashboard/credit-provider";
+import { NotificationBell } from "@/components/dashboard/notification-bell";
 import { UserNav } from "@/components/dashboard/user-nav";
 import { brand, officeModes } from "@/config/brand";
 import { formatCredits } from "@/lib/format";
@@ -43,16 +44,19 @@ export function Sidebar({
         >
           <Logo ink />
         </Link>
-        {onClose ? (
-          <button
-            type="button"
-            aria-label="Cerrar menú"
-            className="grid h-9 w-9 place-items-center rounded-xl text-[#5C5854] md:hidden"
-            onClick={onClose}
-          >
-            <X className="h-4 w-4" />
-          </button>
-        ) : null}
+        <div className="flex items-center gap-2">
+          <NotificationBell unread={unreadNotifications} onNavigate={onClose} />
+          {onClose ? (
+            <button
+              type="button"
+              aria-label="Cerrar menú"
+              className="grid h-9 w-9 place-items-center rounded-xl text-[#5C5854] md:hidden"
+              onClick={onClose}
+            >
+              <X className="h-4 w-4" />
+            </button>
+          ) : null}
+        </div>
       </div>
 
       <div className="px-3 pt-5">
@@ -81,25 +85,6 @@ export function Sidebar({
             </Link>
           );
         })}
-        <Link
-          href="/dashboard/academy/notificaciones"
-          aria-current={isActive("/dashboard/academy/notificaciones", pathname) ? "page" : undefined}
-          onClick={onClose}
-          className={cn(
-            "flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm transition-colors",
-            isActive("/dashboard/academy/notificaciones", pathname)
-              ? "bg-[#EDE9FE] text-[#1E1E24] dark:bg-[#221F30] dark:text-[#F2F0F7]"
-              : "text-[#5C5854] hover:bg-[#F6F4F1] hover:text-[#1E1E24] dark:text-[#9B96AC] dark:hover:bg-[#221F30] dark:hover:text-[#F2F0F7]",
-          )}
-        >
-          <Bell className={cn("h-4 w-4", isActive("/dashboard/academy/notificaciones", pathname) ? "text-[#7C3AED]" : "text-[#8A8680]")} aria-hidden />
-          <span className="flex-1">Notificaciones</span>
-          {unreadNotifications > 0 ? (
-            <span className="min-w-5 rounded-full bg-violet-700 px-1.5 py-0.5 text-center text-[10px] font-semibold text-white">
-              {unreadNotifications > 99 ? "99+" : unreadNotifications}
-            </span>
-          ) : null}
-        </Link>
       </nav>
 
       <div className="space-y-2 p-3">
@@ -133,6 +118,14 @@ export function Sidebar({
             <span className="mt-0.5 block text-xs text-[#8A8680] dark:text-[#9B96AC]">Sube de nivel pagando la diferencia</span>
           </span>
           <Gift className="h-4 w-4 shrink-0 text-[#7C3AED]" aria-hidden />
+        </Link>
+        <Link
+          href={brand.links.presentation}
+          onClick={onClose}
+          className="flex items-center gap-2 rounded-xl px-3 py-1.5 text-xs text-[#8A8680] transition-colors hover:text-[#1E1E24] dark:text-[#9B96AC] dark:hover:text-[#F2F0F7]"
+        >
+          <Presentation className="h-3.5 w-3.5" aria-hidden />
+          <span>Presentación de LYRA</span>
         </Link>
         <div className="flex items-center gap-2 px-1 py-1">
           <UserNav user={user} />

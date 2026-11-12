@@ -8,7 +8,7 @@ import {
   higgsfieldVideoSegmentDurations,
   isHiggsfieldVideoModel,
 } from "@/lib/ai/higgsfield-video";
-import { requireMember } from "@/lib/auth/api";
+import { requireAdmin } from "@/lib/auth/api";
 import { isPrivateVideoBlobUrl } from "@/lib/studio/blob-url";
 import { getVideoQuotaBalance } from "@/lib/studio/video-quotas";
 import {
@@ -24,7 +24,7 @@ import { videoSegmentPrompt } from "@/lib/studio/video-generation-shared";
 export const maxDuration = 60;
 
 export async function GET(request: Request) {
-  const guard = await requireMember();
+  const guard = await requireAdmin();
   if (!guard.ok) return guard.response;
 
   const search = new URL(request.url).searchParams;
@@ -78,7 +78,7 @@ export async function GET(request: Request) {
 }
 
 export async function POST(request: Request) {
-  const guard = await requireMember();
+  const guard = await requireAdmin();
   if (!guard.ok) return guard.response;
 
   const body = (await request.json().catch(() => null)) as {

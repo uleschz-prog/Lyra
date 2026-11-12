@@ -20,7 +20,7 @@ const previews: Record<ExampleCategory, Preview[]> = {
       frame: "app",
     },
     {
-      prompt: "Una app para cobrar membresías de mi gimnasio",
+      prompt: "Una app para registrar las membresías de mi gimnasio",
       label: "Membresías",
       className: "h-[132px] w-[150px] bg-[#312F2F] text-white",
       frame: "board",

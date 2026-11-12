@@ -74,7 +74,20 @@ async function waitForRunway(apiKey: string, id: string, waitMs: number) {
       return { ok: false as const, error: providerError(payload, "Runway no pudo crear el video.") };
     }
   }
-  return { ok: false as const, error: "El video sigue generándose. Intenta de nuevo en un momento." };
+  return { ok: false as const, timedOut: true as const, error: "El video tardó más de lo permitido y se canceló." };
+}
+
+/** Cancela una tarea de Runway que ya no se va a recoger (si aún estaba en cola, Runway no la cobra). */
+export async function cancelRunwayTask(apiKey: string, id: string, fetcher: typeof fetch = fetch) {
+  await fetcher(`https://api.dev.runwayml.com/v1/tasks/${encodeURIComponent(id)}`, {
+    method: "DELETE",
+    headers: { Authorization: `Bearer ${apiKey}`, "X-Runway-Version": "2024-11-06" },
+  }).catch(() => null);
+}
+
+/** Segundos que dura un clip de Runway con el modelo configurado (es lo que se descuenta de la cuota). */
+export function runwayClipSeconds(model = runwayCredentials().model) {
+  return model === "veo3" ? 8 : 5;
 }
 
 async function runwayClip(input: { title: string; script: string; format?: string }, waitMs: number): Promise<ClipResult> {
@@ -83,7 +96,7 @@ async function runwayClip(input: { title: string; script: string; format?: strin
 
   const promptText = `${input.title}. ${input.script}`.replace(/\s+/g, " ").trim().slice(0, 1000);
   const ratio = runwayRatio(input.format);
-  const duration = model === "veo3" ? 8 : 5;
+  const duration = runwayClipSeconds(model);
   const text = textVideoModels.has(model);
   const body: Record<string, unknown> = { model, promptText, ratio, duration };
   if (!text) {
@@ -106,7 +119,11 @@ async function runwayClip(input: { title: string; script: string; format?: strin
   const id = payload && typeof payload === "object" && typeof (payload as { id?: unknown }).id === "string" ? (payload as { id: string }).id : "";
   if (!id) return { ok: false, error: "Runway no devolvió la tarea del video." };
   const ready = await waitForRunway(apiKey, id, waitMs);
-  if (!ready.ok) return ready;
+  if (!ready.ok) {
+    // No dejar tareas huérfanas: lo que ya no se va a entregar se cancela.
+    if ("timedOut" in ready) await cancelRunwayTask(apiKey, id);
+    return { ok: false, error: ready.error };
+  }
   return { ok: true, url: ready.url, note: `Video generado con ${model}.` };
 }
 

@@ -18,3 +18,18 @@ export async function requireMember(): Promise<ApiGuard> {
   }
   return { ok: true, user };
 }
+
+/**
+ * Solo administradores. Se usa en rutas de IA con costo que hoy ninguna pantalla llama
+ * (estudio anterior): quedan disponibles para pruebas internas sin abrir gasto a todos.
+ */
+export async function requireAdmin(): Promise<ApiGuard> {
+  const user = await getCurrentUser();
+  if (!user) {
+    return { ok: false, response: NextResponse.json({ error: "Inicia sesión para continuar." }, { status: 401 }) };
+  }
+  if (user.role !== "ADMIN") {
+    return { ok: false, response: NextResponse.json({ error: "Esta función no está disponible." }, { status: 404 }) };
+  }
+  return { ok: true, user };
+}

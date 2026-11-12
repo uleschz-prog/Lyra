@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 
 import { geminiCredentials } from "@/lib/ai/generate";
 import { providerError, readJson } from "@/lib/ai/providers";
-import { requireMember } from "@/lib/auth/api";
+import { requireAdmin } from "@/lib/auth/api";
 import { creditPrices, withCharge } from "@/lib/credits";
 
 export const maxDuration = 60;
@@ -193,7 +193,7 @@ function previewAnswer(mode: NotebookMode, question: string, sources: SourceInpu
 }
 
 export async function POST(request: Request) {
-  const guard = await requireMember();
+  const guard = await requireAdmin();
   if (!guard.ok) return guard.response;
 
   const body = (await request.json().catch(() => null)) as {

@@ -4,7 +4,6 @@ import {
   Home,
   Library,
   Network,
-  Presentation,
   Wallet,
 } from "lucide-react";
 
@@ -30,6 +29,8 @@ export const brand = {
     academy: "/dashboard/academy",
     library: "/dashboard/biblioteca",
     wallet: "/dashboard/wallet",
+    notifications: "/dashboard/notificaciones",
+    presentation: "/presentacion",
   },
 };
 
@@ -44,12 +45,6 @@ export const officeModes = [
         label: "Inicio",
         description: "La pregunta para crear",
         icon: Home,
-      },
-      {
-        href: "/presentacion",
-        label: "Presentación",
-        description: "Conoce LYRA y sus oportunidades",
-        icon: Presentation,
       },
       {
         href: "/dashboard/super-agent",

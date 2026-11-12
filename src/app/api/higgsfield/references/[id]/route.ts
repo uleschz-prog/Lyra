@@ -1,10 +1,10 @@
 import { NextResponse } from "next/server";
 
 import { getSoulReference, parseSoulReferenceId } from "@/lib/ai/higgsfield-references";
-import { requireMember } from "@/lib/auth/api";
+import { requireAdmin } from "@/lib/auth/api";
 
 export async function GET(_request: Request, context: { params: Promise<{ id: string }> }) {
-  const guard = await requireMember();
+  const guard = await requireAdmin();
   if (!guard.ok) return guard.response;
 
   const { id } = await context.params;
