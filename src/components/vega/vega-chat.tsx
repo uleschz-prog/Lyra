@@ -58,7 +58,7 @@ import { FilesPanel } from "@/components/vega/files-panel";
 import { HistoryPanel } from "@/components/vega/history-panel";
 import { MemoryPanel } from "@/components/vega/memory-panel";
 import { ProfilePanel } from "@/components/vega/profile-panel";
-import { TasksPanel } from "@/components/vega/tasks-panel";
+import { RoutinesPanel } from "@/components/vega/tasks-panel";
 import { VegaGreeting, VegaMark } from "@/components/vega/vega-mark";
 import { RichText } from "@/components/vega/rich-text";
 import { attachmentAccept, attachmentLimits } from "@/lib/vega/attachment-limits";
@@ -526,10 +526,10 @@ export function VegaChat({
   const panelButtons = [
     { id: "profile", label: "Perfil", hint: "Tu negocio, metas y tono", icon: User },
     { id: "autonomy", label: "Autonomía", hint: "Lo que Vega ejecuta sin confirmar", icon: ShieldCheck },
-    { id: "history", label: "Historial", hint: "Acciones confirmadas, canceladas o vencidas", icon: History },
-    { id: "tasks", label: "Tareas", hint: "Recordatorios y trabajos programados", icon: CalendarClock },
     { id: "memory", label: "Memoria", hint: "Lo que Vega recuerda de ti", icon: Brain },
     { id: "files", label: "Archivos", hint: "Notas y documentos que Vega guarda", icon: FolderOpen },
+    { id: "history", label: "Historial", hint: "Acciones confirmadas, canceladas o vencidas", icon: History },
+    { id: "tasks", label: "Rutinas", hint: "Recordatorios a hora exacta y trabajos programados", icon: CalendarClock },
     { id: "connections", label: "Conexiones", hint: "Correo, agenda y tus apps", icon: Plug },
   ] as const;
 
@@ -859,7 +859,7 @@ export function VegaChat({
         {panel === "memory" ? <MemoryPanel onClose={() => setPanel(null)} /> : null}
         {panel === "files" ? <FilesPanel onClose={() => setPanel(null)} /> : null}
         {panel === "history" ? <HistoryPanel onClose={() => setPanel(null)} /> : null}
-        {panel === "tasks" ? <TasksPanel onClose={() => setPanel(null)} /> : null}
+        {panel === "tasks" ? <RoutinesPanel onClose={() => setPanel(null)} /> : null}
 
         <div className={cn("min-h-0 flex-1 overscroll-contain overflow-y-auto px-3 sm:px-8", empty ? "pt-3 pb-1 sm:pt-4" : "py-5 sm:py-6")}>
           {loadingChat ? <p className="text-center text-sm text-[#8A8680]">Abriendo conversación…</p> : null}

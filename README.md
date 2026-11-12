@@ -44,6 +44,20 @@ El estudio ofrece un cupo de video independiente de los créditos que se renueva
 
 Los cron configurados en Vercel se declaran en `vercel.json`; sus rutas deben existir en `src/app/api`.
 
+### Rutinas de Vega
+
+Los socios piden a Vega recordatorios a hora exacta y rutinas recurrentes (diario, lunes a viernes, semanal, mensual o cron de 5 campos) en su zona horaria (por defecto `America/Mexico_City`). Cada rutina guarda su instrucción; al cumplirse, un recordatorio llega como aviso y una tarea corre un turno completo de Vega en segundo plano con el presupuesto de turno (`VEGA_MAX_STEPS`, `VEGA_TIME_BUDGET_MS`). Los envíos a terceros nunca salen solos: quedan como tarjetas pendientes y `VEGA_SENDS_PER_HOUR` se aplica al confirmarlas. Los resultados se guardan en `VegaRoutineRun`, en el chat «Recordatorios de Vega» y se avisan al correo/WhatsApp del propio socio.
+
+El despachador es `GET|POST /api/vega/routines/dispatch` con `Authorization: Bearer $CRON_SECRET`. Reclama cada ocurrencia con un `updateMany` condicional y una fila única `(taskId, scheduledFor)`, así que dos disparos simultáneos no la ejecutan dos veces; las corridas colgadas más de 10 minutos se marcan como fallidas sin reintento. Responde `202` y trabaja con `after()`; `?wait=1` espera y devuelve el resumen. Límites: `VEGA_MAX_ROUTINES` (20 por socio), `VEGA_ROUTINE_RUNS_PER_HOUR` (8 por socio), `VEGA_ROUTINE_CONCURRENCY` (3 turnos en paralelo por invocación, nunca dos del mismo socio) y 15 minutos mínimos entre ejecuciones.
+
+En Hobby, Vercel solo permite cron diarios, así que `vercel.json` no cambia: el cron diario `/api/vega/tasks/run` (7:00 CDMX, con ±59 min de holgura) llama al mismo despachador y adelanta lo que vence en los siguientes 90 minutos. Sin pinger, las demás horas exactas se entregan hasta el siguiente disparo diario. Para horas exactas, programa un pinger externo cada 5 minutos con el header anterior, por ejemplo en cron-job.org o un Render Cron Job:
+
+```bash
+curl -fsS -X POST -H "Authorization: Bearer $CRON_SECRET" "$LYRA_URL/api/vega/routines/dispatch"
+```
+
+Con Vercel Pro basta agregar `{ "path": "/api/vega/routines/dispatch", "schedule": "*/5 * * * *" }` a `vercel.json`. Con un disparo cada 5 minutos caben unas 36 tareas con turno completo por hora; lo demás espera en cola al siguiente disparo.
+
 ## WhatsApp Business
 
 La conexión usa el flujo oficial Meta Embedded Signup para WhatsApp Business Coexistence: la persona autoriza su cuenta de WhatsApp Business durante el alta y confirma desde la app móvil. No se emparejan sesiones de WhatsApp Web ni se escanea un QR de WhatsApp Web. La disponibilidad de Coexistence depende de la elegibilidad de la cuenta y de que la app de Meta tenga la configuración y permisos aprobados.

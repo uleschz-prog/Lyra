@@ -68,7 +68,18 @@ export function tick() {
   return new Date(clock);
 }
 
-export function table(defaults: (data: Row) => Row = () => ({})) {
+function apply(row: Row, data: Row) {
+  for (const [key, value] of Object.entries(data)) {
+    if (value && typeof value === "object" && !(value instanceof Date) && "increment" in (value as Row)) {
+      row[key] = Number(row[key] ?? 0) + Number((value as Row).increment);
+    } else {
+      row[key] = value;
+    }
+  }
+}
+
+/** `unique`: columnas que juntas son únicas (simula P2002 de Postgres). */
+export function table(defaults: (data: Row) => Row = () => ({}), options: { unique?: string[] } = {}) {
   const rows: Row[] = [];
   return {
     rows,
@@ -89,19 +100,24 @@ export function table(defaults: (data: Row) => Row = () => ({})) {
     },
     async create(args: { data: Row; select?: Record<string, boolean> }) {
       const now = tick();
-      const row = { id: `id${(counter += 1)}`, createdAt: now, updatedAt: now, ...defaults(args.data), ...args.data };
+      const row: Row = { id: `id${(counter += 1)}`, createdAt: now, updatedAt: now, ...defaults(args.data), ...args.data };
+      const unique = options.unique;
+      const same = (a: unknown, b: unknown) => (a instanceof Date || b instanceof Date ? num(a) === num(b) : a === b);
+      if (unique && rows.some((other) => unique.every((key) => same(other[key], row[key])))) {
+        throw Object.assign(new Error("Unique constraint failed"), { code: "P2002" });
+      }
       rows.push(row);
       return pick(row, args.select);
     },
     async update(args: { where: Where; data: Row; select?: Record<string, boolean> }) {
       const row = rows.find((candidate) => matches(candidate, args.where));
       if (!row) throw new Error("not found");
-      Object.assign(row, args.data);
+      apply(row, args.data);
       return pick(row, args.select);
     },
     async updateMany(args: { where: Where; data: Row }) {
       const found = rows.filter((row) => matches(row, args.where));
-      found.forEach((row) => Object.assign(row, args.data));
+      found.forEach((row) => apply(row, args.data));
       return { count: found.length };
     },
     async deleteMany(args: { where?: Where } = {}) {

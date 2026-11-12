@@ -13,12 +13,16 @@ import type { FunctionDeclaration } from "@/lib/vega/gemini-stream";
 import { forgetMemory, MEMORY_MAX_LENGTH, saveMemory, searchMemories } from "@/lib/vega/memory";
 import { memoryKindLabels, parseKind } from "@/lib/vega/memory-logic";
 import { saveVegaProfile } from "@/lib/vega/profile";
+import { DEFAULT_TIMEZONE, isValidTimezone, MIN_INTERVAL_MINUTES } from "@/lib/vega/schedule";
 import {
   createTask,
-  DAILY_HOUR,
+  DEFAULT_TIME,
   deleteTask,
+  listRoutineRuns,
   listTasks,
-  repeatLabels,
+  maxRoutines,
+  pauseTask,
+  resumeTask,
   type TaskKind,
   type TaskRepeat,
 } from "@/lib/vega/tasks";
@@ -75,35 +79,51 @@ const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const localDateTime = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(:\d{2})?$/;
 
 /** Herramientas que no cobran el extra de créditos. */
-export const freeTools = new Set(["recordar", "olvidar", "buscar_memoria", "programar_tarea", "ver_tareas", "cancelar_tarea", "preparar_whatsapp", "no_molestar_whatsapp", "actualizar_perfil", "listar_archivos", "buscar_archivos", "leer_archivo", "escribir_archivo", "ver_comandos", "pedir_conexion"]);
+export const freeTools = new Set(["recordar", "olvidar", "buscar_memoria", "programar_rutina", "ver_rutinas", "pausar_rutina", "reanudar_rutina", "borrar_rutina", "preparar_whatsapp", "no_molestar_whatsapp", "actualizar_perfil", "listar_archivos", "buscar_archivos", "leer_archivo", "escribir_archivo", "ver_comandos", "pedir_conexion"]);
 const taskTools: FunctionDeclaration[] = [
   {
-    name: "programar_tarea",
-    description: `Programa un recordatorio o una tarea para una fecha. Las tareas se entregan a las ${DAILY_HOUR}:00 am (Ciudad de México) del día indicado, en el chat de Vega, por correo si el socio conectó Gmail y por WhatsApp si lo activó en el panel Tareas. Un recordatorio cuesta 1 crédito y una tarea que requiere redactar o investigar cuesta 3, al ejecutarse.`,
+    name: "programar_rutina",
+    description: `Crea una rutina: un recordatorio único a una hora exacta o un horario recurrente (diario, lunes a viernes, semanal, mensual o cron personalizado) en la zona horaria del socio. Cuando se cumple, Vega la ejecuta en segundo plano: un recordatorio llega como aviso; una tarea corre un turno completo de Vega con la instrucción guardada. Llega al chat «Recordatorios de Vega», por correo si conectó Gmail y por WhatsApp si lo activó en el panel Rutinas. Los envíos a terceros nunca salen solos: quedan como tarjetas para que el socio confirme. Mínimo ${MIN_INTERVAL_MINUTES} minutos entre ejecuciones; máximo ${maxRoutines()} rutinas.`,
     parameters: {
       type: "object",
       properties: {
         titulo: { type: "string", description: "Nombre corto, p. ej. «Llamar a Mariana»." },
         que_hacer: {
           type: "string",
-          description: "Para un recordatorio: el mensaje que recibirá. Para una tarea: la instrucción completa de lo que Vega debe preparar ese día.",
+          description: "Para un recordatorio: el mensaje que recibirá. Para una tarea: la instrucción completa que Vega ejecutará cada vez (sin preguntas: el socio no estará en línea).",
         },
-        tipo: { type: "string", enum: ["recordatorio", "tarea"], description: "recordatorio = aviso simple; tarea = Vega redacta o investiga algo." },
-        fecha: { type: "string", description: "YYYY-MM-DD, primera fecha de entrega." },
-        repetir: { type: "string", enum: ["nunca", "diario", "semanal", "mensual"] },
+        tipo: { type: "string", enum: ["recordatorio", "tarea"], description: "recordatorio = aviso simple; tarea = Vega redacta, investiga o prepara algo." },
+        fecha: { type: "string", description: "YYYY-MM-DD: el día del aviso único o de la primera ejecución." },
+        hora: { type: "string", description: `HH:MM en 24 horas, hora local del socio. Si no dio hora, usa ${DEFAULT_TIME} y díselo.` },
+        repetir: { type: "string", enum: ["nunca", "diario", "entre_semana", "semanal", "mensual", "personalizado"] },
+        cron: {
+          type: "string",
+          description: "Solo con repetir = personalizado: cron de 5 campos «min hora día mes díaSemana» en hora local, p. ej. «0 9,17 * * 1-5» o «*/30 8-12 * * 1».",
+        },
+        zona_horaria: { type: "string", description: `Zona IANA si el socio pide otra, p. ej. America/Bogota. Por defecto ${DEFAULT_TIMEZONE}.` },
         usar_web: { type: "boolean", description: "Solo para tareas que necesitan información actual de internet." },
       },
       required: ["titulo", "que_hacer", "tipo", "fecha", "repetir"],
     },
   },
   {
-    name: "ver_tareas",
-    description: "Lista los recordatorios y tareas programadas del socio.",
+    name: "ver_rutinas",
+    description: "Lista las rutinas del socio (activas y en pausa) con su próxima ejecución, y los resultados de las últimas ejecuciones.",
     parameters: { type: "object", properties: {} },
   },
   {
-    name: "cancelar_tarea",
-    description: "Cancela una tarea o recordatorio programado. Usa el id que devuelve ver_tareas.",
+    name: "pausar_rutina",
+    description: "Pausa una rutina activa sin borrarla. Usa el id que devuelve ver_rutinas.",
+    parameters: { type: "object", properties: { id: { type: "string" } }, required: ["id"] },
+  },
+  {
+    name: "reanudar_rutina",
+    description: "Reanuda una rutina en pausa; las recurrentes siguen en su próxima hora (no recupera las que se saltaron).",
+    parameters: { type: "object", properties: { id: { type: "string" } }, required: ["id"] },
+  },
+  {
+    name: "borrar_rutina",
+    description: "Borra una rutina o recordatorio para siempre. Usa el id que devuelve ver_rutinas.",
     parameters: { type: "object", properties: { id: { type: "string" } }, required: ["id"] },
   },
 ];
@@ -493,59 +513,84 @@ export async function runVegaTool(userId: string, name: string, args: Record<str
     return { kind: "result", status: "Actualicé el perfil del socio", response: { perfil: saved.profile } };
   }
 
-  if (name === "programar_tarea") {
-    const date = text(args.fecha, 10);
-    if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) return { kind: "invalid", response: { error: "La fecha debe ser YYYY-MM-DD." } };
-    const repeatMap: Record<string, TaskRepeat> = { nunca: "once", diario: "daily", semanal: "weekly", mensual: "monthly" };
+  if (name === "programar_rutina") {
+    const repeatMap: Record<string, TaskRepeat> = {
+      nunca: "once",
+      diario: "daily",
+      entre_semana: "weekdays",
+      semanal: "weekly",
+      mensual: "monthly",
+      personalizado: "custom",
+    };
     const kind: TaskKind = args.tipo === "tarea" ? "task" : "reminder";
     const title = text(args.titulo, 120);
     const instruction = text(args.que_hacer, 1000);
     if (!title || !instruction) return { kind: "invalid", response: { error: "Falta el título o qué hacer." } };
+    const zone = text(args.zona_horaria, 64) || DEFAULT_TIMEZONE;
+    if (!isValidTimezone(zone)) return { kind: "invalid", response: { error: "Zona horaria no válida; usa un nombre IANA como America/Mexico_City." } };
     const created = await createTask(userId, {
       title,
       instruction,
       kind,
-      repeat: repeatMap[text(args.repetir, 10)] ?? "once",
+      repeat: repeatMap[text(args.repetir, 20)] ?? "once",
       useWeb: args.usar_web === true,
-      date,
-      time: `${String(DAILY_HOUR).padStart(2, "0")}:00`,
+      date: text(args.fecha, 10),
+      time: text(args.hora, 5) || DEFAULT_TIME,
+      timezone: zone,
+      cron: text(args.cron, 100) || undefined,
     });
     if (!created.ok) return { kind: "invalid", response: { error: created.error } };
-    const when = new Date(created.task.runAt).toLocaleDateString("es-MX", {
+    const next = new Date(created.task.runAt).toLocaleString("es-MX", {
       weekday: "long",
       day: "numeric",
       month: "long",
-      timeZone: TIMEZONE,
+      hour: "2-digit",
+      minute: "2-digit",
+      timeZone: created.task.timezone,
     });
     return {
       kind: "result",
-      status: `Programé «${title}» para el ${when}${created.task.repeat === "once" ? "" : ` (${repeatLabels[created.task.repeat].toLowerCase()})`}`,
-      response: { programada: true, id: created.task.id, entrega: `${when}, ${DAILY_HOUR}:00 am` },
+      status: `Programé «${title}» · ${created.task.label}`,
+      response: { programada: true, id: created.task.id, horario: created.task.label, proxima: next, zona_horaria: created.task.timezone },
     };
   }
 
-  if (name === "ver_tareas") {
-    const tasks = await listTasks(userId);
+  if (name === "ver_rutinas") {
+    const [tasks, runs] = await Promise.all([listTasks(userId), listRoutineRuns(userId, 5)]);
     return {
       kind: "result",
-      status: "Revisé tus tareas programadas",
+      status: "Revisé tus rutinas",
       response: {
-        tareas: tasks.map((task) => ({
+        rutinas: tasks.map((task) => ({
           id: task.id,
           titulo: task.title,
           tipo: task.kind === "task" ? "tarea" : "recordatorio",
-          repetir: repeatLabels[task.repeat],
-          proxima: new Date(task.runAt).toLocaleDateString("es-MX", { day: "numeric", month: "long", timeZone: TIMEZONE }),
+          horario: task.label,
+          proxima: new Date(task.runAt).toLocaleString("es-MX", { day: "numeric", month: "long", hour: "2-digit", minute: "2-digit", timeZone: task.timezone }),
           estado: task.status === "paused" ? "pausada" : "activa",
+          ultimo_resultado: task.lastResult,
         })),
+        ultimas_ejecuciones: runs.map((run) => ({ rutina: run.title, estado: run.status, resultado: run.result?.slice(0, 300) ?? null, pendientes: run.pendingActions })),
       },
     };
   }
 
-  if (name === "cancelar_tarea") {
+  if (name === "pausar_rutina") {
+    const paused = await pauseTask(userId, text(args.id, 40));
+    if (!paused.ok) return { kind: "invalid", response: { error: paused.error } };
+    return { kind: "result", status: "Pausé una rutina", response: { pausada: true } };
+  }
+
+  if (name === "reanudar_rutina") {
+    const resumed = await resumeTask(userId, text(args.id, 40));
+    if (!resumed.ok) return { kind: "invalid", response: { error: resumed.error } };
+    return { kind: "result", status: "Reanudé una rutina", response: { reanudada: true, proxima: resumed.runAt.toISOString() } };
+  }
+
+  if (name === "borrar_rutina") {
     const removed = await deleteTask(userId, text(args.id, 40));
-    if (!removed) return { kind: "invalid", response: { error: "No encontré esa tarea." } };
-    return { kind: "result", status: "Cancelé una tarea programada", response: { cancelada: true } };
+    if (!removed) return { kind: "invalid", response: { error: "No encontré esa rutina." } };
+    return { kind: "result", status: "Borré una rutina", response: { borrada: true } };
   }
 
   if (name === "buscar_web") {

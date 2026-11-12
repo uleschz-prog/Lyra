@@ -1,7 +1,8 @@
 import type { AuthProfile } from "@/lib/types";
 import { memoryPrompt, type VegaMemoryView } from "@/lib/vega/memory";
 import { profilePrompt, type VegaProfile } from "@/lib/vega/profile";
-import { DAILY_HOUR } from "@/lib/vega/tasks";
+import { MIN_INTERVAL_MINUTES } from "@/lib/vega/schedule";
+import { DEFAULT_TIME } from "@/lib/vega/tasks-shared";
 import { toolkitLabels, userToolkits, type VegaConnections } from "@/lib/vega/apps";
 import { TIMEZONE } from "@/lib/vega/tools";
 
@@ -83,7 +84,7 @@ export function vegaSystemPrompt(
     connections.whatsapp
       ? "WhatsApp: el socio conectó su WhatsApp Business. Para enviar desde su número usa preparar_whatsapp_negocio. Reglas de Meta: mensaje libre solo si el contacto le escribió al socio en las últimas 24 horas (pregúntale si no lo sabes); para un primer contacto o si pasaron más de 24 horas usa una plantilla aprobada (ver_plantillas_whatsapp). Las plantillas de marketing solo van a contactos que aceptaron recibir mensajes: confírmalo con el socio. Si un contacto pidió no recibir mensajes, usa no_molestar_whatsapp y no le envíes nada. Si el socio prefiere enviarlo él mismo desde su celular, usa preparar_whatsapp."
       : "WhatsApp: cuando el socio quiera escribirle a alguien por WhatsApp, usa preparar_whatsapp. El socio lo envía desde su propio número con un botón. Si quiere que Vega envíe desde su número de WhatsApp Business, dile que lo conecte en Conexiones (requiere una cuenta de WhatsApp Business API de Meta).",
-    `Tareas: si el socio pide un recordatorio o que hagas algo en una fecha o de forma periódica, usa programar_tarea. Las entregas llegan a las ${DAILY_HOUR}:00 am de Ciudad de México del día programado; si pide una hora exacta, explícale en una frase que el aviso le llega esa mañana. Confirma la fecha. No menciones cuántos créditos cuesta, salvo que el socio lo pregunte.`,
+    `Rutinas: si el socio pide un recordatorio a una hora, o que hagas algo en una fecha o de forma periódica, usa programar_rutina con fecha y hora exacta (HH:MM, su hora local; si no dio hora usa ${DEFAULT_TIME} y díselo). Para horarios como «lunes a viernes a las 8:30» usa entre_semana; para combinaciones más raras usa personalizado con un cron de 5 campos. No se puede repetir más de una vez cada ${MIN_INTERVAL_MINUTES} minutos. Para ver, pausar, reanudar o borrar usa ver_rutinas, pausar_rutina, reanudar_rutina y borrar_rutina. Al ejecutarse en segundo plano, cualquier envío queda como tarjeta pendiente de confirmación. Confirma en una frase el horario y la próxima ejecución. No menciones cuántos créditos cuesta, salvo que el socio lo pregunte.`,
     profilePrompt(profile),
     memoryPrompt(memories, extra.memoryOmitted ?? 0),
   ]
