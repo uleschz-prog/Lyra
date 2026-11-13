@@ -20,7 +20,17 @@ npm test
 npm run build
 ```
 
-Los builds de producción en Vercel preparan un baseline solo si encuentran el esquema LYRA existente sin historial de Prisma, registran como aplicadas las migraciones históricas que ese esquema ya contiene y luego ejecutan `prisma migrate deploy` antes de compilar. El script valida las tablas y el enum de pagos USDT y se detiene ante un esquema o historial parcial inesperado. Para sincronizar manualmente el esquema en desarrollo, revisa `DATABASE_URL` y ejecuta `npm run db:sync`; no uses ese comando como sustituto de migraciones revisadas para producción.
+Los builds de producción en Vercel preparan un baseline solo si encuentran el esquema LYRA existente sin historial de Prisma, registran como aplicadas las migraciones históricas que ese esquema ya contiene y luego ejecutan `prisma migrate deploy` antes de compilar. El script valida las tablas y el enum de pagos USDT y se detiene ante un esquema o historial parcial inesperado. El esquema solo cambia con migraciones revisadas: en desarrollo usa `npm run db:migrate` (crea la migración y regenera el cliente) contra una base local; en producción el build aplica `prisma migrate deploy`. Ya no existe `npm run db:sync` ni ningún `prisma db push`: escribía el esquema por fuera del historial de migraciones y, con un `.env` apuntando a producción, podía tocar la base real. Las migraciones nuevas solo agregan (`IF NOT EXISTS`, sin `DROP`/`RENAME`/`DELETE`/`TRUNCATE`); lo verifican `tests/database/additive-migrations.test.ts` y `tests/database/no-db-push.test.ts`.
+
+### Límite de intentos de acceso
+
+Login, registro y OAuth tienen un límite guardado en Postgres (tabla `AuthAttempt`, migración `20261113130000_auth_rate_limit`; en Hobby no hay Redis). Solo se guardan hashes SHA-256 de acción + IP/correo, nunca la IP ni el correo en claro, y los registros de más de 24 h se depuran solos. Valores (`src/lib/auth/rate-limit.ts`):
+
+- Login (solo fallos): 5 por correo/usuario + IP en 15 min, 20 por IP en 1 h y 30 por correo/usuario en 1 h. Un acceso correcto limpia los fallos de ese correo + IP.
+- Registro (todos los intentos): 10 por IP en 1 h, 30 por IP en 24 h y 5 por correo en 1 h.
+- OAuth (callback y cierre): 20 por IP en 15 min.
+
+Al pasarse responde `429` con `Retry-After` y «Demasiados intentos…», igual exista o no la cuenta (el límite se revisa antes de buscarla). Si la tabla falla, el limitador deja pasar y lo registra en logs para no bloquear a nadie. LYRA no tiene restablecimiento de contraseña por correo; el cambio lo hace un admin desde el panel.
 
 Los pagos de membresías se hacen con Mercado Pago, USDT TRC20 o códigos promocionales. Los enlaces antiguos de vinculación de wallet redirigen al flujo de pago.
 

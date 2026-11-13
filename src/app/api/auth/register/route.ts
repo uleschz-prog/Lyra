@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server";
 
 import { AuthError, registerMember } from "@/lib/auth/register-member";
+import { clientIp } from "@/lib/auth/rate-limit";
+import { authLimitResponse, noteAuthAttempt } from "@/lib/auth/rate-limit-server";
 import { createSession } from "@/lib/auth/session";
 import { requestOrigin, signupCheckout } from "@/lib/payments/signup";
 
@@ -25,6 +27,13 @@ export async function POST(request: Request) {
   }
 
   const text = (value: unknown) => (typeof value === "string" ? value : "");
+
+  // Todos los intentos cuentan (también los que fallan por validación o por correo repetido),
+  // así nadie puede probar correos en masa para saber cuáles tienen cuenta.
+  const subject = { ip: clientIp(request), id: text(body?.email).trim().toLowerCase() };
+  const limited = await authLimitResponse("register", subject);
+  if (limited) return limited;
+  await noteAuthAttempt("register", subject);
 
   try {
     const user = await registerMember({

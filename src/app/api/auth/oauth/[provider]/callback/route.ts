@@ -7,10 +7,18 @@ import {
   readOauthState,
   writeOauthProfile,
 } from "@/lib/auth/oauth";
+import { clientIp } from "@/lib/auth/rate-limit";
+import { authLimited, noteAuthAttempt } from "@/lib/auth/rate-limit-server";
 
 async function finish(request: Request, providerName: string, code: string, state: string) {
   const current = new URL(request.url);
   const back = new URL("/register", current.origin);
+  const subject = { ip: clientIp(request) };
+  if (await authLimited("oauth", subject)) {
+    back.searchParams.set("aviso", "intentos");
+    return NextResponse.redirect(back);
+  }
+  await noteAuthAttempt("oauth", subject);
   const saved = await readOauthState();
   await clearOauthState();
 

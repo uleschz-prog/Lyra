@@ -15,7 +15,6 @@
     "postinstall": "DATABASE_URL=\"${DATABASE_URL:-postgresql://build:build@127.0.0.1:5432/lyra}\" prisma generate",
     "db:generate": "prisma generate",
     "db:migrate": "prisma migrate dev && prisma generate",
-    "db:sync": "node scripts/sync-schema.mjs && npm run db:generate",
     "db:seed": "prisma db seed"
   },
   "dependencies": {
