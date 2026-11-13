@@ -13,6 +13,7 @@ const notices: Record<string, string> = {
   github: "GitHub todavía no está conectado. Crea la cuenta con tu correo.",
   apple: "Apple todavía no está conectado. Crea la cuenta con tu correo.",
   sesion: "Ese acceso expiró. Vuelve a elegir el proveedor.",
+  intentos: "Demasiados intentos. Espera unos minutos e inténtalo de nuevo.",
 };
 
 const usernamePattern = /^[a-z0-9](?:[a-z0-9-]{1,22}[a-z0-9])$/;

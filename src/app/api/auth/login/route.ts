@@ -1,6 +1,8 @@
 import bcrypt from "bcryptjs";
 import { NextResponse } from "next/server";
 
+import { clientIp } from "@/lib/auth/rate-limit";
+import { authLimitResponse, forgetAuthFailures, noteAuthAttempt } from "@/lib/auth/rate-limit-server";
 import { createSession } from "@/lib/auth/session";
 import { isSuspended, suspensionMessage } from "@/lib/auth/suspension";
 import { getPrisma } from "@/lib/prisma";
@@ -23,6 +25,11 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Escribe tu correo o usuario y la contraseña." }, { status: 400 });
   }
 
+  // El límite se revisa antes de buscar la cuenta: la respuesta 429 es igual exista o no.
+  const subject = { ip: clientIp(request), id: identifier.toLowerCase() };
+  const limited = await authLimitResponse("login", subject);
+  if (limited) return limited;
+
   try {
     const prisma = getPrisma();
     const user = await prisma.user.findFirst({
@@ -34,12 +41,14 @@ export async function POST(request: Request) {
 
     const matches = user ? await bcrypt.compare(password, user.password) : false;
     if (!user || !matches) {
+      await noteAuthAttempt("login", subject);
       return NextResponse.json({ error: "Correo, usuario o contraseña incorrectos." }, { status: 401 });
     }
     if (user.suspendedUntil && isSuspended(user.suspendedUntil)) {
       return NextResponse.json({ error: suspensionMessage(user.suspendedUntil) }, { status: 403 });
     }
 
+    await forgetAuthFailures("login", subject);
     await createSession(user.id);
     return NextResponse.json({ ok: true });
   } catch (error) {

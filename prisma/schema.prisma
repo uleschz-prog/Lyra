@@ -1335,3 +1335,15 @@ model MarketplaceUse {
   @@index([templateId, createdAt])
   @@index([userId, createdAt])
 }
+
+/// Intentos de acceso para el límite de login, registro y OAuth (sin Redis en Hobby).
+/// `keyHash` es un SHA-256 de acción + alcance + IP/correo: no guarda IPs ni correos en claro.
+model AuthAttempt {
+  id        String   @id @default(cuid())
+  action    String
+  keyHash   String
+  createdAt DateTime @default(now())
+
+  @@index([keyHash, createdAt])
+  @@index([createdAt])
+}

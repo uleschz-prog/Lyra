@@ -2,6 +2,8 @@ import { NextResponse } from "next/server";
 
 import { AuthError, registerMember } from "@/lib/auth/register-member";
 import { clearOauthProfile, readOauthProfile } from "@/lib/auth/oauth";
+import { clientIp } from "@/lib/auth/rate-limit";
+import { authLimitResponse, noteAuthAttempt } from "@/lib/auth/rate-limit-server";
 import { createSession } from "@/lib/auth/session";
 import { requestOrigin, signupCheckout } from "@/lib/payments/signup";
 import { getPrisma } from "@/lib/prisma";
@@ -17,6 +19,11 @@ function usernameFromEmail(email: string) {
 }
 
 export async function POST(request: Request) {
+  const subject = { ip: clientIp(request) };
+  const limited = await authLimitResponse("oauth", subject);
+  if (limited) return limited;
+  await noteAuthAttempt("oauth", subject);
+
   const profile = await readOauthProfile();
   if (!profile) {
     return NextResponse.json({ error: "La sesión con el proveedor expiró. Vuelve a entrar." }, { status: 401 });
