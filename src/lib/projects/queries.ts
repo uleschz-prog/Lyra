@@ -89,25 +89,26 @@ export async function getProjectVersionPreview(
   userId: string,
   projectId: string,
   number?: number,
-): Promise<{ html: string; generator: string } | null> {
+): Promise<{ html: string; generator: string; kind: ProjectKind | null; title: string; number: number } | null> {
   const project = await getPrisma().project.findFirst({
     where: { id: projectId, userId, deletedAt: null },
-    select: { id: true, versionCount: true },
+    select: { id: true, versionCount: true, kind: true },
   });
   if (!project) return null;
   const wanted = number && Number.isInteger(number) && number > 0 ? number : project.versionCount;
   const version = await getPrisma().projectVersion.findUnique({
     where: { projectId_number: { projectId: project.id, number: wanted } },
-    select: { generator: true, previewUrl: true, previewHtml: true },
+    select: { generator: true, previewUrl: true, previewHtml: true, title: true, number: true },
   });
   if (!version) return null;
+  const meta = { generator: version.generator, kind: isProjectKind(project.kind) ? project.kind : null, title: version.title, number: version.number };
   if (version.previewUrl || version.previewHtml) {
     const html = version.previewUrl ? await readStoredPreview(version.previewUrl) : version.previewHtml;
-    return html ? { html, generator: version.generator } : null;
+    return html ? { html, ...meta } : null;
   }
   const files = await getProjectVersionFiles(userId, projectId, wanted);
   const html = files?.files.find((file) => file.path === "index.html")?.content;
-  return html ? { html, generator: version.generator } : null;
+  return html ? { html, ...meta } : null;
 }
 
 export function parseVersionParam(value: string | null | undefined) {
