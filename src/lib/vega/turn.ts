@@ -16,7 +16,8 @@ import { attachmentMeta, excerptsFromMeta, inlineParts, type ReadyAttachment } f
 import { noConnections } from "@/lib/vega/apps";
 import { actionView } from "@/lib/vega/decide";
 import type { VegaEvent, VegaMood } from "@/lib/vega/events";
-import { continueNote, createTurnBudget, vegaLimits, type StopReason } from "@/lib/vega/budget";
+import { continueNote, createTurnBudget, vegaLimits, type StopReason, type VegaLimits } from "@/lib/vega/budget";
+import { backgroundJobTool, startBackgroundJob } from "@/lib/vega/jobs-tool";
 import type { FunctionDeclaration, GeminiContent, GeminiPart } from "@/lib/vega/gemini-stream";
 import { openVegaStream, type ModelStream } from "@/lib/vega/model-gateway";
 import { asItems, listMemories } from "@/lib/vega/memory";
@@ -92,12 +93,15 @@ export function statusLabel(name: string) {
   if (name === "preparar_comando") return "Preparando el comando…";
   if (name === "entregar_proyecto") return "Armando la vista previa…";
   if (name === "pedir_conexion") return "Preparando el botón para conectar…";
+  if (name === backgroundJobTool) return "Preparando el trabajo en segundo plano…";
   return "Trabajando…";
 }
 
 export type VegaTurn = {
   userId: string;
   chatId: string;
+  /** Agente que responde este turno. */
+  agentId?: string;
   chargeId: string | null;
   chargeKey: string;
   balance: number;
@@ -118,6 +122,16 @@ export type VegaTurn = {
   costRemainingUsd?: number | null;
   /** Datos del socio para recalcular su medidor al terminar. */
   capUser?: { id: string; package: string | null; role?: string | null };
+  /** Límites de este turno (un paso de trabajo usa menos tiempo que el chat). */
+  limits?: VegaLimits;
+  /** false = no guarda la respuesta como mensaje (pasos intermedios de un trabajo). */
+  persistReply?: boolean;
+  /** Tarjetas de pasos anteriores que se agregan al mensaje final. */
+  extraActionIds?: string[];
+  /** Trabajo al que pertenece este turno (se guarda en el mensaje). */
+  jobId?: string;
+  /** Trabajos en segundo plano que este turno dejó en cola. */
+  startedJobs?: string[];
 };
 
 type Prepared =
@@ -136,6 +150,12 @@ export async function prepareVegaTurn(
     title?: string;
     channelNote?: string;
     attachments?: ReadyAttachment[];
+    /** El mensaje no se guarda en la conversación (pasos de un trabajo en segundo plano). */
+    ephemeral?: boolean;
+    /** Herramientas que no se ofrecen en este turno. */
+    excludeTools?: string[];
+    /** Tope de tiempo de este turno (ms); por defecto el del chat. */
+    timeBudgetMs?: number;
   },
 ): Promise<Prepared> {
   const startedAt = Date.now();
@@ -177,14 +197,16 @@ export async function prepareVegaTurn(
   });
   const chatId = conversation.id;
   const meta = attachmentMeta(attachments);
-  await prisma.vegaMessage.create({
-    data: {
-      conversationId: chatId,
-      role: "user",
-      content: input.message,
-      ...(meta ? { meta } : {}),
-    },
-  });
+  if (!input.ephemeral) {
+    await prisma.vegaMessage.create({
+      data: {
+        conversationId: chatId,
+        role: "user",
+        content: input.message,
+        ...(meta ? { meta } : {}),
+      },
+    });
+  }
 
   // Con resumen, el historial empieza donde termina el resumen (sin huecos).
   const summaryThrough = conversation.summaryThrough ?? null;
@@ -194,14 +216,15 @@ export async function prepareVegaTurn(
     take: summaryThrough ? HISTORY + SUMMARY_SLACK : HISTORY,
     select: { role: true, content: true, meta: true },
   });
-  const contents = history(rows.reverse());
+  const contents = history(input.ephemeral ? [...rows.reverse(), { role: "user", content: input.message }] : rows.reverse());
   const inline = inlineParts(attachments);
   const latest = contents[contents.length - 1];
   if (inline.length > 0 && latest?.role === "user") latest.parts.push(...inline);
 
   const connections = composioConfigured() ? await userConnections(user.id).catch(() => noConnections) : noConnections;
   const webSearch = Boolean(process.env.EXA_API_KEY);
-  const tools = vegaTools(connections, webSearch);
+  const excluded = new Set(input.excludeTools ?? []);
+  const tools = vegaTools(connections, webSearch).filter((tool) => !excluded.has(tool.name));
   const allMemories = await listMemories(user.id).catch(() => []);
   const slice = selectMemoriesForPrompt(asItems(allMemories), input.message);
   const chosen = new Set(slice.selected.map((item) => item.id));
@@ -230,7 +253,9 @@ export async function prepareVegaTurn(
     .filter(Boolean)
     .join("\n");
 
-  const budget = createTurnBudget(vegaLimits(), startedAt);
+  const base = vegaLimits();
+  const limits = input.timeBudgetMs ? { ...base, timeBudgetMs: Math.max(10_000, Math.min(base.timeBudgetMs, input.timeBudgetMs)) } : base;
+  const budget = createTurnBudget(limits, startedAt);
   const first = await openVegaStream(system, contents, tools, { timeoutMs: budget.modelTimeoutMs(), models });
   if (!first.ok) {
     await refundCharge(charge.chargeId, "Reembolso: Vega no pudo responder");
@@ -241,6 +266,9 @@ export async function prepareVegaTurn(
     turn: {
       userId: user.id,
       chatId,
+      agentId: agent.id,
+      limits,
+      startedJobs: [],
       chargeId: charge.chargeId,
       chargeKey,
       balance: charge.balance,
@@ -263,7 +291,7 @@ export async function prepareVegaTurn(
 export async function runVegaTurn(turn: VegaTurn, emit: (event: VegaEvent) => void) {
   const prisma = getPrisma();
   const { userId, chatId, chargeKey, system, tools, contents } = turn;
-  const budget = createTurnBudget(vegaLimits(), turn.startedAt);
+  const budget = createTurnBudget(turn.limits ?? vegaLimits(), turn.startedAt);
   emit({ t: "credits", v: turn.balance });
 
   let reply = "";
@@ -348,10 +376,26 @@ export async function runVegaTurn(turn: VegaTurn, emit: (event: VegaEvent) => vo
         let response: Record<string, unknown>;
         // Briefing antes de crear: sin las respuestas clave del socio no se crea nada ni se cobra.
         // En una rutina el socio ya dejó la instrucción guardada: Vega decide y declara supuestos.
-        const gate = briefGate(call.name, call.args ?? {}, turn.source === "routine" ? "tú decide" : turn.userMessage);
+        const gate = briefGate(call.name, call.args ?? {}, turn.source === "routine" || turn.source === "job" ? "tú decide" : turn.userMessage);
         if (!gate.ok) {
           if (gate.response.estado === "needs_brief") emit({ t: "brief", v: gate.request });
           responses.push({ functionResponse: { name: call.name, response: gate.response } });
+          continue;
+        }
+        // Vega v2: trabajo largo → se deja en cola y se responde de inmediato; lo avanzan pasos cortos.
+        if (call.name === backgroundJobTool) {
+          emit({ t: "status", v: statusLabel(call.name) });
+          const started = await startBackgroundJob(prisma, { userId, chatId, agentId: turn.agentId ?? null, args: call.args ?? {} }).catch((error: unknown) => {
+            console.error("[Vega job] no se pudo crear", { errorType: error instanceof Error ? error.name : typeof error });
+            return { ok: false as const, error: "No se pudo dejar el trabajo en cola." };
+          });
+          if (started.ok) {
+            (turn.startedJobs ??= []).push(started.jobId);
+            actionIds.push(started.action.id);
+            emit({ t: "action", v: started.action });
+            statuses.push(`Trabajo en segundo plano: ${started.title}`);
+          }
+          responses.push({ functionResponse: { name: call.name, response: started.ok ? started.response : { error: started.error } } });
           continue;
         }
         // PR C: sitios y apps los construye el generador v2; su precio por trabajo ya incluye la herramienta.
@@ -578,7 +622,9 @@ export async function runVegaTurn(turn: VegaTurn, emit: (event: VegaEvent) => vo
   }
 
   const content = reply.trim() || (actionIds.length ? "Te dejé la acción lista para que la confirmes." : "");
-  if (content) {
+  const persist = turn.persistReply !== false;
+  const allActionIds = [...(turn.extraActionIds ?? []), ...actionIds];
+  if (content && persist) {
     await prisma.vegaMessage.create({
       data: {
         conversationId: chatId,
@@ -591,22 +637,23 @@ export async function runVegaTurn(turn: VegaTurn, emit: (event: VegaEvent) => vo
           ...(stopReason ? { stopReason } : {}),
           usage: turnUsage,
           ...(sources.length ? { sources: sources.map(({ title, url }) => ({ title, url })) } : {}),
-          ...(actionIds.length ? { actions: actionIds } : {}),
+          ...(allActionIds.length ? { actions: allActionIds } : {}),
           ...(statuses.length ? { statuses } : {}),
+          ...(turn.jobId ? { job: turn.jobId } : {}),
         },
       },
     });
     if (!reply.trim()) emit({ t: "text", v: content });
-  } else {
+  } else if (!content) {
     await refundCharge(turn.chargeId, "Reembolso: Vega no pudo responder");
     emit({ t: "error", v: "Vega no alcanzó a responder. No se descontó el crédito; intenta de nuevo." });
   }
   await prisma.vegaConversation.update({ where: { id: chatId }, data: { updatedAt: new Date() } });
-  if (content) scheduleSummary(chatId);
+  if (content && persist) scheduleSummary(chatId);
   emit({ t: "credits", v: await currentCredits(userId) });
   if (turn.capUser) {
     const after = await costStatus(turn.capUser).catch(() => null);
     if (after && after.level !== "unlimited") emit({ t: "usage", v: meterView(after) });
   }
-  return { content, actionIds, sources, failed, stopReason, usage: turnUsage };
+  return { content, actionIds, sources, failed, stopReason, usage: turnUsage, toolCharged };
 }

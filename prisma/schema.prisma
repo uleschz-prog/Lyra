@@ -180,6 +180,7 @@ model User {
   vegaTasks                    VegaTask[]
   vegaRoutineRuns              VegaRoutineRun[]
   vegaUsageLogs                VegaUsageLog[]
+  vegaJobs                     VegaJob[]
   vegaXMonitors                VegaXMonitor[]
   vegaXCalls                   VegaXCall[]
   projects                     Project[]
@@ -413,6 +414,7 @@ model VegaAgent {
 
   user          User              @relation(fields: [userId], references: [id], onDelete: Cascade)
   conversations VegaConversation[]
+  jobs          VegaJob[]
 
   @@index([userId, createdAt])
 }
@@ -433,9 +435,53 @@ model VegaConversation {
   agent    VegaAgent     @relation(fields: [agentId], references: [id], onDelete: Cascade)
   messages VegaMessage[]
   actions  VegaAction[]
+  jobs     VegaJob[]
 
   @@index([userId, updatedAt])
   @@index([agentId, updatedAt])
+}
+
+/// Vega v2: trabajo en segundo plano. Avanza por pasos cortos (cada uno < 60 s) y lo retoman
+/// la tarjeta del chat (sondeo), after() al terminar el turno y el despachador.
+model VegaJob {
+  id              String    @id @default(cuid())
+  userId          String
+  conversationId  String
+  /// Agente que hace el trabajo (null = agente principal).
+  agentId         String?
+  /// Tarjeta del chat (VegaAction) que muestra el avance; única.
+  actionId        String?   @unique
+  /// Reservado para el panel de administración (plantillas de agente con versión).
+  templateId      String?
+  templateVersion Int?
+  title           String
+  goal            String    @db.Text
+  /// queued | running | done | failed | canceled
+  status          String    @default("queued")
+  /// [{ title, state: pending | running | done | failed | skipped, result?, actionIds? }]
+  steps           Json
+  stepIndex       Int       @default(0)
+  /// Fallos seguidos del paso actual (se reintenta una vez).
+  failures        Int       @default(0)
+  cancelRequested Boolean   @default(false)
+  lockedUntil     DateTime?
+  result          String?   @db.Text
+  error           String?
+  /// Créditos y costo de IA acumulados por los pasos (para tope y reportes por agente).
+  credits         Int       @default(0)
+  costUsd         Float     @default(0)
+  startedAt       DateTime?
+  finishedAt      DateTime?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  user         User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  conversation VegaConversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  agent        VegaAgent?       @relation(fields: [agentId], references: [id], onDelete: SetNull)
+
+  @@index([userId, status])
+  @@index([status, updatedAt])
+  @@index([conversationId, createdAt])
 }
 
 model VegaMessage {

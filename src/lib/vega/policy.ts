@@ -33,6 +33,7 @@ const readTools = new Set([
 ]);
 
 const internalTools = new Set([
+  "trabajo_en_segundo_plano",
   "recordar",
   "olvidar",
   "actualizar_perfil",
@@ -91,7 +92,7 @@ export function classifyAction(kind: string, payload: unknown): RiskClass {
     return "send"; // whatsapp_send, social_post, payment_link y lo que se agregue después.
   }
   if (kind === "run_command") return "write";
-  if (kind === "create_image" || kind === "create_video" || kind === "deliver_project" || kind === "connect_app") return "internal";
+  if (kind === "create_image" || kind === "create_video" || kind === "deliver_project" || kind === "connect_app" || kind === "background_job") return "internal";
   return "send";
 }
 

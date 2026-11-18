@@ -1,15 +1,17 @@
-import { NextResponse } from "next/server";
+import { after, NextResponse } from "next/server";
 
 import { requireMember } from "@/lib/auth/api";
 import { canUseVega } from "@/lib/vega/access";
 import { prepareAttachments } from "@/lib/vega/attachments";
 import type { VegaEvent } from "@/lib/vega/events";
 import { vegaConfigured } from "@/lib/vega/gemini-stream";
+import { continueJobs } from "@/lib/vega/jobs";
 import { prepareVegaTurn, runVegaTurn } from "@/lib/vega/turn";
 
 export const maxDuration = 60;
 
 export async function POST(request: Request) {
+  const started = Date.now();
   const guard = await requireMember();
   if (!guard.ok) return guard.response;
   const user = guard.user;
@@ -55,6 +57,16 @@ export async function POST(request: Request) {
       await runVegaTurn(prepared.turn, emit);
       controller.close();
     },
+  });
+
+  // Vega v2: si el turno dejó trabajos en segundo plano, empiezan en cuanto se cierra la respuesta.
+  const origin = new URL(request.url).origin;
+  after(async () => {
+    const jobs = prepared.turn.startedJobs ?? [];
+    if (jobs.length === 0) return;
+    await continueJobs(jobs, { budgetMs: 55_000 - (Date.now() - started), origin }).catch((error: unknown) =>
+      console.error("[Vega job] no se pudo continuar", error instanceof Error ? error.name : typeof error),
+    );
   });
 
   return new Response(stream, {
