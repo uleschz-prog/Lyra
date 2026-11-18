@@ -16,6 +16,7 @@ import type { VegaActionView, VegaSource } from "@/lib/vega/events";
 import { deleteWorkspaceFile, listFiles, readWorkspaceFile, type VegaFileView } from "@/lib/vega/files";
 import { parsePersona, type AgentScope, type Persona } from "@/lib/vega/agent-scope";
 import { forgetAllMemories, forgetMemory, listMemories, saveMemory, type VegaMemoryView } from "@/lib/vega/memory";
+import { lastMessageOf, previewText, type AgentLastMessage } from "@/lib/vega/home";
 import { defaultAutonomy, type AutonomySettings } from "@/lib/vega/autonomy";
 import { getVegaProfile, saveVegaProfile, type VegaProfile } from "@/lib/vega/profile";
 import {
@@ -53,6 +54,8 @@ export type VegaAgentSummary = {
   persona: Persona;
   /** Vega v2: último mensaje con este agente (una línea), para la lista lateral. */
   preview?: string | null;
+  /** Inicio de Vega: último mensaje (texto, quién lo envió, fecha y conversación). */
+  last?: AgentLastMessage | null;
 };
 export type VegaChatSummary = { id: string; agentId: string; title: string; updatedAt: string };
 export type VegaAttachmentChip = { kind: "file" | "link"; name: string; url?: string };
@@ -109,19 +112,18 @@ export async function listVegaAgents(): Promise<VegaAgentSummary[]> {
         .findFirst({
           where: { conversation: { userId: user.id, agentId: row.id } },
           orderBy: { createdAt: "desc" },
-          select: { content: true, role: true },
+          select: { content: true, role: true, createdAt: true, conversationId: true },
         })
         .catch(() => null),
     ),
   );
-  return rows.map((row, index) => ({ ...agentSummary(row), preview: previewLine(previews[index]) }));
+  return rows.map((row, index) => ({ ...agentSummary(row), preview: previewLine(previews[index]), last: lastMessageOf(previews[index]) }));
 }
 
 /** Una línea legible del último mensaje (sin Markdown ni saltos). */
 function previewLine(message: { content: string; role: string } | null) {
-  if (!message?.content) return null;
-  const text = message.content.replace(/[*_`#>]+/g, "").replace(/\s+/g, " ").trim().slice(0, 90);
-  return text ? (message.role === "user" ? `Tú: ${text}` : text) : null;
+  const text = previewText(message?.content);
+  return text ? (message?.role === "user" ? `Tú: ${text}` : text) : null;
 }
 
 export async function listVegaChats(agentId: string): Promise<VegaChatSummary[]> {
