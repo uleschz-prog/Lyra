@@ -29,6 +29,7 @@ import {
 export type { VegaConnections } from "@/lib/vega/apps";
 export type { AppDraft } from "@/lib/vega/app-tools";
 import { backgroundJobDeclaration, type JobDraft } from "@/lib/vega/jobs-core";
+import { builderEnabled, builderPrice } from "@/lib/builder/config";
 
 export type ActionKind =
   | "send_email"
@@ -82,7 +83,7 @@ const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const localDateTime = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(:\d{2})?$/;
 
 /** Herramientas que no cobran el extra de créditos. */
-export const freeTools = new Set(["recordar", "olvidar", "buscar_memoria", "programar_rutina", "ver_rutinas", "pausar_rutina", "reanudar_rutina", "borrar_rutina", "preparar_whatsapp", "no_molestar_whatsapp", "actualizar_perfil", "listar_archivos", "buscar_archivos", "leer_archivo", "escribir_archivo", "ver_comandos", "pedir_conexion", "configurar_monitor_x", "trabajo_en_segundo_plano", "delegar_a_agente"]);
+export const freeTools = new Set(["recordar", "olvidar", "buscar_memoria", "programar_rutina", "ver_rutinas", "pausar_rutina", "reanudar_rutina", "borrar_rutina", "preparar_whatsapp", "no_molestar_whatsapp", "actualizar_perfil", "listar_archivos", "buscar_archivos", "leer_archivo", "escribir_archivo", "ver_comandos", "pedir_conexion", "configurar_monitor_x", "trabajo_en_segundo_plano", "delegar_a_agente", "abrir_proyecto"]);
 const taskTools: FunctionDeclaration[] = [
   {
     name: "programar_rutina",
@@ -275,6 +276,28 @@ export function vegaTools(connections: VegaConnections, webSearch: boolean): Fun
           },
         },
         required: ["titulo", "tipo", "resumen", "secciones"],
+      },
+    },
+    {
+      name: "abrir_proyecto",
+      description:
+        "Abre un sitio o app que el socio ya tiene en Proyectos (los que hizo contigo y los que tomó del marketplace) para revisarlo o cambiarlo. Sin «proyecto» lista los recientes. Devuelve proyecto_id, versiones, páginas, secciones, si está publicado y si se puede editar. Úsalo antes de editar_proyecto.",
+      parameters: {
+        type: "object",
+        properties: { proyecto: { type: "string", description: "Nombre (o parte) o id del proyecto. Vacío para ver los recientes." } },
+      },
+    },
+    {
+      name: "editar_proyecto",
+      description: `Cambia un sitio o app que ya existe en Proyectos: textos, precios, horarios, datos de contacto, colores, tipografía o el diseño de secciones que ya tiene. Guarda una versión nueva (la anterior queda intacta y se puede restaurar). Cobra ${builderPrice("edit")} créditos por edición y se devuelven si falla. Primero usa abrir_proyecto para tener el proyecto_id y confirma con el socio qué cambiar. No agrega páginas nuevas, servidores, pagos, correos ni bases de datos: para eso hace falta un proyecto nuevo. No inventes datos: usa los que dio el socio.`,
+      parameters: {
+        type: "object",
+        properties: {
+          proyecto_id: { type: "string" },
+          cambios: { type: "string", description: "El cambio exacto con los datos del socio, p. ej. «Cambia el teléfono a 771 123 4567 y el precio del taco de pastor a $25»." },
+          version: { type: "number", description: "Versión base (opcional; por defecto la última)." },
+        },
+        required: ["proyecto_id", "cambios"],
       },
     },
     {
@@ -746,6 +769,42 @@ export async function runVegaTool(userId: string, name: string, args: Record<str
       action: "run_command",
       payload: { commandId: command.id, label: command.label },
       summary: `Comando: ${command.label}`,
+    };
+  }
+
+  if (name === "abrir_proyecto") {
+    const { getPrisma } = await import("@/lib/prisma");
+    const { getProjectVersionFiles } = await import("@/lib/projects/queries");
+    const { openProjectTool } = await import("@/lib/projects/vega-tools");
+    const appUrl = process.env.NEXT_PUBLIC_APP_URL?.trim() || "https://lyyra.vercel.app";
+    const opened = await openProjectTool(getPrisma(), getProjectVersionFiles, userId, text(args.proyecto, 120), appUrl);
+    return { kind: "result", status: opened.status, response: opened.response };
+  }
+
+  if (name === "editar_proyecto") {
+    if (!builderEnabled()) return { kind: "invalid", response: { error: "El editor de proyectos no está disponible por ahora." } };
+    const projectId = text(args.proyecto_id, 40);
+    const request = text(args.cambios, 2000);
+    if (!projectId || request.length < 4) return { kind: "invalid", response: { error: "Falta el proyecto_id (usa abrir_proyecto) o el cambio." } };
+    const { getPrisma } = await import("@/lib/prisma");
+    const project = await getPrisma().project.findFirst({ where: { id: projectId, userId, deletedAt: null }, select: { id: true, kind: true, title: true, summary: true } });
+    if (!project) return { kind: "invalid", response: { error: "No encontré ese proyecto en Proyectos del socio. Usa abrir_proyecto." } };
+    if (project.kind !== "sitio" && project.kind !== "app") return { kind: "invalid", response: { error: "Solo se pueden editar sitios y apps." } };
+    const version = typeof args.version === "number" && Number.isInteger(args.version) && args.version > 0 ? args.version : undefined;
+    const draft: ProjectDraft & { edit: { projectId: string; version: number | null; request: string } } = {
+      title: project.title,
+      kind: project.kind,
+      summary: project.summary,
+      files: [],
+      suggestions: [],
+      edit: { projectId: project.id, version: version ?? null, request },
+    };
+    return {
+      kind: "delivery",
+      action: "deliver_project",
+      payload: draft,
+      summary: `Cambios a ${project.title}`,
+      modelNote: "",
     };
   }
 

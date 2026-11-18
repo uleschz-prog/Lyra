@@ -134,7 +134,15 @@ export function ActionCard({
   if (action.kind === "deliver_project") {
     // PR C: generador v2. Si falló sin respaldo guardado, se muestra la versión v1 del chat.
     const build = buildRefOf(action.payload);
-    if (build && (build.status !== "failed" || build.projectId)) return <BuildCard action={action} onChange={onChange} onSuggest={onSuggest} />;
+    const editing = Boolean((action.payload as { edit?: unknown }).edit);
+    if (build && (editing || build.status !== "failed" || build.projectId)) return <BuildCard action={action} onChange={onChange} onSuggest={onSuggest} />;
+    if (editing) {
+      return (
+        <div className="mt-3 rounded-2xl border border-[#E7E2DA] bg-[#FCFBF9] px-4 py-3 text-sm text-[#5C5854]">
+          {action.result || "No se pudo editar el proyecto."} No se cobraron créditos.
+        </div>
+      );
+    }
     return <ProjectCard project={action.payload as ProjectDraft} actionId={action.id} onSuggest={onSuggest} />;
   }
   // P1: imágenes y videos se retiraron; los historiales viejos muestran un aviso, sin botones.

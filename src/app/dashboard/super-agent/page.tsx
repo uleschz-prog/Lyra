@@ -5,6 +5,7 @@ import { redirect } from "next/navigation";
 import { listVegaAgents, listVegaChats } from "@/app/dashboard/super-agent/actions";
 import { AgentNight } from "@/components/landing/agent-night";
 import { VegaChat } from "@/components/vega/vega-chat";
+import { getPrisma } from "@/lib/prisma";
 import { brand } from "@/config/brand";
 import { getPackage, isPackageId } from "@/config/compensation-plan";
 import { getCurrentUser } from "@/lib/auth/profile";
@@ -22,12 +23,19 @@ const powers = [
   { title: "Coordina", text: "Dirige a tus agentes para que cada cliente reciba seguimiento." },
 ];
 
-export default async function SuperAgentPage({ searchParams }: { searchParams: Promise<{ conexion?: string }> }) {
+export default async function SuperAgentPage({ searchParams }: { searchParams: Promise<{ conexion?: string; editar?: string }> }) {
   const user = await getCurrentUser();
   if (!user) redirect(brand.links.login);
 
   if (canUseVega(user)) {
-    const [agents, { conexion }] = await Promise.all([listVegaAgents(), searchParams]);
+    const [agents, { conexion, editar }] = await Promise.all([listVegaAgents(), searchParams]);
+    // Entrega 4: «Editar con Vega» desde Proyectos deja el mensaje empezado con el proyecto.
+    const editing =
+      editar && /^[a-z0-9]{10,40}$/i.test(editar)
+        ? await getPrisma()
+            .project.findFirst({ where: { id: editar, userId: user.id, deletedAt: null, kind: { in: ["sitio", "app"] } }, select: { id: true, title: true } })
+            .catch(() => null)
+        : null;
     const selectedAgent = agents[0];
     const chats = selectedAgent ? await listVegaChats(selectedAgent.id) : [];
     return (
@@ -38,6 +46,7 @@ export default async function SuperAgentPage({ searchParams }: { searchParams: P
         initialChats={chats}
         justConnected={conexion && isUserToolkit(conexion) ? conexion : null}
         creditAllowance={isPackageId(user.package) ? Math.max(getPackage(user.package).credits, 1) : Math.max(user.credits, 1)}
+        initialDraft={editing ? `Quiero cambiar mi proyecto «${editing.title}» (id ${editing.id}): ` : ""}
       />
     );
   }
