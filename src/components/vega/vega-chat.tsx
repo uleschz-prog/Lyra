@@ -8,6 +8,7 @@ import {
   Globe,
   Link2,
   MessageSquarePlus,
+  ChevronLeft,
   PanelLeftOpen,
   PanelRight,
   Paperclip,
@@ -48,6 +49,7 @@ import { AgentAvatar } from "@/components/vega/agent-avatar";
 import { defaultMascot, encodeMascot } from "@/lib/vega/mascot";
 import { AgentEditor, type AgentDraft } from "@/components/vega/agent-editor";
 import { AgentSidebar } from "@/components/vega/agent-sidebar";
+import { VegaHome, type AgentTemplateDraft } from "@/components/vega/vega-home";
 import { InfoPane, type PaneTab } from "@/components/vega/info-pane";
 import { RichText } from "@/components/vega/rich-text";
 import { attachmentAccept, attachmentLimits } from "@/lib/vega/attachment-limits";
@@ -161,6 +163,8 @@ export function VegaChat({
   const [loadingChat, setLoadingChat] = useState(false);
   const [listOpen, setListOpen] = useState(false);
   const [chatsHidden, setChatsHidden] = useState(false);
+  // Inicio de Vega: la bandeja de agentes. Se salta si llegas con algo pendiente (editar, conexión, chat abierto).
+  const [view, setView] = useState<"home" | "chat">(initialDraft || justConnected || initialMessages.length ? "chat" : "home");
   const [costMeter, setCostMeter] = useState<CostMeterView | null>(null);
 
   useEffect(() => {
@@ -286,19 +290,20 @@ export function VegaChat({
   }
 
   /** Vega v2 · V3: abre la conversación de otro agente (p. ej. desde la tarjeta de una tarea delegada). */
-  async function openAgentChat(agentId: string, chatId: string) {
-    if (streaming) return;
+  async function openAgentChat(agentId: string, chatId: string, quiet = false) {
+    if (streaming) return false;
     const agent = agents.find((item) => item.id === agentId);
     if (!agent) {
       toast.error("Ese agente ya no existe.");
-      return;
+      return false;
     }
+    setView("chat");
     setLoadingChat(true);
-    const loaded = await openVegaChat(chatId, agent.id);
+    const loaded = await openVegaChat(chatId, agent.id).catch(() => null);
     setLoadingChat(false);
     if (!loaded) {
-      toast.error("Esa conversación ya no existe.");
-      return;
+      if (!quiet) toast.error("Esa conversación ya no existe.");
+      return false;
     }
     setActiveAgentId(agent.id);
     setChats(await listVegaChats(agent.id));
@@ -306,6 +311,32 @@ export function VegaChat({
     setMessages(loaded);
     setMood("neutral");
     setListOpen(false);
+    return true;
+  }
+
+  /** Inicio de Vega: tocar un agente abre su conversación más reciente (o una nueva si no tiene). */
+  async function openFromHome(agent: VegaAgentSummary) {
+    if (streaming) return;
+    if (agent.last?.chatId && (await openAgentChat(agent.id, agent.last.chatId, true))) return;
+    setView("chat");
+    if (agent.id === activeAgentId) newChat();
+    else await selectAgent(agent);
+  }
+
+  function goHome() {
+    if (streaming) return;
+    setListOpen(false);
+    setPaneOpen(false);
+    setView("home");
+    void listVegaAgents()
+      .then((next) => {
+        if (next.length) setAgents(next);
+      })
+      .catch(() => undefined);
+  }
+
+  function startAgent(template?: AgentTemplateDraft) {
+    setAgentForm(template ?? { name: "", specialty: "", instructions: "", avatar: encodeMascot(defaultMascot({ name: `nuevo-${agents.length}` })) });
   }
 
   const openAgentChatRef = useRef(openAgentChat);
@@ -362,6 +393,7 @@ export function VegaChat({
         setActiveId(null);
         setMessages([]);
         setChats([]);
+        setView("chat");
       }
       setAgents(await listVegaAgents());
       setAgentForm(null);
@@ -626,8 +658,46 @@ export function VegaChat({
   return (
     <div
       id="vega-root"
-      className="fixed inset-x-0 top-0 bottom-[var(--lyra-tab)] z-20 flex min-h-0 flex-col overflow-hidden bg-[#F4F3F0] md:relative md:inset-auto md:bottom-auto md:z-auto md:h-[100dvh] md:min-h-[560px] md:flex-row dark:bg-[#0E0D14]"
+      className={cn(
+        "fixed inset-x-0 top-0 bottom-[var(--lyra-tab)] z-20 flex min-h-0 flex-col overflow-hidden bg-[#F4F3F0] md:relative md:inset-auto md:bottom-auto md:z-auto md:h-[100dvh] md:min-h-[560px] md:flex-row dark:bg-[#0E0D14]",
+        view === "home" && "bg-[#0B0A10] md:flex-col dark:bg-[#0B0A10]",
+      )}
     >
+      {agentForm ? (
+        <AgentEditor
+          draft={agentForm}
+          saving={savingAgent}
+          onChange={setAgentForm}
+          onCancel={() => setAgentForm(null)}
+          onSubmit={(event) => void saveAgent(event)}
+          onDelete={
+            agentForm.id && !agentForm.isDefault
+              ? () => {
+                  const target = agents.find((agent) => agent.id === agentForm.id);
+                  if (target) void removeAgent(target);
+                }
+              : undefined
+          }
+        />
+      ) : null}
+
+      {view === "home" ? (
+        <VegaHome
+          agents={agents}
+          userName={firstName}
+          busy={streaming}
+          onOpenAgent={(agent) => void openFromHome(agent)}
+          onCreateAgent={startAgent}
+          onNewVegaChat={() => {
+            const main = agents.find((agent) => agent.isDefault) ?? agents[0];
+            setView("chat");
+            if (main && main.id !== activeAgentId) void selectAgent(main);
+            else newChat();
+          }}
+          onOpenLyraMenu={() => window.dispatchEvent(new Event("lyra:menu"))}
+        />
+      ) : (
+        <>
       {overlay ? (
         <button
           type="button"
@@ -657,30 +727,13 @@ export function VegaChat({
         onCollapse={() => setChatsCollapsed(true)}
         onNewChat={newChat}
         onSelectAgent={(agent) => void selectAgent(agent)}
-        onCreateAgent={() => setAgentForm({ name: "", specialty: "", instructions: "", avatar: encodeMascot(defaultMascot({ name: `nuevo-${agents.length}` })) })}
+        onCreateAgent={() => startAgent()}
         onEditAgent={editAgent}
         onSelectChat={(id) => void selectChat(id)}
         onRenameChat={(chat) => void renameChat(chat)}
         onDeleteChat={(id) => void removeChat(id)}
       />
 
-      {agentForm ? (
-        <AgentEditor
-          draft={agentForm}
-          saving={savingAgent}
-          onChange={setAgentForm}
-          onCancel={() => setAgentForm(null)}
-          onSubmit={(event) => void saveAgent(event)}
-          onDelete={
-            agentForm.id && !agentForm.isDefault
-              ? () => {
-                  const target = agents.find((agent) => agent.id === agentForm.id);
-                  if (target) void removeAgent(target);
-                }
-              : undefined
-          }
-        />
-      ) : null}
 
       <section
         className="relative flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden bg-white md:my-2 md:mr-2 md:rounded-[28px] md:shadow-[0_1px_2px_rgba(16,12,32,0.04),0_24px_60px_-40px_rgba(76,29,149,0.35)] dark:bg-[#15131D] md:dark:shadow-none md:dark:ring-1 md:dark:ring-white/6"
@@ -694,6 +747,16 @@ export function VegaChat({
         ) : null}
 
         <header className="pointer-events-none absolute inset-x-0 top-0 z-20 flex items-center gap-1.5 bg-[linear-gradient(to_bottom,#fff_60%,rgba(255,255,255,0))] px-2 pt-[max(0.5rem,env(safe-area-inset-top))] pb-4 sm:px-3 sm:pt-3 dark:bg-[linear-gradient(to_bottom,#15131D_60%,rgba(21,19,29,0))]">
+          <button
+            type="button"
+            onClick={goHome}
+            disabled={streaming}
+            className="pointer-events-auto grid size-10 place-items-center rounded-full text-[#1E1E24] hover:bg-black/[0.05] focus-visible:ring-2 focus-visible:ring-[#7C3AED] focus-visible:outline-none disabled:opacity-40 dark:text-white dark:hover:bg-white/10"
+            aria-label="Volver a tus agentes"
+            title="Tus agentes"
+          >
+            <ChevronLeft className="size-5" />
+          </button>
           <button
             type="button"
             onClick={() => (window.matchMedia("(min-width: 768px)").matches ? setChatsCollapsed(!chatsHidden) : setListOpen(true))}
@@ -1075,6 +1138,8 @@ export function VegaChat({
         }}
         onEditAgent={() => activeAgent && editAgent(activeAgent)}
       />
+        </>
+      )}
     </div>
   );
 }
