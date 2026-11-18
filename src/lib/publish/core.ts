@@ -78,6 +78,7 @@ export async function unpublishProject(db: PublishDb, input: { userId: string; p
 
 export type PublishedTarget = {
   projectId: string;
+  kind: "sitio" | "app";
   slug: string;
   title: string;
   summary: string;
@@ -100,6 +101,7 @@ export async function findPublished(db: PublishDb, rawSlug: string): Promise<Pub
   if (!version || version.projectId !== project.id) return null;
   return {
     projectId: project.id,
+    kind: project.kind === "app" ? "app" : "sitio",
     slug: row.slug,
     title: project.title,
     summary: version.summary || project.summary,

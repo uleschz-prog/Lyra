@@ -14,7 +14,7 @@ export function fileSystemPrompt(kind: BuildPlan["kind"]) {
     "- Imports permitidos: \"react\", \"lucide-react\" (solo íconos de la lista), \"../lib/router\" ({ Link, useRoute, navigate }; Link recibe to=\"/ruta\" o to=\"#ancla\" y opcional onNavigate)" +
       (kind === "app"
         ? ", \"../lib/data\" ({ useCollection, readSettings, writeSettings }), \"../data/stores\" ({ schema, stores, type Row }) y \"../lib/format\" ({ formatValue, formatMoney, inputType, primaryField })."
-        : "."),
+        : " y \"../lib/leads\" ({ sendLead } — opcional en formularios de contacto: sendLead({ Nombre: nombre, Teléfono: tel, Mensaje: msg }) antes de mostrar la confirmación)."),
     "- Prohibido: fetch, XMLHttpRequest, WebSocket, eval, new Function, dangerouslySetInnerHTML, localStorage/sessionStorage directos, import(), require, process.env, <script>, <iframe>, window.top/parent.",
     "- No escribas URLs externas salvo wa.me para WhatsApp e images.unsplash.com si el contenido ya trae la imagen. Nada de imágenes inventadas: usa degradados, formas, íconos y tipografía.",
     "- Usa SOLO las clases de color del sistema (bg-bg, bg-surface, bg-surface-2, text-ink, text-muted, border-line, bg-primary, text-primary, text-primary-ink, bg-accent, text-accent, text-accent-ink, con opacidades /10 /20…) y rounded-card, rounded-btn, rounded-input, shadow-card, font-display, font-body. Nada de colores fijos como bg-blue-500.",

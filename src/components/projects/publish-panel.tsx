@@ -187,7 +187,7 @@ export function PublishPanel({
         ) : null}
       </div>
       <p className="mt-3 text-[11px] leading-relaxed text-[#8A8680]">
-        Se publica gratis en la dirección de LYRA con un sello pequeño «Hecho con LYRA». Los cambios tardan hasta un minuto en verse. Todavía no hay dominio propio.
+        Se publica gratis en la dirección de LYRA con un sello pequeño «Hecho con LYRA». En los sitios, lo que la gente escribe en los formularios llega a Contactos. Los cambios tardan hasta un minuto en verse. Todavía no hay dominio propio.
       </p>
     </section>
   );
