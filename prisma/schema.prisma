@@ -133,8 +133,11 @@ model User {
   sponsorId            String?
   referralCode         String       @unique
   credits              Int          @default(0)
+  /// DEPRECATED (P1): cuota de video retirada; ya no se otorga ni se lee. Columna conservada (sin migración).
   videoQuotaSeconds    Int          @default(0)
+  /// DEPRECATED (P1): cuota de video retirada; ya no se otorga ni se lee. Columna conservada (sin migración).
   videoQuotaExpiresAt  DateTime?
+  /// DEPRECATED (P1): cuota de video retirada; ya no se otorga ni se lee. Columna conservada (sin migración).
   videoQuotaCycleId    String?
   walletBalance        Float        @default(0)
   isSubscriptionExempt Boolean      @default(false)
@@ -601,6 +604,7 @@ model VegaAction {
 }
 
 /// Pieza guardada del Notebook o del Estudio creativo: audio, video, PDF o imagen.
+/// DEPRECATED (P1): el estudio de imágenes/video y la Biblioteca se retiraron; la app ya no usa este modelo. La tabla se conserva (sin migración).
 model MediaPiece {
   id                     String   @id @default(cuid())
   userId                 String
@@ -622,6 +626,7 @@ model MediaPiece {
   @@index([userId, area, createdAt])
 }
 
+/// DEPRECATED (P1): el estudio de imágenes/video y la Biblioteca se retiraron; la app ya no usa este modelo. La tabla se conserva (sin migración).
 model VideoGeneration {
   id                   String   @id @default(cuid())
   userId               String
@@ -657,6 +662,7 @@ model VideoGeneration {
   @@index([userId, status, createdAt])
 }
 
+/// DEPRECATED (P1): el estudio de imágenes/video y la Biblioteca se retiraron; la app ya no usa este modelo. La tabla se conserva (sin migración).
 model HiggsfieldGeneration {
   id                   String   @id @default(cuid())
   userId               String
@@ -687,6 +693,7 @@ model HiggsfieldGeneration {
   @@index([userId, status, createdAt])
 }
 
+/// DEPRECATED (P1): la Academia se retiró; la app ya no usa este modelo. La tabla se conserva (sin migración).
 model Course {
   id              String              @id @default(cuid())
   creatorId       String?
@@ -718,6 +725,7 @@ model Course {
   @@index([status, publishedAt])
 }
 
+/// DEPRECATED (P1): la Academia se retiró; la app ya no usa este modelo. La tabla se conserva (sin migración).
 model AcademyCourseLike {
   id        String   @id @default(cuid())
   courseId  String
@@ -732,6 +740,7 @@ model AcademyCourseLike {
   @@index([userId, createdAt])
 }
 
+/// DEPRECATED (P1): la Academia se retiró; la app ya no usa este modelo. La tabla se conserva (sin migración).
 model AcademyPost {
   id        String   @id @default(cuid())
   userId    String
@@ -747,6 +756,7 @@ model AcademyPost {
   @@index([userId, createdAt])
 }
 
+/// DEPRECATED (P1): la Academia se retiró; la app ya no usa este modelo. La tabla se conserva (sin migración).
 model AcademyPostComment {
   id        String   @id @default(cuid())
   postId    String
@@ -761,6 +771,7 @@ model AcademyPostComment {
   @@index([userId, createdAt])
 }
 
+/// DEPRECATED (P1): la Academia se retiró; la app ya no usa este modelo. La tabla se conserva (sin migración).
 model AcademyPostLike {
   id        String   @id @default(cuid())
   postId    String
@@ -775,6 +786,7 @@ model AcademyPostLike {
   @@index([userId, createdAt])
 }
 
+/// DEPRECATED (P1): la Academia se retiró; la app ya no usa este modelo. La tabla se conserva (sin migración).
 model DirectMessageConversation {
   id               String   @id @default(cuid())
   participantOneId String
@@ -791,6 +803,7 @@ model DirectMessageConversation {
   @@index([participantTwoId, updatedAt])
 }
 
+/// DEPRECATED (P1): la Academia se retiró; la app ya no usa este modelo. La tabla se conserva (sin migración).
 model DirectMessage {
   id             String   @id @default(cuid())
   conversationId String
@@ -805,6 +818,7 @@ model DirectMessage {
   @@index([senderId, createdAt])
 }
 
+/// DEPRECATED (P1): la Academia se retiró; la app ya no usa este modelo. La tabla se conserva (sin migración).
 model AcademyEvent {
   id              String   @id @default(cuid())
   title           String
@@ -824,6 +838,7 @@ model AcademyEvent {
   @@index([createdById, startsAt])
 }
 
+/// DEPRECATED (P1): la Academia se retiró; la app ya no usa este modelo. La tabla se conserva (sin migración).
 model AcademyEventRsvp {
   id        String   @id @default(cuid())
   eventId   String
@@ -837,6 +852,7 @@ model AcademyEventRsvp {
   @@index([userId, createdAt])
 }
 
+/// DEPRECATED (P1): la Academia se retiró; la app ya no usa este modelo. La tabla se conserva (sin migración).
 model AcademyNotification {
   id        String    @id @default(cuid())
   userId    String
@@ -855,6 +871,7 @@ model AcademyNotification {
   @@index([actorId, createdAt])
 }
 
+/// DEPRECATED (P1): la Academia se retiró; la app ya no usa este modelo. La tabla se conserva (sin migración).
 model Lesson {
   id              String   @id @default(cuid())
   courseId        String
@@ -881,6 +898,7 @@ model Lesson {
   @@index([moduleId, position])
 }
 
+/// DEPRECATED (P1): la Academia se retiró; la app ya no usa este modelo. La tabla se conserva (sin migración).
 model CreatorAccount {
   id                    String    @id @default(cuid())
   userId                String    @unique
@@ -900,6 +918,7 @@ model CreatorAccount {
   @@index([status])
 }
 
+/// DEPRECATED (P1): la Academia se retiró; la app ya no usa este modelo. La tabla se conserva (sin migración).
 model AcademyOAuthState {
   id                    String    @id @default(cuid())
   userId                String
@@ -914,6 +933,7 @@ model AcademyOAuthState {
   @@index([userId, expiresAt])
 }
 
+/// DEPRECATED (P1): la Academia se retiró; la app ya no usa este modelo. La tabla se conserva (sin migración).
 model CourseModule {
   id        String   @id @default(cuid())
   courseId  String
@@ -928,6 +948,7 @@ model CourseModule {
   @@index([courseId, position])
 }
 
+/// DEPRECATED (P1): la Academia se retiró; la app ya no usa este modelo. La tabla se conserva (sin migración).
 model CourseEnrollment {
   id                    String                  @id @default(cuid())
   courseId              String
@@ -949,6 +970,7 @@ model CourseEnrollment {
   @@index([courseId, status])
 }
 
+/// DEPRECATED (P1): la Academia se retiró; la app ya no usa este modelo. La tabla se conserva (sin migración).
 model LessonProgress {
   id           String    @id @default(cuid())
   enrollmentId String
@@ -963,6 +985,7 @@ model LessonProgress {
   @@index([lessonId])
 }
 
+/// DEPRECATED (P1): la Academia se retiró; la app ya no usa este modelo. La tabla se conserva (sin migración).
 model LessonAttachment {
   id        String   @id @default(cuid())
   lessonId  String
@@ -977,6 +1000,7 @@ model LessonAttachment {
   @@index([lessonId, position])
 }
 
+/// DEPRECATED (P1): la Academia se retiró; la app ya no usa este modelo. La tabla se conserva (sin migración).
 model LessonComment {
   id        String   @id @default(cuid())
   lessonId  String
@@ -991,6 +1015,7 @@ model LessonComment {
   @@index([lessonId, createdAt])
 }
 
+/// DEPRECATED (P1): la Academia se retiró; la app ya no usa este modelo. La tabla se conserva (sin migración).
 model AcademyTransaction {
   id                     String               @id @default(cuid())
   courseId               String
