@@ -31,6 +31,14 @@ const nextConfig: NextConfig = {
     "/api/vega/routines/dispatch": builderFiles,
     "/api/vega/tasks/run": builderFiles,
   },
+  // P1: la Academia y su centro de notificaciones se retiraron; los enlaces viejos vuelven al inicio (308).
+  async redirects() {
+    return [
+      { source: "/dashboard/academy", destination: "/dashboard", permanent: true },
+      { source: "/dashboard/academy/:path*", destination: "/dashboard", permanent: true },
+      { source: "/dashboard/notificaciones", destination: "/dashboard", permanent: true },
+    ];
+  },
 };
 
 export default nextConfig;

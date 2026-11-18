@@ -8,8 +8,7 @@ const columns = [
     title: "Producto",
     links: [
       { href: brand.links.dashboard, label: "Super agente" },
-      { href: brand.links.library, label: "Biblioteca" },
-      { href: brand.links.academy, label: "Academia" },
+      { href: "/dashboard/proyectos", label: "Proyectos" },
       { href: "#planes", label: "Planes" },
     ],
   },
@@ -18,14 +17,12 @@ const columns = [
     links: [
       { href: brand.links.dashboard, label: "Super agente" },
       { href: brand.links.network, label: "Partners" },
-      { href: brand.links.academy, label: "Academia" },
-      { href: brand.links.library, label: "Biblioteca" },
+      { href: "/dashboard/marketplace", label: "Marketplace" },
     ],
   },
   {
     title: "Documentación",
     links: [
-      { href: brand.links.academy, label: "Academia" },
       { href: brand.links.network, label: "Partners" },
       { href: brand.links.wallet, label: "Créditos" },
     ],

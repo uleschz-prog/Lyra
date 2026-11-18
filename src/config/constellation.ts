@@ -2,7 +2,6 @@ export type ConstellationSection =
   | "observatory"
   | "genealogy"
   | "compensation"
-  | "academy"
   | "agents"
   | "wallet";
 
@@ -24,11 +23,6 @@ export const sectionDesks: Record<
     star: "Sulafat",
     squad: "Partners",
     line: "Órbita paga 20%, 10% y 5% hasta el nivel 6. El bono mundial del 10% se reparte entre las cuentas Pro de $249 que recargaron al menos 5 créditos en el mes.",
-  },
-  academy: {
-    star: "Epsilon",
-    squad: "Academia",
-    line: "Todos los cursos están abiertos con cualquier membresía.",
   },
   agents: {
     star: "Vega",

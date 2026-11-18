@@ -6,7 +6,6 @@ import {
   ArrowRight,
   Bot,
   Check,
-  GraduationCap,
   Headphones,
   Library,
   Network,
@@ -69,26 +68,26 @@ const slides: PresentationSlide[] = [
     section: "La oportunidad",
     eyebrow: "La oportunidad de la IA",
     title: "No vendas IA. Resuelve una necesidad.",
-    description: "Empresas y creadores buscan producir, atender y aprender mejor.",
+    description: "Empresas y creadores buscan producir, atender y dar seguimiento mejor.",
     icon: WandSparkles,
     accent: "amber",
     points: [
       { title: "Agentes", text: "Atención y seguimiento.", icon: Bot },
       { title: "Contenido", text: "Piezas para cada canal.", icon: Library },
-      { title: "Formación", text: "Conocimiento en cursos.", icon: GraduationCap },
+      { title: "Proyectos", text: "Sitios y apps a la medida.", icon: Sparkles },
     ],
   },
   {
     id: "lyra",
     section: "LYRA",
     eyebrow: "El ecosistema LYRA",
-    title: "Crea. Aprende. Comparte.",
-    description: "Herramientas, formación y comunidad en un mismo lugar.",
+    title: "Crea. Automatiza. Comparte.",
+    description: "Herramientas, un super agente y comunidad en un mismo lugar.",
     icon: Presentation,
     accent: "violet",
     points: [
-      { title: "Crear", text: "Vega y Biblioteca.", icon: Sparkles },
-      { title: "Aprender", text: "Academia.", icon: GraduationCap },
+      { title: "Crear", text: "Vega, Proyectos y Marketplace.", icon: Sparkles },
+      { title: "Automatizar", text: "Rutinas y apps conectadas.", icon: Bot },
       { title: "Crecer", text: "Partners y comunidad.", icon: Network },
     ],
   },
@@ -123,38 +122,6 @@ const slides: PresentationSlide[] = [
     ],
     link: "/dashboard/super-agent",
     linkLabel: "Ver Vega",
-  },
-  {
-    id: "biblioteca",
-    section: "Biblioteca",
-    eyebrow: "Biblioteca · producción creativa",
-    title: "De una idea a piezas listas para editar.",
-    description: "Crea conceptos visuales y conviértelos en entregables.",
-    icon: Library,
-    accent: "cyan",
-    points: [
-      { title: "Paquetes", text: "Piezas para redes.", icon: Check },
-      { title: "Producto", text: "Variaciones para campañas.", icon: Sparkles },
-      { title: "Previsualiza", text: "Conceptos antes de producir.", icon: Play },
-    ],
-    link: "/dashboard/biblioteca",
-    linkLabel: "Abrir Biblioteca",
-  },
-  {
-    id: "academia",
-    section: "Academia",
-    eyebrow: "Academia · conocimiento que se comparte",
-    title: "Convierte experiencia en aprendizaje.",
-    description: "Crea cursos gratuitos o de pago, módulo a módulo.",
-    icon: GraduationCap,
-    accent: "amber",
-    points: [
-      { title: "Comparte", text: "Publica una muestra gratuita.", icon: Library },
-      { title: "Monetiza", text: "Ofrece cursos de pago.", icon: Wallet },
-      { title: "Reparto", text: "93% creador · 7% LYRA; MP a cargo de LYRA.", icon: Network },
-    ],
-    link: "/dashboard/academy/creator",
-    linkLabel: "Crear un curso",
   },
   {
     id: "partners",
@@ -222,7 +189,7 @@ function SlideGraphic({ slide }: { slide: PresentationSlide }) {
     oportunidad: [
       { icon: Bot, label: "Agentes", sub: "Atención" },
       { icon: WandSparkles, label: "Contenido", sub: "Producción" },
-      { icon: GraduationCap, label: "Formación", sub: "Conocimiento" },
+      { icon: Sparkles, label: "Proyectos", sub: "Sitios y apps" },
     ],
     inicio: [
       { icon: Headphones, label: "Necesidad", sub: "Escucha" },
@@ -233,16 +200,6 @@ function SlideGraphic({ slide }: { slide: PresentationSlide }) {
       { icon: Bot, label: "Diseñar", sub: "Agente" },
       { icon: Check, label: "Revisar", sub: "Persona" },
       { icon: Sparkles, label: "Implementar", sub: "Servicio" },
-    ],
-    biblioteca: [
-      { icon: Sparkles, label: "Idea", sub: "Brief" },
-      { icon: WandSparkles, label: "Creación", sub: "Imagen · video" },
-      { icon: Library, label: "Entrega", sub: "Campaña" },
-    ],
-    academia: [
-      { icon: GraduationCap, label: "Experiencia", sub: "Tu método" },
-      { icon: Library, label: "Curso", sub: "Lecciones" },
-      { icon: Wallet, label: "Oferta", sub: "Gratis o de pago" },
     ],
     accion: [
       { icon: Headphones, label: "Escucha", sub: "Detecta" },
@@ -259,9 +216,9 @@ function SlideGraphic({ slide }: { slide: PresentationSlide }) {
       <div className={`${styles.orbit} ${styles.orbitTwo}`} />
         <div className={`${styles.hubNode} ${styles.floatNode}`}><Sparkles size={26} /><strong>LYRA</strong><span>tu espacio de creación</span></div>
         <div className={`${styles.satellite} ${styles.satelliteTop}`}><Bot size={19} /><span>Vega</span></div>
-        <div className={`${styles.satellite} ${styles.satelliteRight}`}><GraduationCap size={19} /><span>Academia</span></div>
+        <div className={`${styles.satellite} ${styles.satelliteRight}`}><Sparkles size={19} /><span>Proyectos</span></div>
         <div className={`${styles.satellite} ${styles.satelliteBottom}`}><Network size={19} /><span>Partners</span></div>
-        <div className={`${styles.satellite} ${styles.satelliteLeft}`}><Library size={19} /><span>Biblioteca</span></div>
+        <div className={`${styles.satellite} ${styles.satelliteLeft}`}><Library size={19} /><span>Marketplace</span></div>
         <svg className={styles.orbitLines} viewBox="0 0 480 420" fill="none">
           <path d="M240 210 240 48M240 210 420 210M240 210 240 372M240 210 60 210" stroke="currentColor" strokeDasharray="4 7" />
         </svg>
@@ -297,17 +254,6 @@ function SlideGraphic({ slide }: { slide: PresentationSlide }) {
         <div className={`${styles.networkPerson} ${styles.networkLeafTwo}`}><span>4</span></div>
         <div className={`${styles.networkPerson} ${styles.networkLeafThree}`}><span>5</span></div>
         <div className={styles.networkLabel}>Comparte · acompaña · crece</div>
-      </div>
-    );
-  }
-
-  if (slide.id === "biblioteca") {
-    return (
-      <div className={`${styles.visual} ${styles.creativeVisual}`} aria-hidden="true">
-        <div className={`${styles.creativeTile} ${styles.creativeTileLarge}`}><span>IDEA EN MOVIMIENTO</span></div>
-        <div className={`${styles.creativeTile} ${styles.creativeTilePortrait}`}><WandSparkles size={26} /><span>IMAGEN</span></div>
-        <div className={`${styles.creativeTile} ${styles.creativeTileVideo}`}><Play size={24} fill="currentColor" /><span>VIDEO</span></div>
-        <div className={styles.creativeSpark}><Sparkles size={20} /></div>
       </div>
     );
   }

@@ -13,7 +13,7 @@ export const brand = {
   name: "LYRA",
   slogan: "Inteligencia Aumentada & Red Global",
   description:
-    "Backoffice para una academia digital y una red multinivel operada con agentes autónomos.",
+    "Backoffice del super agente Vega y una red multinivel operada con agentes autónomos.",
   colors: {
     dark: "#08090A",
     card: "#0D0E11",
@@ -28,10 +28,7 @@ export const brand = {
     dashboard: "/dashboard",
     network: "/dashboard/network",
     upgrade: "/dashboard/upgrade",
-    academy: "/dashboard/academy",
-    library: "/dashboard/biblioteca",
     wallet: "/dashboard/wallet",
-    notifications: "/dashboard/notificaciones",
     presentation: "/presentacion",
   },
 };

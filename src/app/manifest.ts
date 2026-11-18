@@ -4,7 +4,7 @@ export default function manifest(): MetadataRoute.Manifest {
   return {
     name: "LYRA — Inteligencia Aumentada & Red Global",
     short_name: "LYRA",
-    description: "Academia digital con red de referidos operada por agentes autónomos de IA.",
+    description: "Super agente Vega y red de partners operada con agentes autónomos de IA.",
     id: "/",
     start_url: "/dashboard",
     scope: "/",

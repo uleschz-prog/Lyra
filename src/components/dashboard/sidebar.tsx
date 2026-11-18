@@ -7,7 +7,6 @@ import { usePathname } from "next/navigation";
 import { Logo } from "@/components/brand/logo";
 import { ThemeToggle } from "@/components/app/theme-toggle";
 import { useCredits } from "@/components/dashboard/credit-provider";
-import { NotificationBell } from "@/components/dashboard/notification-bell";
 import { UserNav } from "@/components/dashboard/user-nav";
 import { brand, officeModes } from "@/config/brand";
 import { formatCredits } from "@/lib/format";
@@ -23,11 +22,9 @@ function isActive(href: string, pathname: string) {
 
 export function Sidebar({
   user,
-  unreadNotifications,
   onClose,
 }: {
   user: AuthProfile;
-  unreadNotifications: number;
   onClose?: () => void;
 }) {
   const pathname = usePathname();
@@ -45,7 +42,6 @@ export function Sidebar({
           <Logo ink />
         </Link>
         <div className="flex items-center gap-2">
-          <NotificationBell unread={unreadNotifications} onNavigate={onClose} />
           {onClose ? (
             <button
               type="button"
