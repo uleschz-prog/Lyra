@@ -22,10 +22,8 @@ import { applySponsorChange, rebuildUpline } from "@/lib/admin/sponsor-move";
 import { getCurrentUser } from "@/lib/auth/profile";
 import { INDEFINITE_YEAR } from "@/lib/auth/suspension";
 import { payCommissions } from "@/lib/compensation/payout";
-import { rebuyPaidFilter } from "@/lib/compensation/activity";
 import { applyCredits, creditCredits } from "@/lib/credits/ledger";
 import { activateMembership } from "@/lib/payments/activate";
-import { grantVideoQuota } from "@/lib/studio/video-quotas";
 import { setCompanyUsdtWallet as persistCompanyWallet } from "@/lib/payments/usdt";
 import { trongridReady, verifyUsdtTransfer } from "@/lib/payments/usdt-verify";
 import { getPrisma } from "@/lib/prisma";
@@ -170,7 +168,6 @@ export async function changePackage(id: string, packageId: string): Promise<Resu
       where: { id },
       data: { package: toPackageType(packageId), pendingPackage: null },
     });
-    await grantVideoQuota(tx, id, packageId);
   });
   done();
   return { ok: true, package: packageId };
@@ -261,7 +258,6 @@ export async function approveUsdtOrder(orderId: string): Promise<Result> {
           externalRef: `usdt:${order.id}`,
         },
       });
-      await grantVideoQuota(tx, user.id, user.package);
       await payCommissions(
         tx,
         { id: user.id, name: user.name, sponsorId: user.sponsorId, package: user.package },
@@ -277,10 +273,6 @@ export async function approveUsdtOrder(orderId: string): Promise<Result> {
     }
     const credited = creditedRechargeCredits(purchased);
     const promo = bonusCreditsForRecharge(purchased);
-    const firstRecharge = !(await prisma.transaction.findFirst({
-      where: { userId: user.id, ...rebuyPaidFilter() },
-      select: { id: true },
-    }));
     await prisma.$transaction(async (tx) => {
       const credit = await creditCredits(
         {
@@ -297,9 +289,8 @@ export async function approveUsdtOrder(orderId: string): Promise<Result> {
       if (!credit.ok) {
         throw new Error("No se pudieron acreditar los créditos de la recarga USDT.");
       }
-      // Doble aprobación de la misma orden: no se repiten cuota ni comisiones.
+      // Doble aprobación de la misma orden: no se repiten las comisiones.
       if (credit.already) return;
-      if (firstRecharge) await grantVideoQuota(tx, user.id, user.package);
       await payCommissions(
         tx,
         { id: user.id, name: user.name, sponsorId: user.sponsorId, package: user.package },
@@ -318,7 +309,6 @@ export async function approveUsdtOrder(orderId: string): Promise<Result> {
         where: { id: user.id },
         data: { package: toPackageType(target), pendingPackage: null },
       });
-      await grantVideoQuota(tx, user.id, target);
     });
   } else {
     return { ok: false, error: "El propósito de la orden no es válido." };

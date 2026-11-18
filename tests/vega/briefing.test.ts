@@ -47,8 +47,6 @@ const full: Record<BriefKind, Record<string, string>> = {
   sitio: { negocio: "Sonríe Pachuca, clínica dental", objetivo: "Agendar citas", publico: "Familias de Pachuca", contacto: "WhatsApp 771 000 0000, español" },
   app: { proposito: "Tomar pedidos de pasteles", usuarios: "Mi equipo", datos: "Pedidos con cliente, fecha y total" },
   agente: { rol: "Atención a clientes de mi clínica", canal: "WhatsApp", tono: "Cálido y cercano", conocimiento: "Limpieza $600, lunes a sábado 9 a 19" },
-  video: { tema: "Promo de limpieza dental", estilo: "Anuncio dinámico", formato: "9:16 (Reels / TikTok)" },
-  imagen: { tema: "Logo de Sonríe Pachuca", estilo: "Minimalista", formato: "Cuadrada" },
 };
 
 describe("briefing: preguntas por tipo", () => {
@@ -63,15 +61,15 @@ describe("briefing: preguntas por tipo", () => {
   });
 
   it("detecta el tipo por herramienta", () => {
-    expect(briefKindForTool("crear_imagen", {})).toBe("imagen");
-    expect(briefKindForTool("crear_video", {})).toBe("video");
+    expect(briefKindForTool("crear_imagen", {})).toBeNull();
+    expect(briefKindForTool("crear_video", {})).toBeNull();
     expect(briefKindForTool("entregar_proyecto", { tipo: "sitio" })).toBe("sitio");
     expect(briefKindForTool("entregar_proyecto", { tipo: "agente" })).toBe("agente");
     expect(briefKindForTool("buscar_web", {})).toBeNull();
   });
 
   it("las respuestas de relleno no cuentan", () => {
-    expect(missingBrief("imagen", { tema: "por definir", estilo: "  ", formato: "Cuadrada" }).map((q) => q.key)).toEqual(["tema", "estilo"]);
+    expect(missingBrief("agente", { rol: "por definir", canal: "  ", tono: "Profesional", conocimiento: "Horario de 9 a 19" }).map((q) => q.key)).toEqual(["rol", "canal"]);
     expect(missingBrief("sitio", full.sitio)).toEqual([]);
   });
 
@@ -89,7 +87,7 @@ describe("briefing: preguntas por tipo", () => {
     expect(text).toContain("Quiero crear un sitio web.");
     expect(text).toContain("- Negocio: Sonríe Pachuca, clínica dental");
     expect(text).not.toContain("Estilo");
-    expect(composeBriefPrompt("imagen", {}, { delegate: true })).toMatch(/tú decide/);
+    expect(composeBriefPrompt("agente", {}, { delegate: true })).toMatch(/tú decide/);
     expect(isDelegation(composeBriefPrompt("app", {}, { delegate: true }))).toBe(true);
     expect(isDelegation(composeBriefPrompt("app", full.app))).toBe(false);
   });
@@ -116,16 +114,14 @@ describe("briefing: regla del servidor", () => {
     for (const kind of ["sitio", "app", "agente"] as const) {
       expect(briefGate("entregar_proyecto", { tipo: kind, briefing: full[kind] }, "va").ok).toBe(true);
     }
-    expect(briefGate("crear_video", { briefing: full.video }, "va").ok).toBe(true);
-    expect(briefGate("crear_imagen", { briefing: full.imagen }, "va").ok).toBe(true);
     expect(briefGate("buscar_web", {}, "hola").ok).toBe(true);
   });
 
   it("con «tú decide» pasa solo si declara supuestos", () => {
-    const missing = briefGate("crear_imagen", { descripcion: "logo" }, "hazme un logo, tú decide");
+    const missing = briefGate("entregar_proyecto", { tipo: "agente", titulo: "Recepción" }, "hazme un agente, tú decide");
     expect(missing.ok).toBe(false);
     if (!missing.ok) expect(missing.response.estado).toBe("faltan_supuestos");
-    expect(briefGate("crear_imagen", { descripcion: "logo", supuestos: "Estilo minimalista, cuadrada" }, "tú decide")).toEqual({ ok: true, delegated: true });
+    expect(briefGate("entregar_proyecto", { tipo: "agente", titulo: "Recepción", supuestos: "Atiende por WhatsApp, tono cálido" }, "tú decide")).toEqual({ ok: true, delegated: true });
   });
 });
 
@@ -176,24 +172,24 @@ beforeEach(() => {
 
 describe("briefing en el turno de Vega", () => {
   it("sin briefing no ejecuta la herramienta, no cobra y muestra el formulario", async () => {
-    openVegaStream.mockResolvedValueOnce(stream({ text: "¿Cómo se llama tu negocio?" }));
-    const contents: GeminiContent[] = [{ role: "user", parts: [{ text: "hazme un logo" }] }];
+    openVegaStream.mockResolvedValueOnce(stream({ text: "¿Qué hace tu agente?" }));
+    const contents: GeminiContent[] = [{ role: "user", parts: [{ text: "hazme un agente" }] }];
     const events: { t: string; v: unknown }[] = [];
-    const first = stream({ functionCall: { name: "crear_imagen", args: { descripcion: "logo genérico" } } });
-    await runVegaTurn(turn(first, contents, "hazme un logo"), (event) => events.push(event as { t: string; v: unknown }));
+    const first = stream({ functionCall: { name: "entregar_proyecto", args: { tipo: "agente", titulo: "Agente genérico" } } });
+    await runVegaTurn(turn(first, contents, "hazme un agente"), (event) => events.push(event as { t: string; v: unknown }));
 
     expect(runVegaTool).not.toHaveBeenCalled();
     expect(chargeCredits).not.toHaveBeenCalled();
-    expect(events).toContainEqual({ t: "brief", v: { kind: "imagen", missing: ["tema", "estilo", "formato"] } });
+    expect(events).toContainEqual({ t: "brief", v: { kind: "agente", missing: ["rol", "canal", "tono", "conocimiento"] } });
     const response = contents.find((content, index) => index > 0 && content.role === "user")!.parts[0].functionResponse!.response;
-    expect(response).toMatchObject({ estado: "needs_brief", tipo: "imagen" });
+    expect(response).toMatchObject({ estado: "needs_brief", tipo: "agente" });
   });
 
   it("con el briefing respondido crea y cobra la herramienta", async () => {
     runVegaTool.mockResolvedValue({ kind: "result", status: "Listo", response: { ok: true } });
     openVegaStream.mockResolvedValueOnce(stream({ text: "Ahí va." }));
-    const first = stream({ functionCall: { name: "crear_imagen", args: { descripcion: "logo", briefing: full.imagen } } });
-    await runVegaTurn(turn(first, [{ role: "user", parts: [{ text: "x" }] }], "Logo de Sonríe, minimalista, cuadrada"), () => undefined);
+    const first = stream({ functionCall: { name: "entregar_proyecto", args: { tipo: "agente", titulo: "Recepción", briefing: full.agente } } });
+    await runVegaTurn(turn(first, [{ role: "user", parts: [{ text: "x" }] }], "Agente de atención para mi clínica por WhatsApp"), () => undefined);
     expect(runVegaTool).toHaveBeenCalledTimes(1);
     expect(chargeCredits).toHaveBeenCalledTimes(1);
   });
@@ -202,8 +198,8 @@ describe("briefing en el turno de Vega", () => {
     runVegaTool.mockResolvedValue({ kind: "result", status: "Listo", response: { ok: true } });
     openVegaStream.mockResolvedValueOnce(stream({ text: "Listo." }));
     const contents: GeminiContent[] = [{ role: "user", parts: [{ text: "x" }] }];
-    const first = stream({ functionCall: { name: "crear_imagen", args: { descripcion: "post del lunes", supuestos: "Estilo colorido, cuadrada" } } });
-    await runVegaTurn(turn(first, contents, "post del lunes", "routine"), () => undefined);
+    const first = stream({ functionCall: { name: "entregar_proyecto", args: { tipo: "agente", titulo: "Recepción", supuestos: "Atiende por WhatsApp, tono cálido" } } });
+    await runVegaTurn(turn(first, contents, "agente de recepción", "routine"), () => undefined);
     expect(runVegaTool).toHaveBeenCalledTimes(1);
     const response = contents.find((content, index) => index > 0 && content.role === "user")!.parts[0].functionResponse!.response;
     expect(response).toHaveProperty("supuestos");

@@ -1,8 +1,8 @@
-// Briefing antes de crear: preguntas clave por tipo de pieza (sitio, app, agente, video, imagen).
+// Briefing antes de crear: preguntas clave por tipo de pieza (sitio, app, agente).
 // Lo usan la tarjeta del chat (formulario guiado) y el servidor (las herramientas de creación
 // no arrancan ni cobran si faltan respuestas). Sin dependencias de servidor: se importa en el cliente.
 
-export type BriefKind = "sitio" | "app" | "agente" | "video" | "imagen";
+export type BriefKind = "sitio" | "app" | "agente";
 
 export type BriefQuestion = {
   key: string;
@@ -21,8 +21,6 @@ export const briefKindLabels: Record<BriefKind, string> = {
   sitio: "sitio web",
   app: "app",
   agente: "agente",
-  video: "video",
-  imagen: "imagen",
 };
 
 export const briefQuestions: Record<BriefKind, BriefQuestion[]> = {
@@ -46,19 +44,6 @@ export const briefQuestions: Record<BriefKind, BriefQuestion[]> = {
     { key: "conocimiento", label: "Conocimiento", question: "¿Qué debe saber? (servicios, precios, horarios, políticas)", options: [], required: true, placeholder: "Pega tus servicios, precios, horarios y reglas" },
     { key: "acciones", label: "Acciones", question: "¿Qué acciones puede hacer?", options: ["Responder dudas", "Agendar citas", "Tomar pedidos", "Capturar datos del cliente", "Pasar a una persona"], required: false, multi: true },
   ],
-  video: [
-    { key: "tema", label: "Tema", question: "¿De qué trata el video y qué quieres que la gente haga al verlo?", options: [], required: true, placeholder: "Ej. anunciar la promoción de limpieza dental de noviembre" },
-    { key: "estilo", label: "Estilo", question: "¿Qué estilo buscas?", options: ["Anuncio dinámico", "Elegante", "Divertido", "Testimonial", "Explicativo"], required: true },
-    { key: "formato", label: "Formato", question: "¿Dónde se va a publicar?", options: ["9:16 (Reels / TikTok)", "1:1 (feed)", "16:9 (YouTube / web)"], required: true },
-    { key: "duracion", label: "Duración", question: "¿Cuánto debe durar?", options: ["8 segundos", "15 segundos", "30 segundos"], required: false },
-    { key: "voz", label: "Voz", question: "¿Lleva voz?", options: ["Voz femenina", "Voz masculina", "Sin voz, solo texto y música"], required: false },
-  ],
-  imagen: [
-    { key: "tema", label: "Tema", question: "¿Qué debe mostrar la imagen? (y para qué negocio)", options: [], required: true, placeholder: "Ej. logo para Sonríe Pachuca, clínica dental" },
-    { key: "estilo", label: "Estilo", question: "¿Qué estilo prefieres?", options: ["Minimalista", "Fotográfico", "Ilustración", "Elegante", "Colorido"], required: true },
-    { key: "formato", label: "Formato", question: "¿Qué formato?", options: ["Cuadrada", "Horizontal", "Vertical"], required: true },
-    { key: "detalles", label: "Detalles", question: "¿Colores, texto o algo que no deba llevar?", options: [], required: false, placeholder: "Ej. azul y blanco, con el nombre del negocio" },
-  ],
 };
 
 const delegation = /\b(t[uú] decide[s]?|decide t[uú]|elige t[uú]|t[uú] elige[s]?|a tu criterio|como t[uú] quieras|como quieras|lo que quieras|con lo que quieras|lo que t[uú] quieras|sorpr[eé]ndeme|haz lo que creas|lo que creas mejor|improvisa|inv[eé]ntalo)\b/i;
@@ -80,8 +65,6 @@ export function answered(value: unknown) {
 
 /** Tipo de briefing de una herramienta de creación (o null si no es de creación). */
 export function briefKindForTool(name: string, args: Record<string, unknown>): BriefKind | null {
-  if (name === "crear_imagen") return "imagen";
-  if (name === "crear_video") return "video";
   if (name === "entregar_proyecto") {
     const tipo = args.tipo;
     return tipo === "sitio" || tipo === "app" || tipo === "agente" ? tipo : null;
@@ -138,7 +121,7 @@ export function composeBriefPrompt(kind: BriefKind, answers: Record<string, stri
   const lines = briefQuestions[kind]
     .filter((question) => answered(answers[question.key]))
     .map((question) => `- ${question.label}: ${answers[question.key].trim()}`);
-  const head = `Quiero crear ${kind === "imagen" ? "una imagen" : kind === "app" ? "una app" : `un ${briefKindLabels[kind]}`}.`;
+  const head = `Quiero crear ${kind === "app" ? "una app" : `un ${briefKindLabels[kind]}`}.`;
   const body = lines.length ? `\n${lines.join("\n")}` : "";
   const tail = options.delegate
     ? "\nLo que falte, tú decide con criterio y dime qué supusiste."

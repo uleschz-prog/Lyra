@@ -43,8 +43,6 @@ const internalTools = new Set([
   "escribir_archivo",
   "no_molestar_whatsapp",
   "pedir_conexion",
-  "crear_imagen",
-  "crear_video",
   "entregar_proyecto",
   "configurar_monitor_x",
 ]);

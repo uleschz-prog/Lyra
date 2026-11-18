@@ -15,9 +15,7 @@ export default function TermsPage() {
       <div className="mt-6 space-y-4 text-sm leading-7">
         <p>
           LYRA es un workspace de inteligencia artificial. La cuenta se abre con Inicio (29 dólares y 150
-          créditos), Negocio (99 dólares y 300 créditos) o Pro (249 dólares y 1,000 créditos). Los planes incluyen
-          respectivamente 40, 140 y 360 segundos de video por ciclo de 30 días; el cupo de video es independiente de
-          los créditos y Wan 3.0 Prime consume 1.36 veces el cupo según la duración. Todos los paquetes incluyen los
+          créditos), Negocio (99 dólares y 300 créditos) o Pro (249 dólares y 1,000 créditos). Todos los paquetes incluyen los
           mismos servicios. Un crédito cuesta 1 dólar estadounidense y puede recargarse en cualquier plan desde
           5 créditos. Cada compra individual de exactamente 50 créditos recibe 10 créditos adicionales, para un
           total de 60. Una recarga de al menos 5 créditos durante el mes cuenta como actividad y habilita las

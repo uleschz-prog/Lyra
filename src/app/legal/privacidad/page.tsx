@@ -18,7 +18,7 @@ export default function PrivacyPage() {
           programa de partners. La contraseña se almacena cifrada.
         </p>
         <p>
-          Los documentos que subes al notebook se usan para responder tus consultas. No se venden a terceros.
+          Los archivos y documentos que compartes con Vega se usan para responder tus consultas. No se venden a terceros.
         </p>
       </div>
       <Link href={brand.links.home} className="mt-10 inline-block text-sm text-cyan-200">

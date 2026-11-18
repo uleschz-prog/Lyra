@@ -1,13 +1,6 @@
-import type { Metadata } from "next";
+import { permanentRedirect } from "next/navigation";
 
-import { StudioLibrary } from "@/components/library/studio-library";
-import { listCreations } from "@/lib/media-pieces";
-
-export const metadata: Metadata = {
-  title: "Biblioteca",
-};
-
-export default async function LibraryPage() {
-  const pieces = await listCreations("studio", 80).catch(() => []);
-  return <StudioLibrary initialPieces={pieces} />;
+// P1: la Biblioteca (imágenes y videos del estudio) se retiró; los enlaces viejos vuelven al inicio (308).
+export default function LibraryPage() {
+  permanentRedirect("/dashboard");
 }
