@@ -1,4 +1,4 @@
-import { Bot, Check, Code2, GraduationCap, Palette, Sparkles } from "lucide-react";
+import { Bot, Check, Code2, Palette, Sparkles } from "lucide-react";
 import Link from "next/link";
 
 import { BuilderConsole } from "@/components/landing/builder-console";
@@ -34,15 +34,6 @@ const creations = [
     action: "Crea un agente",
     idea: "Un agente que atienda a mis clientes",
   },
-  {
-    id: "academia",
-    title: "LYRA Academia",
-    icon: GraduationCap,
-    copy: "Aprende diseño web, programación y habilidades digitales con cursos prácticos, creadores y una comunidad en crecimiento.",
-    action: "Explora Academia",
-    href: brand.links.academy,
-    idea: "Quiero aprender diseño web y programación",
-  },
 ];
 
 const planIdeas: Record<string, string> = {
@@ -61,17 +52,17 @@ export default function HomePage() {
           <div className="animate-lyra-rise mx-auto max-w-4xl text-center">
             <span className="inline-flex items-center gap-2 rounded-full border border-[#DDD6FE] bg-white/80 px-3.5 py-1.5 text-xs font-semibold tracking-wide text-[#5B21B6] shadow-sm dark:border-white/12 dark:bg-[#181625]/80 dark:text-[#C4B5FD]">
               <Sparkles className="size-3.5" aria-hidden />
-              DISEÑA · PROGRAMA · APRENDE · LANZA
+              DISEÑA · PROGRAMA · AUTOMATIZA · LANZA
             </span>
             <h1 className="mt-6 text-[2.85rem] font-semibold leading-[1.02] tracking-tight text-[#1E1E24] sm:text-7xl lg:text-[5.25rem] dark:text-[#F2F0F7]">
               Tu próxima gran idea empieza en{" "}
               <span className="bg-gradient-to-r from-[#7C3AED] via-[#5B21B6] to-[#0891B2] bg-clip-text text-transparent">LYRA</span>
             </h1>
             <p className="mx-auto mt-6 max-w-3xl text-lg leading-relaxed text-[#5C5854] sm:text-2xl sm:leading-relaxed dark:text-[#C7C3D4]">
-              Diseña sitios y apps, crea agentes de IA y contenido visual, y aprende diseño web y programación en LYRA Academia. Convierte tus ideas en proyectos digitales con Vega y una comunidad que te impulsa.
+              Diseña sitios y apps, crea agentes de IA y deja que Vega, tu super agente, te ayude a organizar, redactar y dar seguimiento. Convierte tus ideas en proyectos digitales con una comunidad que te impulsa.
             </p>
             <div className="mt-6 flex flex-wrap justify-center gap-2 text-xs font-medium text-[#5C5854] dark:text-[#C7C3D4]">
-              {["Creación con IA", "Formación práctica", "Comunidad de partners"].map((item) => (
+              {["Creación con IA", "Super agente Vega", "Comunidad de partners"].map((item) => (
                 <span key={item} className="rounded-full border border-[#E7E2DA] bg-white/75 px-3 py-1.5 dark:border-white/10 dark:bg-[#181625]/70">{item}</span>
               ))}
             </div>
@@ -90,7 +81,7 @@ export default function HomePage() {
           <p className="mt-3 max-w-3xl text-base leading-relaxed text-[#5C5854] sm:text-lg dark:text-[#C7C3D4]">
             Un mismo lugar para construir productos digitales, crear con inteligencia artificial y aprender las habilidades que llevan tus ideas más lejos.
           </p>
-          <div className="mt-10 grid items-stretch gap-4 sm:grid-cols-2 xl:grid-cols-4">
+          <div className="mt-10 grid items-stretch gap-4 sm:grid-cols-2 xl:grid-cols-3">
             {creations.map((item) => (
               <article
                 key={item.id}
@@ -108,7 +99,7 @@ export default function HomePage() {
                     {item.copy}
                   </p>
                   <Link
-                    href={item.href ?? `${brand.links.register}?idea=${encodeURIComponent(item.idea)}`}
+                    href={`${brand.links.register}?idea=${encodeURIComponent(item.idea)}`}
                     className="mt-6 inline-flex min-h-11 w-fit items-center rounded-xl bg-[#1E1E24] px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-[#5B21B6] dark:bg-[#EDE9FE] dark:text-[#2E1065] dark:hover:bg-white"
                   >
                     {item.action}
@@ -128,7 +119,7 @@ export default function HomePage() {
                 tu plan
               </h2>
               <p className="mt-8 max-w-sm text-lg leading-relaxed text-[#5C5854] sm:text-xl dark:text-[#C7C3D4]">
-                Cada plan combina créditos, herramientas de IA, creación visual y acceso a LYRA Academia. Recarga cuando lo necesites desde 5 créditos: compra exactamente 50 y recibes 60. El cupo de video se renueva cada 30 días, por separado.
+                Cada plan combina créditos, herramientas de IA y a Vega, tu super agente. Recarga cuando lo necesites desde 5 créditos: compra exactamente 50 y recibes 60.
               </p>
               <div className="mt-10 flex flex-1 items-center justify-center lg:mt-12">
                 <VegaMascot className="h-52 w-52 drop-shadow-[0_28px_48px_rgba(124,58,237,0.35)] sm:h-64 sm:w-64 lg:h-80 lg:w-80" />

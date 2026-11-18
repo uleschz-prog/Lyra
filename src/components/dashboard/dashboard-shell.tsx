@@ -6,7 +6,6 @@ import { usePathname } from "next/navigation";
 import { useEffect, useState, type ReactNode } from "react";
 
 import { Logo } from "@/components/brand/logo";
-import { NotificationBell } from "@/components/dashboard/notification-bell";
 import { Sidebar } from "@/components/dashboard/sidebar";
 import { ThemeToggle } from "@/components/app/theme-toggle";
 import { brand } from "@/config/brand";
@@ -27,11 +26,9 @@ function isActiveTab(href: string, pathname: string) {
 
 export function DashboardShell({
   user,
-  unreadNotifications,
   children,
 }: {
   user: AuthProfile;
-  unreadNotifications: number;
   children: ReactNode;
 }) {
   const pathname = usePathname();
@@ -57,7 +54,7 @@ export function DashboardShell({
           open ? "translate-x-0" : "-translate-x-full",
         )}
       >
-        <Sidebar user={user} unreadNotifications={unreadNotifications} onClose={() => setMenuPath(null)} />
+        <Sidebar user={user} onClose={() => setMenuPath(null)} />
       </aside>
 
       {open ? (
@@ -84,7 +81,6 @@ export function DashboardShell({
             <Logo compact ink />
           </Link>
           <div className="flex items-center gap-2">
-            <NotificationBell unread={unreadNotifications} className="h-11 w-11" />
             <ThemeToggle />
           </div>
         </header>

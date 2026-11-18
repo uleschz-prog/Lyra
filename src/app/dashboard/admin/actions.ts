@@ -51,35 +51,6 @@ function done() {
   revalidatePath("/dashboard/network");
 }
 
-export async function markAcademyCreatorPayoutPaid(
-  transactionId: string,
-  reference: string,
-): Promise<Result> {
-  if (!(await requireAdmin())) return denied;
-  const payoutReference = reference.trim();
-  if (transactionId.length > 128 || payoutReference.length > 160) {
-    return { ok: false, error: "El pago o su referencia excede el límite permitido." };
-  }
-  const updated = await getPrisma().academyTransaction.updateMany({
-    where: {
-      id: transactionId,
-      paymentGatewayStatus: "APPROVED",
-      creatorPayoutStatus: "PENDING",
-    },
-    data: {
-      creatorPayoutStatus: "PAID",
-      creatorPaidAt: new Date(),
-      creatorPayoutReference: payoutReference || null,
-    },
-  });
-  if (updated.count !== 1) {
-    return { ok: false, error: "El pago ya fue registrado, fue reembolsado o no existe." };
-  }
-  revalidatePath("/dashboard/admin");
-  revalidatePath("/dashboard/academy/creator");
-  return { ok: true };
-}
-
 export async function validateRegistration(id: string): Promise<Result> {
   if (!(await requireAdmin())) return denied;
   const user = await target(id);
