@@ -5,9 +5,10 @@ import {
   Coins,
   Crown,
   Gift,
-  Library,
+  FolderKanban,
   Minus,
   Plus,
+  Store,
   TrendingUp,
   UserPlus,
   Wallet,
@@ -169,14 +170,15 @@ export function RecentActivity({ items }: { items: HomeActivity[] }) {
 
 const shortcuts = [
   { href: "/dashboard/super-agent", label: "Vega", hint: "Tu super agente", icon: Crown },
-  { href: "/dashboard/biblioteca", label: "Biblioteca", hint: "Tus creaciones guardadas", icon: Library },
+  { href: "/dashboard/proyectos", label: "Proyectos", hint: "Sitios, apps y agentes", icon: FolderKanban },
+  { href: "/dashboard/marketplace", label: "Marketplace", hint: "Plantillas listas para usar", icon: Store },
 ] as const;
 
 export function Shortcuts() {
   return (
     <section>
       <h2 className="mb-4 text-sm font-bold tracking-tight text-[#1E1E24]">Herramientas</h2>
-      <div className="grid grid-cols-2 gap-3 sm:max-w-xl">
+      <div className="grid grid-cols-2 gap-3 sm:max-w-2xl sm:grid-cols-3">
         {shortcuts.map(({ href, label, hint, icon: Icon }) => (
           <Link
             key={href}
