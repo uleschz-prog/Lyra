@@ -5,14 +5,14 @@ import { useEffect, useState } from "react";
 import { toast } from "sonner";
 
 import { deleteVegaFile, readVegaFile, vegaFiles } from "@/app/dashboard/super-agent/actions";
-import { sheetClass } from "@/components/vega/sheet";
+import { panelClass, type PanelVariant } from "@/components/vega/sheet";
 import type { VegaFileView } from "@/lib/vega/files";
 
 function size(bytes: number) {
   return bytes < 1000 ? `${bytes} B` : `${(bytes / 1000).toFixed(1)} KB`;
 }
 
-export function FilesPanel({ onClose }: { onClose: () => void }) {
+export function FilesPanel({ onClose, variant = "sheet" }: { onClose?: () => void; variant?: PanelVariant }) {
   const [files, setFiles] = useState<VegaFileView[] | null>(null);
   const [open, setOpen] = useState<{ path: string; content: string } | null>(null);
 
@@ -49,7 +49,7 @@ export function FilesPanel({ onClose }: { onClose: () => void }) {
   const used = files?.reduce((sum, file) => sum + file.bytes, 0) ?? 0;
 
   return (
-    <div className={sheetClass}>
+    <div className={panelClass(variant)}>
       <div className="flex items-center justify-between">
         <p className="flex items-center gap-2 text-sm font-semibold text-[#1E1E24]">
           {open ? (
@@ -61,9 +61,11 @@ export function FilesPanel({ onClose }: { onClose: () => void }) {
           )}
           {open ? open.path : "Archivos de Vega"}
         </p>
-        <button type="button" onClick={onClose} className="rounded p-1 text-[#8A8680]" aria-label="Cerrar">
-          <X className="size-4" />
-        </button>
+        {onClose ? (
+          <button type="button" onClick={onClose} className="rounded p-1 text-[#8A8680]" aria-label="Cerrar">
+            <X className="size-4" />
+          </button>
+        ) : null}
       </div>
 
       {open ? (

@@ -5,7 +5,7 @@ import { useEffect, useState } from "react";
 import { toast } from "sonner";
 
 import { addVegaMemory, clearVegaMemories, deleteVegaMemory, vegaMemories } from "@/app/dashboard/super-agent/actions";
-import { sheetClass } from "@/components/vega/sheet";
+import { panelClass, type PanelVariant } from "@/components/vega/sheet";
 import type { VegaMemoryView } from "@/lib/vega/memory";
 import { memoryKindLabels, memoryKinds, type MemoryKind } from "@/lib/vega/memory-logic";
 
@@ -16,7 +16,7 @@ const kindStyles: Record<MemoryKind, string> = {
   journal: "bg-[#FEF3C7] text-[#92400E]",
 };
 
-export function MemoryPanel({ onClose }: { onClose: () => void }) {
+export function MemoryPanel({ onClose, variant = "sheet" }: { onClose?: () => void; variant?: PanelVariant }) {
   const [memories, setMemories] = useState<VegaMemoryView[] | null>(null);
   const [draft, setDraft] = useState("");
   const [kind, setKind] = useState<MemoryKind>("fact");
@@ -69,15 +69,17 @@ export function MemoryPanel({ onClose }: { onClose: () => void }) {
   }
 
   return (
-    <div className={sheetClass}>
+    <div className={panelClass(variant)}>
       <div className="flex items-center justify-between">
         <p className="flex items-center gap-2 text-sm font-semibold text-[#1E1E24]">
           <Brain className="size-4 text-[#7C3AED]" />
           Lo que Vega recuerda de ti
         </p>
-        <button type="button" onClick={onClose} className="rounded p-1 text-[#8A8680]" aria-label="Cerrar">
-          <X className="size-4" />
-        </button>
+        {onClose ? (
+          <button type="button" onClick={onClose} className="rounded p-1 text-[#8A8680]" aria-label="Cerrar">
+            <X className="size-4" />
+          </button>
+        ) : null}
       </div>
       <p className="mt-1 text-xs leading-5 text-[#8A8680]">
         Vega usa estos datos en todas tus conversaciones. Solo tú los ves. Nunca guarda contraseñas, tarjetas ni llaves.

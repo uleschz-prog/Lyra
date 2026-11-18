@@ -4,7 +4,7 @@ import { History, X } from "lucide-react";
 import { useEffect, useState } from "react";
 
 import { vegaActionLog } from "@/app/dashboard/super-agent/actions";
-import { sheetClass } from "@/components/vega/sheet";
+import { panelClass, type PanelVariant } from "@/components/vega/sheet";
 import type { ActionLogEntry } from "@/lib/vega/action-store";
 
 const statusLabels: Record<string, { label: string; className: string }> = {
@@ -28,7 +28,7 @@ function when(value: string) {
   });
 }
 
-export function HistoryPanel({ onClose }: { onClose: () => void }) {
+export function HistoryPanel({ onClose, variant = "sheet" }: { onClose?: () => void; variant?: PanelVariant }) {
   const [entries, setEntries] = useState<ActionLogEntry[] | null>(null);
 
   useEffect(() => {
@@ -46,15 +46,17 @@ export function HistoryPanel({ onClose }: { onClose: () => void }) {
   }, []);
 
   return (
-    <div className={sheetClass}>
+    <div className={panelClass(variant)}>
       <div className="flex items-center justify-between">
         <p className="flex items-center gap-2 text-sm font-semibold text-[#1E1E24]">
           <History className="size-4 text-[#7C3AED]" />
           Historial de acciones
         </p>
-        <button type="button" onClick={onClose} className="rounded p-1 text-[#8A8680]" aria-label="Cerrar">
-          <X className="size-4" />
-        </button>
+        {onClose ? (
+          <button type="button" onClick={onClose} className="rounded p-1 text-[#8A8680]" aria-label="Cerrar">
+            <X className="size-4" />
+          </button>
+        ) : null}
       </div>
       <p className="mt-1 text-xs leading-5 text-[#8A8680]">
         Todo lo que Vega preparó en tus apps: lo que confirmaste, cancelaste, venció o ejecutó tu autonomía. Hora de Ciudad de México.

@@ -84,7 +84,15 @@ export function DashboardShell({
             <ThemeToggle />
           </div>
         </header>
-        <main className="mx-auto w-full min-w-0 max-w-6xl px-4 pt-4 pb-[calc(var(--lyra-tab)+1.5rem)] sm:px-6 sm:pt-8 md:pb-8 lg:px-10 lg:pt-10">{children}</main>
+        <main
+          className={cn(
+            "mx-auto w-full min-w-0 px-4 pt-4 pb-[calc(var(--lyra-tab)+1.5rem)] sm:px-6",
+            // Vega v2 usa tres columnas: le damos más ancho y menos margen.
+            pathname.startsWith("/dashboard/super-agent") ? "max-w-[1680px] sm:pt-6 md:pb-6 lg:px-6" : "max-w-6xl sm:pt-8 md:pb-8 lg:px-10 lg:pt-10",
+          )}
+        >
+          {children}
+        </main>
       </div>
 
       {/* Barra de pestañas inferior (solo móvil) */}

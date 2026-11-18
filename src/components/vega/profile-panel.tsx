@@ -5,7 +5,7 @@ import { useEffect, useState } from "react";
 import { toast } from "sonner";
 
 import { updateVegaProfile, vegaProfile } from "@/app/dashboard/super-agent/actions";
-import { sheetClass } from "@/components/vega/sheet";
+import { panelClass, type PanelVariant } from "@/components/vega/sheet";
 import type { VegaProfile } from "@/lib/vega/profile";
 
 const fields: { key: keyof VegaProfile; label: string; placeholder: string }[] = [
@@ -19,7 +19,7 @@ const fields: { key: keyof VegaProfile; label: string; placeholder: string }[] =
   { key: "notes", label: "Notas", placeholder: "Cualquier otro contexto que Vega deba saber" },
 ];
 
-export function ProfilePanel({ onClose }: { onClose: () => void }) {
+export function ProfilePanel({ onClose, variant = "sheet" }: { onClose?: () => void; variant?: PanelVariant }) {
   const [profile, setProfile] = useState<VegaProfile | null>(null);
   const [busy, setBusy] = useState(false);
 
@@ -46,15 +46,17 @@ export function ProfilePanel({ onClose }: { onClose: () => void }) {
   }
 
   return (
-    <div className={sheetClass}>
+    <div className={panelClass(variant)}>
       <div className="flex items-center justify-between">
         <p className="flex items-center gap-2 text-sm font-semibold text-[#1E1E24]">
           <User className="size-4 text-[#7C3AED]" />
           Tu perfil en Vega
         </p>
-        <button type="button" onClick={onClose} className="rounded p-1 text-[#8A8680]" aria-label="Cerrar">
-          <X className="size-4" />
-        </button>
+        {onClose ? (
+          <button type="button" onClick={onClose} className="rounded p-1 text-[#8A8680]" aria-label="Cerrar">
+            <X className="size-4" />
+          </button>
+        ) : null}
       </div>
       <p className="mt-1 text-xs leading-5 text-[#8A8680]">
         Vega lee estos datos en cada conversación para responder como conoce tu negocio. También los actualiza solo cuando se los cuentas.
