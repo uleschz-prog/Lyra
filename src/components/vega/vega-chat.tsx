@@ -4,7 +4,6 @@ import {
   ArrowUp,
   Bot,
   Check,
-  ChevronLeft,
   FileText,
   Globe,
   Link2,
@@ -12,13 +11,13 @@ import {
   PanelLeftOpen,
   PanelRight,
   Paperclip,
+  Plus,
   Search,
   Smartphone,
   Square,
   X,
   type LucideIcon,
 } from "lucide-react";
-import Link from "next/link";
 import { useEffect, useRef, useState, type FormEvent } from "react";
 import { toast } from "sonner";
 
@@ -45,8 +44,8 @@ import type { BriefKind, BriefRequest } from "@/lib/vega/briefing";
 import { CreditRing } from "@/components/vega/credit-ring";
 import { UsageMeter } from "@/components/vega/usage-meter";
 import type { CostMeterView } from "@/lib/vega/cost-shared";
-import { VegaGreeting } from "@/components/vega/vega-mark";
 import { AgentAvatar } from "@/components/vega/agent-avatar";
+import { defaultMascot, encodeMascot } from "@/lib/vega/mascot";
 import { AgentEditor, type AgentDraft } from "@/components/vega/agent-editor";
 import { AgentSidebar } from "@/components/vega/agent-sidebar";
 import { InfoPane, type PaneTab } from "@/components/vega/info-pane";
@@ -151,6 +150,7 @@ export function VegaChat({
   const [links, setLinks] = useState<DraftLink[]>([]);
   const [linkDraft, setLinkDraft] = useState("");
   const [linkOpen, setLinkOpen] = useState(false);
+  const [plusOpen, setPlusOpen] = useState(false);
   const [dragging, setDragging] = useState(false);
   const [tank, setTank] = useState(() => Math.max(creditAllowance, balance));
   const [streaming, setStreaming] = useState(false);
@@ -378,6 +378,7 @@ export function VegaChat({
         toast.error("No se pudo eliminar el agente.");
         return;
       }
+      setAgentForm(null);
       const nextAgents = await listVegaAgents();
       setAgents(nextAgents);
       if (activeAgentId === agent.id && nextAgents[0]) {
@@ -621,9 +622,8 @@ export function VegaChat({
 
   return (
     <div
-      className={cn(
-        "fixed inset-x-0 top-0 bottom-[var(--lyra-tab)] z-20 flex min-h-0 flex-col overflow-hidden bg-white md:relative md:inset-auto md:bottom-auto md:z-auto md:h-[calc(100dvh-3rem)] md:min-h-[560px] md:flex-row md:rounded-3xl md:border md:border-[#E7E2DA] md:shadow-[0_30px_80px_-50px_rgba(76,29,149,0.45)] dark:bg-[#0B0A10] dark:md:border-white/10",
-      )}
+      id="vega-root"
+      className="fixed inset-x-0 top-0 bottom-[var(--lyra-tab)] z-20 flex min-h-0 flex-col overflow-hidden bg-[#F4F3F0] md:relative md:inset-auto md:bottom-auto md:z-auto md:h-[100dvh] md:min-h-[560px] md:flex-row dark:bg-[#0E0D14]"
     >
       {overlay ? (
         <button
@@ -645,39 +645,59 @@ export function VegaChat({
         activeAgentId={activeAgentId}
         chats={chats}
         activeChatId={activeId}
+        userName={firstName}
+        onOpenLyraMenu={() => {
+          setListOpen(false);
+          window.dispatchEvent(new Event("lyra:menu"));
+        }}
         onClose={() => setListOpen(false)}
         onCollapse={() => setChatsCollapsed(true)}
         onNewChat={newChat}
         onSelectAgent={(agent) => void selectAgent(agent)}
-        onCreateAgent={() => setAgentForm({ name: "", specialty: "", instructions: "", avatar: "🤖" })}
+        onCreateAgent={() => setAgentForm({ name: "", specialty: "", instructions: "", avatar: encodeMascot(defaultMascot({ name: `nuevo-${agents.length}` })) })}
         onEditAgent={editAgent}
-        onDeleteAgent={(agent) => void removeAgent(agent)}
         onSelectChat={(id) => void selectChat(id)}
         onRenameChat={(chat) => void renameChat(chat)}
         onDeleteChat={(id) => void removeChat(id)}
       />
 
       {agentForm ? (
-        <AgentEditor draft={agentForm} saving={savingAgent} onChange={setAgentForm} onCancel={() => setAgentForm(null)} onSubmit={(event) => void saveAgent(event)} />
+        <AgentEditor
+          draft={agentForm}
+          saving={savingAgent}
+          onChange={setAgentForm}
+          onCancel={() => setAgentForm(null)}
+          onSubmit={(event) => void saveAgent(event)}
+          onDelete={
+            agentForm.id && !agentForm.isDefault
+              ? () => {
+                  const target = agents.find((agent) => agent.id === agentForm.id);
+                  if (target) void removeAgent(target);
+                }
+              : undefined
+          }
+        />
       ) : null}
 
-      <section className="relative flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden" aria-label={`Chat con ${agentName}`}>
+      <section
+        className="relative flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden bg-white md:my-2 md:mr-2 md:rounded-[28px] md:shadow-[0_1px_2px_rgba(16,12,32,0.04),0_24px_60px_-40px_rgba(76,29,149,0.35)] dark:bg-[#15131D] md:dark:shadow-none md:dark:ring-1 md:dark:ring-white/6"
+        aria-label={`Chat con ${agentName}`}
+      >
         {empty ? (
           <div className="pointer-events-none absolute inset-0 overflow-hidden" aria-hidden>
-            <span className="absolute -top-40 left-1/2 size-[640px] -translate-x-1/2 rounded-full bg-[radial-gradient(circle,rgba(124,58,237,0.22)_0%,transparent_65%)] dark:bg-[radial-gradient(circle,rgba(124,58,237,0.45)_0%,transparent_65%)]" />
-            <span className="absolute -right-32 bottom-10 size-[420px] rounded-full bg-[radial-gradient(circle,rgba(6,182,212,0.16)_0%,transparent_65%)] dark:bg-[radial-gradient(circle,rgba(6,182,212,0.22)_0%,transparent_65%)]" />
-            <span className="absolute -bottom-40 -left-24 size-[420px] rounded-full bg-[radial-gradient(circle,rgba(16,185,129,0.12)_0%,transparent_65%)] dark:bg-[radial-gradient(circle,rgba(16,185,129,0.16)_0%,transparent_65%)]" />
+            <span className="absolute -top-48 left-1/2 size-[560px] -translate-x-1/2 rounded-full bg-[radial-gradient(circle,rgba(124,58,237,0.12)_0%,transparent_65%)] dark:bg-[radial-gradient(circle,rgba(124,58,237,0.28)_0%,transparent_65%)]" />
+            <span className="absolute -right-40 bottom-0 size-[380px] rounded-full bg-[radial-gradient(circle,rgba(6,182,212,0.08)_0%,transparent_65%)] dark:bg-[radial-gradient(circle,rgba(6,182,212,0.14)_0%,transparent_65%)]" />
           </div>
         ) : null}
 
-        <header className="relative z-10 flex items-center gap-2 border-b border-[#F0ECE6] bg-white/85 px-2 pt-[max(0.5rem,env(safe-area-inset-top))] pb-2 backdrop-blur md:px-4 md:py-3 dark:border-white/8 dark:bg-[#0B0A10]/80">
-          <Link href="/dashboard" className="grid size-10 place-items-center rounded-full text-[#1E1E24] hover:bg-[#F3F0EB] md:hidden dark:text-white dark:hover:bg-white/10" aria-label="Volver a LYRA">
-            <ChevronLeft className="size-6" />
-          </Link>
+        <header className="pointer-events-none absolute inset-x-0 top-0 z-20 flex items-center gap-1.5 bg-[linear-gradient(to_bottom,#fff_60%,rgba(255,255,255,0))] px-2 pt-[max(0.5rem,env(safe-area-inset-top))] pb-4 sm:px-3 sm:pt-3 dark:bg-[linear-gradient(to_bottom,#15131D_60%,rgba(21,19,29,0))]">
           <button
             type="button"
             onClick={() => (window.matchMedia("(min-width: 768px)").matches ? setChatsCollapsed(!chatsHidden) : setListOpen(true))}
-            className={cn("grid size-10 place-items-center rounded-full text-[#1E1E24] hover:bg-[#F3F0EB] focus-visible:ring-2 focus-visible:ring-[#7C3AED] focus-visible:outline-none dark:text-white dark:hover:bg-white/10", !chatsHidden && "md:hidden")}
+            className={cn(
+              "pointer-events-auto grid size-10 place-items-center rounded-full text-[#1E1E24] hover:bg-black/[0.05] focus-visible:ring-2 focus-visible:ring-[#7C3AED] focus-visible:outline-none dark:text-white dark:hover:bg-white/10",
+              !chatsHidden && "md:hidden",
+            )}
             aria-label="Ver agentes y conversaciones"
             aria-controls="vega-agents"
             aria-expanded={listOpen}
@@ -687,25 +707,26 @@ export function VegaChat({
           <button
             type="button"
             onClick={() => activeAgent && editAgent(activeAgent)}
-            className="flex min-w-0 flex-1 items-center gap-2.5 rounded-xl px-1 py-0.5 text-left focus-visible:ring-2 focus-visible:ring-[#7C3AED] focus-visible:outline-none"
+            className="pointer-events-auto flex min-w-0 items-center gap-2 rounded-full bg-white/90 py-1 pr-3.5 pl-1 text-left shadow-[0_1px_2px_rgba(16,12,32,0.06),0_8px_24px_-16px_rgba(16,12,32,0.35)] ring-1 ring-black/[0.05] backdrop-blur transition hover:bg-white focus-visible:ring-2 focus-visible:ring-[#7C3AED] focus-visible:outline-none dark:bg-[#211E2B]/90 dark:ring-white/8 dark:hover:bg-[#262231]"
             aria-label={`Ajustar a ${agentName}`}
           >
-            <AgentAvatar agent={activeAgent} mood={mood} thinking={streaming} className="size-9 text-lg" ring />
+            <AgentAvatar agent={activeAgent} mood={mood} thinking={streaming} className="size-8" />
             <span className="min-w-0">
-              <span className="block truncate text-[15px] leading-tight font-semibold text-[#1E1E24] md:text-sm dark:text-white">{agentName}</span>
-              <span className="flex items-center gap-1.5 truncate text-xs text-[#8A8680] md:text-[11px]" aria-live="polite">
+              <span className="block truncate text-sm leading-tight font-semibold text-[#1E1E24] dark:text-white">{agentName}</span>
+              <span className="flex items-center gap-1 truncate text-[11px] leading-tight text-[#8A8680]" aria-live="polite">
                 <span className={cn("size-1.5 rounded-full", streaming ? "animate-pulse bg-[#06B6D4]" : "bg-[#10B981]")} aria-hidden />
                 {streaming ? "Trabajando…" : activeAgent?.specialty || "Listo"}
               </span>
             </span>
           </button>
-          <UsageMeter view={costMeter} className="hidden lg:inline-flex" />
-          <CreditRing balance={balance} tank={tank} className="hidden md:block" />
+          <span className="flex-1" />
+          <UsageMeter view={costMeter} className="pointer-events-auto hidden lg:inline-flex" />
+          <CreditRing balance={balance} tank={tank} className="pointer-events-auto hidden md:block" />
           <button
             type="button"
             onClick={newChat}
             disabled={streaming}
-            className="hidden size-10 place-items-center rounded-full text-[#1E1E24] hover:bg-[#F3F0EB] focus-visible:ring-2 focus-visible:ring-[#7C3AED] focus-visible:outline-none disabled:opacity-40 sm:grid dark:text-white dark:hover:bg-white/10"
+            className="pointer-events-auto grid size-10 place-items-center rounded-full text-[#1E1E24] hover:bg-black/[0.05] focus-visible:ring-2 focus-visible:ring-[#7C3AED] focus-visible:outline-none disabled:opacity-40 dark:text-white dark:hover:bg-white/10"
             aria-label="Nueva conversación"
             title="Nueva conversación"
           >
@@ -715,31 +736,28 @@ export function VegaChat({
             type="button"
             onClick={() => togglePane()}
             className={cn(
-              "grid size-10 place-items-center rounded-full focus-visible:ring-2 focus-visible:ring-[#7C3AED] focus-visible:outline-none",
-              paneOpen || !paneHidden ? "text-[#7C3AED] hover:bg-[#F5F3FF] dark:text-[#C4B5FD] dark:hover:bg-white/10" : "text-[#1E1E24] hover:bg-[#F3F0EB] dark:text-white dark:hover:bg-white/10",
+              "pointer-events-auto inline-flex h-10 items-center gap-1.5 rounded-full px-3 text-sm font-medium ring-1 transition focus-visible:ring-2 focus-visible:ring-[#7C3AED] focus-visible:outline-none",
+              paneOpen || !paneHidden
+                ? "bg-[#F3EEFF] text-[#5B21B6] ring-[#DDD6FE] dark:bg-[#7C3AED]/20 dark:text-[#DDD6FE] dark:ring-[#7C3AED]/40"
+                : "bg-white/90 text-[#1E1E24] ring-black/[0.06] hover:bg-white dark:bg-[#211E2B]/90 dark:text-white dark:ring-white/8",
             )}
             aria-label="Información del agente"
             aria-controls="vega-info"
             aria-expanded={paneOpen}
             title="Resumen, rutinas, archivos, memoria y conexiones"
           >
-            <PanelRight className="size-5" />
+            <PanelRight className="size-4" />
+            <span className="hidden sm:inline">Detalles</span>
           </button>
         </header>
 
-        <div className={cn("relative z-10 min-h-0 flex-1 overscroll-contain overflow-y-auto px-3 sm:px-8", empty ? "pt-3 pb-1 sm:pt-4" : "py-5 sm:py-6")}>
+        <div className={cn("relative z-10 min-h-0 flex-1 overscroll-contain overflow-y-auto px-3 sm:px-8", empty ? "pt-16 pb-1" : "pt-20 pb-6")}>
           {loadingChat ? <p className="text-center text-sm text-[#8A8680]">Abriendo conversación…</p> : null}
           {empty && !loadingChat ? (
             <div className="mx-auto flex min-h-full w-full max-w-2xl flex-col items-center justify-center px-1 py-6 text-center">
               <div className="relative grid size-28 place-items-center sm:size-32">
-                <span className="absolute inset-0 rounded-full bg-[conic-gradient(from_180deg,rgba(124,58,237,0.5),rgba(6,182,212,0.4),rgba(16,185,129,0.35),rgba(124,58,237,0.5))] opacity-60 blur-xl" aria-hidden />
-                <span className="absolute inset-1 animate-[spin_18s_linear_infinite] rounded-full border border-dashed border-[#7C3AED]/30 dark:border-white/25" aria-hidden />
-                <span className="absolute inset-4 rounded-full border border-[#7C3AED]/15 dark:border-white/15" aria-hidden />
-                {activeAgent && !activeAgent.isDefault ? (
-                  <AgentAvatar agent={activeAgent} className="relative size-20 text-4xl sm:size-24" />
-                ) : (
-                  <VegaGreeting className="relative size-20 text-[#7C3AED] drop-shadow-[0_18px_40px_rgba(124,58,237,0.55)] sm:size-24 dark:text-white" />
-                )}
+                <span className="absolute inset-3 rounded-full bg-[radial-gradient(circle,rgba(124,58,237,0.22),transparent_70%)] blur-xl dark:bg-[radial-gradient(circle,rgba(124,58,237,0.45),transparent_70%)]" aria-hidden />
+                <AgentAvatar agent={activeAgent} mood={mood === "neutral" ? "happy" : mood} thinking={streaming} className="relative size-24 sm:size-28" />
               </div>
               <h2 className="mt-5 text-3xl font-semibold tracking-tight text-[#1E1E24] sm:text-4xl dark:text-white">Hola, {firstName}</h2>
               <p className="mt-1.5 text-sm text-[#5C5854] dark:text-white/60">
@@ -753,9 +771,9 @@ export function VegaChat({
                       key={launch.label}
                       type="button"
                       onClick={() => (launch.brief ? openBrief(launch.brief) : void send(launch.prompt, { files: [], links: [] }))}
-                      className="group flex flex-col items-center gap-2.5 rounded-3xl border border-[#EEE9E2] bg-white/80 px-2 py-4 shadow-[0_12px_30px_-24px_rgba(76,29,149,0.6)] backdrop-blur transition hover:-translate-y-1 hover:border-[#C4B5FD] focus-visible:ring-2 focus-visible:ring-[#7C3AED] focus-visible:outline-none active:scale-[0.98] dark:border-white/10 dark:bg-white/5 dark:hover:border-white/25 dark:hover:bg-white/10"
+                      className="group flex flex-col items-center gap-2.5 rounded-3xl bg-[#F6F5F2] px-2 py-4 transition hover:-translate-y-0.5 hover:bg-[#EFEDE8] focus-visible:ring-2 focus-visible:ring-[#7C3AED] focus-visible:outline-none active:scale-[0.98] dark:bg-white/[0.05] dark:hover:bg-white/[0.09]"
                     >
-                      <span className="grid size-12 place-items-center rounded-2xl bg-[linear-gradient(135deg,#8B5CF6,#7C3AED_45%,#0891B2)] text-white shadow-[0_14px_30px_-14px_rgba(124,58,237,0.95)] transition group-hover:shadow-[0_18px_36px_-12px_rgba(6,182,212,0.7)]">
+                      <span className="grid size-11 place-items-center rounded-2xl bg-white text-[#7C3AED] shadow-sm ring-1 ring-black/[0.04] transition group-hover:text-[#0891B2] dark:bg-white/10 dark:text-[#C4B5FD] dark:ring-0">
                         <Icon className="size-5" />
                       </span>
                       <span className="text-[13px] font-medium text-[#1E1E24] dark:text-white">{launch.label}</span>
@@ -769,7 +787,7 @@ export function VegaChat({
             {messages.map((message, index) =>
               message.role === "user" ? (
                 <div key={message.id} className="flex justify-end">
-                  <div className="max-w-[85%] rounded-2xl rounded-br-md bg-[linear-gradient(135deg,#7C3AED,#6D28D9)] px-4 py-2.5 text-sm text-white shadow-[0_10px_24px_-16px_rgba(124,58,237,0.9)]">
+                  <div className="max-w-[85%] rounded-[22px] rounded-br-lg bg-[#7C3AED] px-4 py-2.5 text-[15px] leading-relaxed text-white sm:text-sm">
                     {message.attachments?.length ? (
                       <ul className={cn("flex flex-wrap gap-1.5", message.content ? "mb-2" : "")}>
                         {message.attachments.map((item) => (
@@ -784,14 +802,19 @@ export function VegaChat({
                   </div>
                 </div>
               ) : (
-                <div key={message.id} className="flex gap-3">
-                  <AgentAvatar
-                    agent={activeAgent}
-                    className="mt-0.5 size-7 text-sm"
-                    mood={index === messages.length - 1 ? mood : "neutral"}
-                    thinking={streaming && index === messages.length - 1}
-                  />
-                  <div className="min-w-0 flex-1 text-[#1E1E24] dark:text-[#ECEAF3]">
+                <div key={message.id} className="flex flex-col items-start gap-1.5">
+                  {index === 0 || index === messages.length - 1 || messages[index - 1]?.role === "user" ? (
+                    <span className="flex items-center gap-1.5 pl-1 text-xs font-medium text-[#8A8680]">
+                      <AgentAvatar
+                        agent={activeAgent}
+                        className="size-6"
+                        mood={index === messages.length - 1 ? mood : "neutral"}
+                        thinking={streaming && index === messages.length - 1}
+                      />
+                      {agentName}
+                    </span>
+                  ) : null}
+                  <div className="vega-bubble w-full max-w-full min-w-0 rounded-[22px] rounded-tl-lg bg-[#F4F3F0] px-4 py-3 text-[15px] leading-relaxed text-[#1E1E24] sm:w-auto sm:min-w-[40%] sm:text-sm dark:bg-[#1F1C29] dark:text-[#ECEAF3]">
                     {message.statuses?.length ? (
                       <ul className="mb-2 space-y-0.5">
                         {message.statuses.map((status, statusIndex) => (
@@ -856,7 +879,7 @@ export function VegaChat({
         </div>
 
         <form
-          className={cn("relative z-10 shrink-0 px-3 pt-2 pb-3 sm:p-4", !empty && "border-t border-[#F0ECE6] bg-white dark:border-white/8 dark:bg-[#0B0A10]")}
+          className="relative z-10 shrink-0 px-3 pt-1 pb-3 sm:px-6 sm:pb-4"
           onSubmit={(event) => {
             event.preventDefault();
             void send();
@@ -874,11 +897,11 @@ export function VegaChat({
         >
           <div
             className={cn(
-              "mx-auto rounded-3xl border bg-white p-1.5 shadow-[0_18px_50px_-30px_rgba(76,29,149,0.55)] transition sm:p-2 dark:bg-[#16131F]",
+              "mx-auto rounded-[28px] border bg-[#F4F3F0] p-1.5 transition dark:bg-[#1F1C29]",
               column,
               dragging
                 ? "border-[#7C3AED] bg-[#F5F3FF] shadow-[0_0_0_4px_rgba(124,58,237,0.2)]"
-                : "border-[#E7E2DA] focus-within:border-[#7C3AED] focus-within:shadow-[0_0_0_4px_rgba(124,58,237,0.14)] dark:border-white/12 dark:focus-within:border-[#8B5CF6]",
+                : "border-transparent focus-within:border-[#DDD6FE] focus-within:bg-white focus-within:shadow-[0_10px_40px_-24px_rgba(76,29,149,0.6)] dark:focus-within:border-[#7C3AED]/50 dark:focus-within:bg-[#221F2D]",
             )}
           >
             {files.length || links.length ? (
@@ -936,23 +959,50 @@ export function VegaChat({
                   event.target.value = "";
                 }}
               />
-              <button
-                type="button"
-                onClick={() => fileRef.current?.click()}
-                className="grid size-10 shrink-0 place-items-center rounded-full text-[#5C5854] hover:bg-[#F3F0EB] hover:text-[#1E1E24] focus-visible:ring-2 focus-visible:ring-[#7C3AED] focus-visible:outline-none dark:text-[#A9A3B8] dark:hover:bg-white/10 dark:hover:text-white"
-                aria-label="Adjuntar archivos"
-              >
-                <Paperclip className="size-4" />
-              </button>
-              <button
-                type="button"
-                onClick={() => setLinkOpen((open) => !open)}
-                className="grid size-10 shrink-0 place-items-center rounded-full text-[#5C5854] hover:bg-[#F3F0EB] hover:text-[#1E1E24] focus-visible:ring-2 focus-visible:ring-[#7C3AED] focus-visible:outline-none dark:text-[#A9A3B8] dark:hover:bg-white/10 dark:hover:text-white"
-                aria-label="Agregar enlace"
-                aria-expanded={linkOpen}
-              >
-                <Link2 className="size-4" />
-              </button>
+              <div className="relative shrink-0">
+                <button
+                  type="button"
+                  onClick={() => setPlusOpen((open) => !open)}
+                  className={cn(
+                    "grid size-10 place-items-center rounded-full text-[#1E1E24] transition hover:bg-black/[0.05] focus-visible:ring-2 focus-visible:ring-[#7C3AED] focus-visible:outline-none dark:text-white dark:hover:bg-white/10",
+                    plusOpen && "rotate-45 bg-black/[0.05] dark:bg-white/10",
+                  )}
+                  aria-label="Adjuntar"
+                  aria-haspopup="menu"
+                  aria-expanded={plusOpen}
+                >
+                  <Plus className="size-5" />
+                </button>
+                {plusOpen ? (
+                  <>
+                    <button type="button" className="fixed inset-0 z-10 cursor-default" aria-hidden tabIndex={-1} onClick={() => setPlusOpen(false)} />
+                    <div role="menu" className="absolute bottom-12 left-0 z-20 w-56 rounded-2xl bg-white p-1.5 shadow-[0_20px_50px_-20px_rgba(16,12,32,0.45)] ring-1 ring-black/[0.06] dark:bg-[#211E2B] dark:ring-white/10">
+                      <button
+                        type="button"
+                        role="menuitem"
+                        onClick={() => {
+                          setPlusOpen(false);
+                          fileRef.current?.click();
+                        }}
+                        className="flex w-full items-center gap-2.5 rounded-xl px-3 py-2.5 text-left text-sm text-[#1E1E24] hover:bg-[#F4F3F0] dark:text-white dark:hover:bg-white/8"
+                      >
+                        <Paperclip className="size-4 text-[#7C3AED]" /> Adjuntar archivo
+                      </button>
+                      <button
+                        type="button"
+                        role="menuitem"
+                        onClick={() => {
+                          setPlusOpen(false);
+                          setLinkOpen(true);
+                        }}
+                        className="flex w-full items-center gap-2.5 rounded-xl px-3 py-2.5 text-left text-sm text-[#1E1E24] hover:bg-[#F4F3F0] dark:text-white dark:hover:bg-white/8"
+                      >
+                        <Link2 className="size-4 text-[#06B6D4]" /> Agregar enlace
+                      </button>
+                    </div>
+                  </>
+                ) : null}
+              </div>
               <textarea
                 ref={inputRef}
                 value={draft}
@@ -974,7 +1024,7 @@ export function VegaChat({
                 maxLength={4000}
                 enterKeyHint="send"
                 aria-label={`Mensaje para ${agentName}`}
-                placeholder={empty ? `Pídeselo a ${agentName}…` : `Escríbele a ${agentName}, adjunta archivos o un enlace…`}
+                placeholder={empty ? `Pídeselo a ${agentName}…` : `Escríbele a ${agentName}…`}
                 className="max-h-32 min-h-10 flex-1 resize-none bg-transparent px-1 py-2 text-base text-[#1E1E24] outline-none field-sizing-content placeholder:text-[#A8A29E] sm:max-h-40 sm:text-sm dark:text-white dark:placeholder:text-white/35"
               />
               <CreditRing balance={balance} tank={tank} size={26} className="mb-2 md:hidden" />
@@ -982,7 +1032,7 @@ export function VegaChat({
                 <button
                   type="button"
                   onClick={() => abortRef.current?.abort()}
-                  className="grid size-10 shrink-0 place-items-center rounded-full bg-[#1E1E24] text-white sm:rounded-xl dark:bg-white dark:text-[#0B0A10]"
+                  className="grid size-10 shrink-0 place-items-center rounded-full bg-[#1E1E24] text-white dark:bg-white dark:text-[#0B0A10]"
                   aria-label="Detener"
                 >
                   <Square className="size-4" />
@@ -991,7 +1041,7 @@ export function VegaChat({
                 <button
                   type="submit"
                   disabled={!draft.trim() && files.length === 0 && links.length === 0}
-                  className="grid size-10 shrink-0 place-items-center rounded-full bg-[linear-gradient(135deg,#7C3AED,#0891B2)] text-white shadow-[0_10px_22px_-12px_rgba(124,58,237,0.9)] transition hover:brightness-110 focus-visible:ring-2 focus-visible:ring-[#06B6D4] focus-visible:ring-offset-2 focus-visible:outline-none disabled:opacity-40 disabled:shadow-none sm:rounded-xl dark:focus-visible:ring-offset-[#16131F]"
+                  className="grid size-10 shrink-0 place-items-center rounded-full bg-[#1E1E24] text-white transition hover:bg-[#7C3AED] focus-visible:ring-2 focus-visible:ring-[#7C3AED] focus-visible:ring-offset-2 focus-visible:outline-none disabled:bg-[#D9D6D0] disabled:text-white dark:bg-white dark:text-[#0B0A10] dark:hover:bg-[#C4B5FD] dark:focus-visible:ring-offset-[#1F1C29] dark:disabled:bg-white/15 dark:disabled:text-white/50"
                   aria-label="Enviar"
                 >
                   <ArrowUp className="size-5 sm:size-4" />

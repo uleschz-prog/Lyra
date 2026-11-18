@@ -35,6 +35,14 @@ export function DashboardShell({
   const [menuPath, setMenuPath] = useState<string | null>(null);
   const open = menuPath === pathname;
 
+  // Vega v2 ocupa toda la pantalla (ver .lyra-office:has(#vega-root) en globals.css);
+  // su ficha del socio abre este menú con el evento «lyra:menu».
+  useEffect(() => {
+    const onMenu = () => setMenuPath(pathname);
+    window.addEventListener("lyra:menu", onMenu);
+    return () => window.removeEventListener("lyra:menu", onMenu);
+  }, [pathname]);
+
   useEffect(() => {
     if (!open) return;
 
@@ -50,9 +58,10 @@ export function DashboardShell({
     <div className="lyra-office min-h-screen overflow-x-hidden bg-[#F6F4F1] dark:bg-[#14121C]" style={{ backgroundImage: "none" }}>
       <aside
         className={cn(
-          "fixed inset-y-0 left-0 z-40 w-[min(85vw,260px)] border-r border-[#E7E2DA] bg-white transition-transform dark:border-white/12 dark:bg-[#181625] md:w-[248px] md:translate-x-0",
+          "lyra-shell-aside fixed inset-y-0 left-0 z-[60] w-[min(85vw,260px)] border-r border-[#E7E2DA] bg-white transition-transform dark:border-white/12 dark:bg-[#181625] md:w-[248px] md:translate-x-0",
           open ? "translate-x-0" : "-translate-x-full",
         )}
+        data-open={open || undefined}
       >
         <Sidebar user={user} onClose={() => setMenuPath(null)} />
       </aside>
@@ -61,13 +70,13 @@ export function DashboardShell({
         <button
           type="button"
           aria-label="Cerrar menú"
-          className="fixed inset-0 z-30 bg-black/40 md:hidden"
+          className="lyra-shell-overlay fixed inset-0 z-[55] bg-black/40 md:hidden"
           onClick={() => setMenuPath(null)}
         />
       ) : null}
 
-      <div className="md:pl-[248px]">
-        <header className="sticky top-0 z-20 flex items-center justify-between gap-2 bg-[#F6F4F1] px-4 py-3 pt-[max(0.75rem,env(safe-area-inset-top))] backdrop-blur dark:bg-[#14121C]/95 md:hidden">
+      <div className="lyra-shell-content md:pl-[248px]">
+        <header className="lyra-shell-header sticky top-0 z-20 flex items-center justify-between gap-2 bg-[#F6F4F1] px-4 py-3 pt-[max(0.75rem,env(safe-area-inset-top))] backdrop-blur dark:bg-[#14121C]/95 md:hidden">
           <button
             type="button"
             aria-label="Abrir menú"
@@ -86,7 +95,7 @@ export function DashboardShell({
         </header>
         <main
           className={cn(
-            "mx-auto w-full min-w-0 px-4 pt-4 pb-[calc(var(--lyra-tab)+1.5rem)] sm:px-6",
+            "lyra-shell-main mx-auto w-full min-w-0 px-4 pt-4 pb-[calc(var(--lyra-tab)+1.5rem)] sm:px-6",
             // Vega v2 usa tres columnas: le damos más ancho y menos margen.
             pathname.startsWith("/dashboard/super-agent") ? "max-w-[1680px] sm:pt-6 md:pb-6 lg:px-6" : "max-w-6xl sm:pt-8 md:pb-8 lg:px-10 lg:pt-10",
           )}
