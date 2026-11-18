@@ -1,13 +1,17 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import { headers } from "next/headers";
 import { notFound, redirect } from "next/navigation";
 import { ArrowLeft, Download, ExternalLink, FileCode2, Store } from "lucide-react";
 
 import { ProjectActions } from "@/components/projects/project-actions";
+import { PublishPanel } from "@/components/projects/publish-panel";
 import { brand } from "@/config/brand";
 import { getCurrentUser } from "@/lib/auth/profile";
 import { hasReadySite } from "@/lib/projects/handoff";
 import { getProject, parseVersionParam } from "@/lib/projects/queries";
+import { getPrisma } from "@/lib/prisma";
+import { getPublishState } from "@/lib/publish/core";
 import { formatProjectDate, projectKindLabels } from "@/lib/projects/store";
 
 export const metadata: Metadata = { title: "Proyecto" };
@@ -29,6 +33,10 @@ export default async function ProjectPage({
   const project = await getProject(user.id, id).catch(() => null);
   if (!project || project.versions.length === 0) notFound();
 
+  const publish = hasReadySite(project.kind) ? await getPublishState(getPrisma(), user.id, project.id).catch(() => null) : null;
+  const head = await headers();
+  const host = head.get("host");
+  const origin = process.env.NEXT_PUBLIC_APP_URL?.trim().replace(/\/$/, "") || (host ? `${head.get("x-forwarded-proto") ?? "https"}://${host}` : "");
   const requested = parseVersionParam(v);
   const current = project.versions.find((version) => version.number === requested) ?? project.versions[0];
   const query = `?v=${current.number}`;
@@ -81,7 +89,7 @@ export default async function ProjectPage({
         </div>
       </header>
 
-      <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_260px]">
+      <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_300px]">
         <section aria-label="Vista previa" className="overflow-hidden rounded-2xl border border-[#E7E2DA] bg-white dark:border-white/12">
           <div className="flex items-center justify-between border-b border-[#F0ECE6] px-4 py-2.5 text-xs text-[#5C5854] dark:border-white/10 dark:text-[#C8C4D4]">
             <span>Versión {current.number}</span>
@@ -97,39 +105,47 @@ export default async function ProjectPage({
           />
         </section>
 
-        <aside aria-label="Versiones" className="rounded-2xl border border-[#E7E2DA] bg-white p-4 dark:border-white/12 dark:bg-[#181625]">
-          <h2 className="text-sm font-semibold text-[#1E1E24] dark:text-[#F2F0F7]">Versiones</h2>
-          <p className="mt-1 text-xs text-[#8A8680]">Cada vez que Vega entrega cambios se guarda una versión nueva.</p>
-          <ol className="mt-3 space-y-1.5">
-            {project.versions.map((version) => {
-              const active = version.number === current.number;
-              return (
-                <li key={version.number}>
-                  <Link
-                    href={`/dashboard/proyectos/${project.id}?v=${version.number}`}
-                    aria-current={active ? "page" : undefined}
-                    className={`block rounded-xl px-3 py-2 text-sm transition-colors ${
-                      active
-                        ? "bg-[#EDE9FE] text-[#1E1E24] dark:bg-[#2B2740] dark:text-[#F2F0F7]"
-                        : "text-[#5C5854] hover:bg-[#F6F4F1] dark:text-[#C8C4D4] dark:hover:bg-[#221F30]"
-                    }`}
-                  >
-                    <span className="flex items-center justify-between gap-2">
-                      <span className="font-medium">
-                        v{version.number}
-                        {version.generator === "vega-v2" ? (
-                          <span className="ml-1.5 rounded-full bg-[#EDE9FE] px-1.5 py-0.5 text-[10px] font-semibold text-[#6D28D9]">Premium</span>
-                        ) : null}
+        <div className="space-y-4">
+          {hasReadySite(project.kind) ? (
+            <PublishPanel projectId={project.id} title={project.title} versions={project.versions.map((version) => version.number)} initial={publish} origin={origin} />
+          ) : null}
+          <aside aria-label="Versiones" className="rounded-2xl border border-[#E7E2DA] bg-white p-4 dark:border-white/12 dark:bg-[#181625]">
+            <h2 className="text-sm font-semibold text-[#1E1E24] dark:text-[#F2F0F7]">Versiones</h2>
+            <p className="mt-1 text-xs text-[#8A8680]">Cada vez que Vega entrega cambios se guarda una versión nueva.</p>
+            <ol className="mt-3 space-y-1.5">
+              {project.versions.map((version) => {
+                const active = version.number === current.number;
+                return (
+                  <li key={version.number}>
+                    <Link
+                      href={`/dashboard/proyectos/${project.id}?v=${version.number}`}
+                      aria-current={active ? "page" : undefined}
+                      className={`block rounded-xl px-3 py-2 text-sm transition-colors ${
+                        active
+                          ? "bg-[#EDE9FE] text-[#1E1E24] dark:bg-[#2B2740] dark:text-[#F2F0F7]"
+                          : "text-[#5C5854] hover:bg-[#F6F4F1] dark:text-[#C8C4D4] dark:hover:bg-[#221F30]"
+                      }`}
+                    >
+                      <span className="flex items-center justify-between gap-2">
+                        <span className="font-medium">
+                          v{version.number}
+                          {publish?.status === "published" && publish.versionNumber === version.number ? (
+                            <span className="ml-1.5 rounded-full bg-[#DCFCE7] px-1.5 py-0.5 text-[10px] font-semibold text-[#166534]">En línea</span>
+                          ) : null}
+                          {version.generator === "vega-v2" ? (
+                            <span className="ml-1.5 rounded-full bg-[#EDE9FE] px-1.5 py-0.5 text-[10px] font-semibold text-[#6D28D9]">Premium</span>
+                          ) : null}
+                        </span>
+                        <span className="text-xs text-[#8A8680]">{size(version.sizeBytes)}</span>
                       </span>
-                      <span className="text-xs text-[#8A8680]">{size(version.sizeBytes)}</span>
-                    </span>
-                    <span className="mt-0.5 block text-xs text-[#8A8680]">{formatProjectDate(version.createdAt)}</span>
-                  </Link>
-                </li>
-              );
-            })}
-          </ol>
-        </aside>
+                      <span className="mt-0.5 block text-xs text-[#8A8680]">{formatProjectDate(version.createdAt)}</span>
+                    </Link>
+                  </li>
+                );
+              })}
+            </ol>
+          </aside>
+        </div>
       </div>
     </div>
   );
