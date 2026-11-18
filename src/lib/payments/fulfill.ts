@@ -20,7 +20,6 @@ import { activateMembership } from "@/lib/payments/activate";
 import { getMercadoPagoPayment, type MpPurpose } from "@/lib/payments/mercadopago";
 import { getPrisma } from "@/lib/prisma";
 import { upgradeDifferenceUsd } from "@/lib/payments/upgrade";
-import { grantVideoQuota } from "@/lib/studio/video-quotas";
 
 export type FulfillResult =
   | { ok: true; purpose: MpPurpose; credits: number; already: boolean; packageLabel?: string }
@@ -121,7 +120,6 @@ export async function fulfillMercadoPago(paymentId: string): Promise<FulfillResu
             externalRef,
           },
         });
-        await grantVideoQuota(tx, user.id, packageId);
         await payCommissions(tx, user, usd, "purchase");
       });
       return { ok: true, purpose, credits: 0, already: false, packageLabel: plan.label };
@@ -171,7 +169,6 @@ export async function fulfillMercadoPago(paymentId: string): Promise<FulfillResu
           },
         });
       }
-      if (firstRebuy) await grantVideoQuota(tx, user.id, user.package);
       if (firstRebuy || purpose === "credits") await payCommissions(tx, user, usd, "rebuy");
       return "applied" as const;
     });

@@ -1,7 +1,5 @@
-import { generateStill } from "@/lib/ai/media";
-
 /**
- * Herramientas de asistente de Vega: comandos permitidos e imágenes.
+ * Herramientas de asistente de Vega: comandos permitidos.
  * El espacio de archivos vive en src/lib/vega/files.ts (base de datos).
  */
 
@@ -52,15 +50,4 @@ export function findCommand(id: string) {
 /** Verifica que un argumento no contenga metacaracteres de shell ni rutas absolutas. */
 export function isSafeArgument(value: string) {
   return !/[;&|`$<>(){}\[\]!*?~\\\n\r]/.test(value) && !value.startsWith("/") && !value.startsWith("-");
-}
-
-export type ImageResult =
-  | { ok: true; dataUrl: string; note: string }
-  | { ok: false; error: string };
-
-/**
- * Genera una imagen con un modelo de imagen. El modelo de chat no devuelve pixeles.
- */
-export async function generateImage(prompt: string, size?: string): Promise<ImageResult> {
-  return generateStill(prompt, size);
 }

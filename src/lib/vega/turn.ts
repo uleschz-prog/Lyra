@@ -90,8 +90,6 @@ export function statusLabel(name: string) {
   if (name === "escribir_archivo") return "Guardando el archivo…";
   if (name === "ver_comandos") return "Revisando los comandos…";
   if (name === "preparar_comando") return "Preparando el comando…";
-  if (name === "crear_imagen") return "Creando la imagen…";
-  if (name === "crear_video") return "Creando el video…";
   if (name === "entregar_proyecto") return "Armando la vista previa…";
   if (name === "pedir_conexion") return "Preparando el botón para conectar…";
   return "Trabajando…";

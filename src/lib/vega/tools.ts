@@ -1,13 +1,10 @@
 import { runUserTool, toolFailure } from "@/lib/ai/composio-user";
 import { searchWeb, type WebResult } from "@/lib/ai/search";
-import { submitHiggsfieldImage } from "@/lib/ai/higgsfield-image";
 import { appToolNames, appTools, executeAppAction, runAppTool, type AppDraft } from "@/lib/vega/app-tools";
-import { commandAllowlist, findCommand, generateImage, isSafeArgument } from "@/lib/vega/assistant-tools";
+import { commandAllowlist, findCommand, isSafeArgument } from "@/lib/vega/assistant-tools";
 import { listWorkspace, MAX_FILE_BYTES, readWorkspaceFile, searchWorkspace, writeWorkspaceFile } from "@/lib/vega/files";
 import { buildProject, type ProjectDraft } from "@/lib/vega/build-project";
 import { briefingSchema } from "@/lib/vega/briefing";
-import { saveVegaImageToLibrary } from "@/lib/vega/library-media";
-import { runCreateVideo } from "@/lib/vega/video-tool";
 import { isUserToolkit, toolkitHints, toolkitLabels, userToolkits, type UserToolkit, type VegaConnections } from "@/lib/vega/apps";
 import type { FunctionDeclaration } from "@/lib/vega/gemini-stream";
 import { runXTool, xToolNames, xTools } from "@/lib/vega/x/tools";
@@ -37,6 +34,7 @@ export type ActionKind =
   | "whatsapp_message"
   | "app_action"
   | "run_command"
+  /** Heredadas (P1): imágenes y videos retirados; solo existen en historiales viejos. */
   | "create_image"
   | "create_video"
   | "deliver_project"
@@ -241,43 +239,6 @@ export function vegaTools(connections: VegaConnections, webSearch: boolean): Fun
       },
     },
     {
-      name: "crear_imagen",
-      description:
-        "Crea una imagen, logo o foto y la muestra en el chat. Antes necesita las respuestas del socio en «briefing» (tema, estilo y formato); si faltan responde needs_brief, no crea ni cobra, y debes preguntarlas. Escribe la descripción en español, concreta y visual, usando solo lo que dijo el socio.",
-      parameters: {
-        type: "object",
-        properties: {
-          descripcion: { type: "string", description: "Descripción visual de la imagen que se quiere generar." },
-          tamano: { type: "string", enum: ["cuadrada", "horizontal", "vertical"], description: "Formato de la imagen (opcional)." },
-          briefing: briefingSchema(["imagen"]),
-          supuestos: {
-            type: "string",
-            description: "Solo si el socio dijo explícitamente «tú decide» o similar: lista corta de lo que elegiste por él. Díselas en tu respuesta.",
-          },
-        },
-        required: ["descripcion"],
-      },
-    },
-    {
-      name: "crear_video",
-      description:
-        "Crea un video corto o un anuncio a partir de un guion y lo muestra en el chat. Antes necesita las respuestas del socio en «briefing» (tema, estilo y formato; duración y voz si las dio); si faltan responde needs_brief, no crea ni cobra, y debes preguntarlas. El guion son 2 a 4 frases en español. Gasta segundos de la cuota de video del plan; si no alcanza o el video no sale, devuelve un error: dilo tal cual y no ofrezcas una versión de texto como si fuera video.",
-      parameters: {
-        type: "object",
-        properties: {
-          titulo: { type: "string" },
-          guion: { type: "string", description: "Texto que se lee en el video, en 2 a 4 frases." },
-          formato: { type: "string", enum: ["9:16", "1:1", "16:9"], description: "9:16 para teléfono, 16:9 para escritorio." },
-          briefing: briefingSchema(["video"]),
-          supuestos: {
-            type: "string",
-            description: "Solo si el socio dijo explícitamente «tú decide» o similar: lista corta de lo que elegiste por él. Díselas en tu respuesta.",
-          },
-        },
-        required: ["titulo", "guion"],
-      },
-    },
-    {
       name: "entregar_proyecto",
       description:
         "Entrega una pieza premium y específica: sitio web, app o especificación de agente. Los sitios y apps los construye el generador premium (proyecto React + Tailwind de varios archivos, con páginas o pantallas, sistema de diseño y vista previa compilada; tarda unos minutos y cobra su precio por trabajo); lo que mandes en secciones es el copy base y el respaldo. Usa nombres, oferta y tono del socio; no inventes precios, reseñas, certificaciones o resultados. Requiere «briefing» con las respuestas del socio (sitio: negocio, objetivo, público y contacto; app: propósito, usuarios y datos; agente: rol, canal, tono y conocimiento). Si faltan, responde needs_brief: no crea ni cobra, y debes preguntarlas. Nunca crees con contenido por defecto. Sitios: portada con propuesta de valor y CTA, servicios, diferenciadores/proceso, FAQ o testimonios sólo si hay datos, contacto y pie. Apps: una tarea principal completa y probada mediante agenda, herramienta CRUD local o contacto; incluye estados vacíos/confirmación/eliminación. Agentes: misión clara, 3+ reglas concretas, flujo de atención y 3+ ejemplos. La vista previa de app guarda localmente en ese navegador; la vista previa de agente es una simulación por ejemplos. No las describas como sistemas con servidor, IA en vivo, pagos o datos compartidos. Usa mínimo 5 secciones de valor para landing y 3–6 bloques para otras piezas; copy final, no texto placeholder.",
@@ -306,7 +267,7 @@ export function vegaTools(connections: VegaConnections, webSearch: boolean): Fun
           sugerencias: {
             type: "array",
             items: { type: "string" },
-            description: "Dos o tres siguientes pasos concretos, por ejemplo un logo, un video o un mensaje de WhatsApp.",
+            description: "Dos o tres siguientes pasos concretos, por ejemplo una página nueva, un agente o un mensaje de WhatsApp.",
           },
         },
         required: ["titulo", "tipo", "resumen", "secciones"],
@@ -779,62 +740,6 @@ export async function runVegaTool(userId: string, name: string, args: Record<str
     };
   }
 
-  if (name === "crear_imagen") {
-    const prompt = text(args.descripcion, 1000);
-    if (prompt.length < 4) return { kind: "invalid", response: { error: "Describe la imagen con un poco más de detalle." } };
-    const size = text(args.tamano, 20);
-    const submitted = await submitHiggsfieldImage(prompt, size).catch(() => ({
-      ok: false as const,
-      error: "No pudimos enviar la solicitud de imagen a Higgsfield.",
-    }));
-    if (!submitted.ok) return { kind: "invalid", response: { error: submitted.error } };
-    return {
-      kind: "delivery",
-      action: "create_image",
-      payload: {
-        prompt,
-        ...(size ? { size } : {}),
-        requestId: submitted.submission.requestId,
-        statusUrl: submitted.submission.statusUrl,
-      },
-      summary: "Generando imagen",
-      modelNote:
-        "Higgsfield aceptó la solicitud y la imagen se está generando en segundo plano. Di que está en proceso, no afirmes que ya quedó. La imagen aparecerá aquí automáticamente.",
-      status: "running",
-    };
-  }
-
-  if (name === "crear_video") {
-    const title = text(args.titulo, 80);
-    const script = text(args.guion, 800);
-    if (title.length < 3 || script.length < 12) return { kind: "invalid", response: { error: "El video necesita título y un guion de al menos una frase." } };
-    const format = text(args.formato, 8);
-    const video = await runCreateVideo(userId, {
-      title,
-      script,
-      format: format === "16:9" || format === "1:1" ? format : "9:16",
-    });
-    // Sin clip real no hay entrega: nada de storyboards de texto presentados como video.
-    if (!video.ok) return { kind: "invalid", response: { error: video.error } };
-    return {
-      kind: "delivery",
-      action: "create_video",
-      payload: {
-        title,
-        script,
-        scenes: [],
-        html: "",
-        videoUrl: video.videoUrl,
-        ...(video.libraryPieceId ? { libraryPieceId: video.libraryPieceId } : {}),
-        files: [{ path: "guion.txt", content: `${title}\n\n${script}\n` }],
-      },
-      summary: "Video listo",
-      modelNote: video.savedToLibrary
-        ? `El video (${video.seconds} s) ya se reproduce en el chat, se puede descargar y quedó guardado en la Biblioteca. Se descontaron ${video.seconds} s de la cuota de video del plan. No pidas confirmación.`
-        : `El video (${video.seconds} s) ya se reproduce en el chat y se puede descargar, pero no se pudo guardar en la Biblioteca: sugiere descargarlo hoy porque el enlace del proveedor caduca.`,
-    };
-  }
-
   if (name === "entregar_proyecto") {
     const built = buildProject(args);
     if (!built.ok) return { kind: "invalid", response: { error: built.error } };
@@ -880,19 +785,6 @@ export async function executeVegaAction(userId: string, kind: ActionKind, payloa
     } catch (error) {
       return { ok: false as const, message: `No se pudo ejecutar: ${error instanceof Error ? error.message : "error desconocido"}` };
     }
-  }
-
-  if (kind === "create_image") {
-    const draft = payload as ImageDraft;
-    const orientation = draft.size === "horizontal" ? "Una imagen panorámica, " : draft.size === "vertical" ? "Una imagen vertical, " : "";
-    const generated = await generateImage(`${orientation}${draft.prompt}`).catch(() => ({
-      ok: false as const,
-      error: "El proveedor de imagen no respondió.",
-    }));
-    if (!generated.ok) return { ok: false as const, message: `No se generó la imagen: ${generated.error}` };
-    const piece = await saveVegaImageToLibrary(userId, draft.prompt, generated.dataUrl);
-    const imageUrl = `/api/library/image?pieceId=${encodeURIComponent(piece.id)}`;
-    return { ok: true as const, message: `Listo, generé tu imagen y la guardé en la Biblioteca.\n\n![imagen](${imageUrl})` };
   }
 
   if (kind === "whatsapp_message") {

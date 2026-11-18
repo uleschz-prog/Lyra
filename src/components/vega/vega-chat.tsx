@@ -6,7 +6,6 @@ import {
   Brain,
   CalendarClock,
   ChevronLeft,
-  Clapperboard,
   EllipsisVertical,
   FileText,
   FolderOpen,
@@ -23,7 +22,6 @@ import {
   Search,
   ShieldCheck,
   Smartphone,
-  Sparkles,
   Square,
   Trash2,
   User,
@@ -124,8 +122,6 @@ const launches: { icon: LucideIcon; label: string; brief?: BriefKind; prompt?: s
   { icon: Smartphone, label: "App", brief: "app" },
   { icon: Globe, label: "Sitio", brief: "sitio" },
   { icon: Bot, label: "Agente", brief: "agente" },
-  { icon: Clapperboard, label: "Video", brief: "video" },
-  { icon: Sparkles, label: "Imagen", brief: "imagen" },
   { icon: Search, label: "Buscar", prompt: "Búscame ideas para crecer mi negocio esta semana" },
 ];
 
@@ -133,8 +129,6 @@ const briefIntro: Record<BriefKind, string> = {
   sitio: "¡Va! Para que tu sitio sea tuyo y no una plantilla, cuéntame lo esencial:",
   app: "¡Va! Antes de armar tu app, dime para qué es y qué datos maneja:",
   agente: "¡Va! Para que tu agente hable como tu negocio, necesito esto:",
-  video: "¡Va! Antes de producir tu video, define lo básico:",
-  imagen: "¡Va! Antes de crear tu imagen, dime qué buscas:",
 };
 
 export function VegaChat({

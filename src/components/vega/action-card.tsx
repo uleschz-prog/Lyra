@@ -5,9 +5,7 @@ import {
   Copy,
   CreditCard,
   FileText,
-  Image as ImageIcon,
   Link2,
-  LoaderCircle,
   Mail,
   Megaphone,
   MessageCircle,
@@ -18,17 +16,16 @@ import {
   X,
   type LucideIcon,
 } from "lucide-react";
-import { useEffect, useRef, useState } from "react";
+import { useState } from "react";
 import { toast } from "sonner";
 
 import { connectVegaApp, decideVegaAction } from "@/app/dashboard/super-agent/actions";
-import { MediaCard } from "@/components/vega/media-card";
 import { BuildCard, buildRefOf } from "@/components/vega/build-card";
 import { ProjectCard } from "@/components/vega/project-card";
 import type { AppOp } from "@/lib/vega/app-tools";
 import type { ProjectDraft } from "@/lib/vega/build-project";
 import type { VegaActionView } from "@/lib/vega/events";
-import type { AppDraft, CommandDraft, ConnectDraft, EmailDraft, EventDraft, ImageDraft, VideoDraft, WhatsappDraft } from "@/lib/vega/tools";
+import type { AppDraft, CommandDraft, ConnectDraft, EmailDraft, EventDraft, WhatsappDraft } from "@/lib/vega/tools";
 
 const appIcons: Record<AppOp, LucideIcon> = {
   sheet_append: Sheet,
@@ -138,81 +135,15 @@ export function ActionCard({
     if (build && (build.status !== "failed" || build.projectId)) return <BuildCard action={action} onChange={onChange} onSuggest={onSuggest} />;
     return <ProjectCard project={action.payload as ProjectDraft} actionId={action.id} onSuggest={onSuggest} />;
   }
-  if (action.kind === "create_video") return <MediaCard video={action.payload as VideoDraft} />;
-  if (action.kind === "create_image" && action.status === "running" && (action.payload as ImageDraft).requestId) {
-    return <ImageGenerationCard action={action} onChange={onChange} />;
-  }
-  if (action.kind === "create_image" && ((action.payload as ImageDraft).imageUrl || (action.payload as ImageDraft).dataUrl)) {
-    return <MediaCard image={action.payload as ImageDraft} />;
-  }
+  // P1: imágenes y videos se retiraron; los historiales viejos muestran un aviso, sin botones.
+  if (action.kind === "create_image" || action.kind === "create_video") return <RetiredMediaCard kind={action.kind} />;
   return <ConfirmCard action={action} onChange={onChange} />;
 }
 
-function ImageGenerationCard({
-  action,
-  onChange,
-}: {
-  action: VegaActionView;
-  onChange: (action: VegaActionView, message: string) => void;
-}) {
-  const draft = action.payload as ImageDraft;
-  const onChangeRef = useRef(onChange);
-
-  useEffect(() => {
-    onChangeRef.current = onChange;
-  }, [onChange]);
-
-  useEffect(() => {
-    if (!draft.requestId) return;
-    let cancelled = false;
-    let timer: ReturnType<typeof setTimeout>;
-    let transientFailures = 0;
-
-    const poll = async () => {
-      try {
-        const response = await fetch(`/api/vega/image?actionId=${encodeURIComponent(action.id)}`, {
-          cache: "no-store",
-        });
-        if (cancelled) return;
-        const payload = (await response.json().catch(() => ({}))) as { action?: VegaActionView; error?: string };
-        if (!response.ok || !payload.action) {
-          const error = payload.error ?? "No se pudo consultar la imagen.";
-          onChangeRef.current({ ...action, status: "failed", result: error }, error);
-          return;
-        }
-        transientFailures = 0;
-        if (payload.action.status !== "running") {
-          const message = payload.action.result ?? "La imagen terminó de procesarse.";
-          onChangeRef.current(payload.action, message);
-          return;
-        }
-        timer = setTimeout(() => void poll(), 2500);
-      } catch {
-        if (cancelled) return;
-        transientFailures += 1;
-        if (transientFailures >= 5) {
-          const error = "Se perdió la conexión mientras consultábamos la imagen. Intenta pedirla de nuevo.";
-          onChangeRef.current({ ...action, status: "failed", result: error }, error);
-          return;
-        }
-        timer = setTimeout(() => void poll(), 4000);
-      }
-    };
-
-    void poll();
-    return () => {
-      cancelled = true;
-      if (timer) clearTimeout(timer);
-    };
-  }, [action, draft.requestId]);
-
+function RetiredMediaCard({ kind }: { kind: "create_image" | "create_video" }) {
   return (
-    <div className="mt-3 flex items-center gap-3 rounded-2xl border border-[#E7E2DA] bg-[#FCFBF9] px-4 py-4">
-      <LoaderCircle className="size-5 shrink-0 animate-spin text-[#7C3AED]" />
-      <div>
-        <p className="text-sm font-medium text-[#252525]">Generando imagen con Higgsfield</p>
-        <p className="text-xs text-[#8A8680]">Aparecerá aquí en cuanto termine.</p>
-      </div>
+    <div className="mt-3 rounded-2xl border border-[#E7E2DA] bg-[#FCFBF9] px-4 py-3 text-xs text-[#8A8680]">
+      {kind === "create_image" ? "Esta imagen" : "Este video"} se creó con una función que ya no está disponible en LYRA.
     </div>
   );
 }
@@ -229,29 +160,22 @@ function ConfirmCard({
   const event = action.kind === "create_event" ? (action.payload as EventDraft) : null;
   const app = action.kind === "app_action" ? (action.payload as AppDraft) : null;
   const command = action.kind === "run_command" ? (action.payload as CommandDraft) : null;
-  const image = action.kind === "create_image" ? (action.payload as ImageDraft) : null;
   const AppIcon = app ? appIcons[app.op] : Mail;
-  const HeaderIcon = command ? Terminal : image ? ImageIcon : AppIcon;
+  const HeaderIcon = command ? Terminal : AppIcon;
   const headerLabel = app
     ? app.title
     : email
       ? "Correo listo para enviar desde tu Gmail"
       : command
         ? `Comando del servidor: ${command.label}`
-        : image
-          ? action.status === "failed"
-            ? "No se pudo generar la imagen"
-            : "Imagen lista para generar"
-          : "Evento listo para tu Google Calendar";
+        : "Evento listo para tu Google Calendar";
   const confirmLabel = app
     ? app.confirm
     : email
       ? "Enviar correo"
       : command
         ? "Ejecutar comando"
-        : image
-          ? "Generar imagen"
-          : "Crear evento";
+        : "Crear evento";
 
   async function decide(confirm: boolean) {
     setBusy(true);
@@ -335,11 +259,6 @@ function ConfirmCard({
           <>
             <p className="font-medium">{command.label}</p>
             <p className="text-[#5C5854]">Vega ejecutará este comando de solo lectura y te mostrará el resultado.</p>
-          </>
-        ) : image ? (
-          <>
-            <p className="font-medium">Descripción</p>
-            <p className="whitespace-pre-wrap text-[#5C5854]">{image.prompt}</p>
           </>
         ) : null}
       </div>
