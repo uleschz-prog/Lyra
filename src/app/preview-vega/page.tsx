@@ -77,7 +77,33 @@ export default async function PreviewVega({ searchParams }: { searchParams: Prom
                     actions: [{ id: "p1", kind: "deliver_project", payload: project, status: "done" }],
                   },
                 ]
-              : []
+              : pieza === "edicion"
+                ? [
+                    { id: "u1", role: "user", content: "Quiero cambiar mi proyecto «El Fogón de Doña Mari»: pon los precios reales (pastor $25, gringa $65, quesadilla $45, agua $30) y aclara que incluyen IVA." },
+                    {
+                      id: "a1",
+                      role: "assistant",
+                      content: "Listo, apliqué los cambios en la lista de precios y quedó como versión 2. La versión 1 sigue en Proyectos por si quieres regresar.",
+                      actions: [
+                        {
+                          id: "p2",
+                          kind: "deliver_project",
+                          status: "done",
+                          result: "Cambios listos en El Fogón de Doña Mari: versión 2",
+                          payload: {
+                            kind: "sitio",
+                            title: "El Fogón de Doña Mari",
+                            summary: "Lista de precios con tacos, gringas, quesadillas y aguas, con la nota de IVA incluido.",
+                            files: [],
+                            suggestions: [],
+                            edit: { projectId: "ptaqueriademo01", version: null, request: "Precios reales con IVA incluido" },
+                            build: { buildId: "b-demo", status: "done", projectId: "ptaqueriademo01", versionNumber: 2, title: "El Fogón de Doña Mari", files: 1 },
+                          } as unknown as NonNullable<typeof project>,
+                        },
+                      ],
+                    },
+                  ]
+                : []
           }
         />
       </div>

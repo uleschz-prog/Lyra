@@ -13,6 +13,7 @@ import type { AppDraft } from "@/lib/vega/app-tools";
 export type RiskClass = "read" | "internal" | "write" | "send";
 
 const readTools = new Set([
+  "abrir_proyecto",
   "leer_correos",
   "ver_agenda",
   "buscar_web",
@@ -46,6 +47,7 @@ const internalTools = new Set([
   "no_molestar_whatsapp",
   "pedir_conexion",
   "entregar_proyecto",
+  "editar_proyecto",
   "configurar_monitor_x",
 ]);
 

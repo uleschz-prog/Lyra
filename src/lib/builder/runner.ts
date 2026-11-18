@@ -1,13 +1,15 @@
 // Runner del generador v2: cobra, crea el trabajo, lo avanza por pasos cortos con candado
 // (sondeo del chat o despachador de la Fase 6), guarda la versión y reembolsa si falla.
 import type { Prisma, PrismaClient } from "@/generated/prisma/client";
-import { buildPreviewHtml } from "@/lib/builder/bundle";
+import { buildPreviewHtml, headFromIndexHtml, previewHtmlWithHead } from "@/lib/builder/bundle";
 import { builderDailyLimit, builderDayStart, builderEnabled, builderGenerator, builderLimits, builderPrice } from "@/lib/builder/config";
-import { advanceEngine, progressOf, stepLabels, type BuildStep, type EngineState } from "@/lib/builder/engine";
+import { advanceEdit, changedTargets, editPlanOf, initialEditState, isEditableProject } from "@/lib/builder/edit";
+import { advanceEngine, progressOf, stepLabels, type BuildStep, type EngineDeps, type EngineState } from "@/lib/builder/engine";
 import { gatewayBuilderModel, type BuilderModel } from "@/lib/builder/model";
+import { leadsHelperSource } from "@/lib/builder/scaffold";
 import { storeArtifacts, type ArtifactStore } from "@/lib/builder/storage";
 import type { BuildKind, BuildPlan, FileTask, ProjectFiles } from "@/lib/builder/types";
-import { saveDeliveredProject, saveProjectVersion } from "@/lib/projects/store";
+import { appendProjectVersion, saveDeliveredProject, saveProjectVersion } from "@/lib/projects/store";
 import { findSecret } from "@/lib/vega/secret-filter";
 import type { ProjectFile } from "@/lib/vega/build-project";
 import { summarizeUsage, type ModelUsage, type TurnUsage } from "@/lib/vega/usage";
@@ -26,7 +28,21 @@ export type RunnerDeps = {
   store?: ArtifactStore;
   env?: Record<string, string | undefined>;
   root?: string;
+  /** Entrega 4: lee la versión base de un proyecto del socio (por defecto, de la base y Blob). */
+  load?: LoadVersion;
 };
+
+export type BaseVersion = { projectId: string; kind: string; title: string; summary: string; number: number; generator: string; files: ProjectFile[] };
+export type LoadVersion = (userId: string, projectId: string, number?: number) => Promise<BaseVersion | null>;
+
+async function defaultLoad(userId: string, projectId: string, number?: number): Promise<BaseVersion | null> {
+  const { getProjectVersionFiles } = await import("@/lib/projects/queries");
+  const { getPrisma } = await import("@/lib/prisma");
+  const project = await getPrisma().project.findFirst({ where: { id: projectId, userId, deletedAt: null }, select: { id: true, kind: true, title: true, summary: true } });
+  if (!project) return null;
+  const version = await getProjectVersionFiles(userId, projectId, number);
+  return version ? { projectId: project.id, kind: project.kind, title: project.title, summary: project.summary, number: version.number, generator: version.generator, files: version.files } : null;
+}
 
 async function defaultCharge(userId: string, amount: number, description: string, key: string): Promise<Charge> {
   const { chargeCredits } = await import("@/lib/credits");
@@ -66,6 +82,7 @@ type BuildRow = {
   conversationId: string | null;
   actionId: string | null;
   kind: string;
+  mode: string;
   brief: string;
   status: string;
   step: string;
@@ -90,6 +107,7 @@ const buildSelect = {
   conversationId: true,
   actionId: true,
   kind: true,
+  mode: true,
   brief: true,
   status: true,
   step: true,
@@ -157,7 +175,7 @@ export function buildView(row: Pick<BuildRow, "id" | "kind" | "status" | "step" 
 
 export type StartResult =
   | { ok: true; build: BuildView; duplicate: boolean }
-  | { ok: false; reason: "off" | "kind" | "limit" | "credits"; message: string };
+  | { ok: false; reason: "off" | "kind" | "limit" | "credits" | "project" | "legacy"; message: string };
 
 /** Arranca una construcción v2 para una entrega de Vega (idempotente por `actionId`). */
 export async function startProjectBuild(
@@ -243,8 +261,10 @@ async function failBuild(row: BuildRow, error: string, deps: RunnerDeps) {
       console.error("[Generador] no se pudo reembolsar", { errorType: refundError instanceof Error ? refundError.name : typeof refundError }),
     );
   }
+  const editing = row.mode === "edit";
   let saved: { projectId: string; versionNumber: number } | null = null;
-  if (row.actionId) {
+  // Una edición no tiene versión básica de respaldo: el proyecto se queda como estaba.
+  if (row.actionId && !editing) {
     const action = await db.vegaAction.findUnique({ where: { id: row.actionId }, select: { payload: true } });
     if (action) {
       saved = await saveDeliveredProject(db, { userId: row.userId, conversationId: row.conversationId, actionId: row.actionId, payload: action.payload }).catch(() => null);
@@ -258,7 +278,11 @@ async function failBuild(row: BuildRow, error: string, deps: RunnerDeps) {
   });
   await updateAction(db, row.actionId, {
     status: "done",
-    result: saved ? "Entregué la versión básica: el generador premium no pudo terminar y te devolvimos los créditos." : "El generador no pudo terminar; te devolvimos los créditos.",
+    result: editing
+      ? `No pude aplicar los cambios (${message}). Tu proyecto quedó como estaba y te devolvimos los créditos.`
+      : saved
+        ? "Entregué la versión básica: el generador premium no pudo terminar y te devolvimos los créditos."
+        : "El generador no pudo terminar; te devolvimos los créditos.",
     build: { buildId: row.id, status: "failed", error: message, projectId: saved?.projectId ?? null, versionNumber: saved?.versionNumber ?? null },
   });
 }
@@ -325,6 +349,119 @@ async function saveBuild(row: BuildRow, state: EngineState, deps: RunnerDeps) {
   return saved;
 }
 
+/** Guarda la edición como versión nueva del mismo proyecto (la base no se toca). */
+async function saveEditBuild(row: BuildRow, state: EngineState, deps: RunnerDeps) {
+  const db = deps.db;
+  const plan = editPlanOf(state);
+  const preview = await previewHtmlWithHead(headFromIndexHtml(state.files["index.html"]), state.files, { root: deps.root });
+  if (!preview.ok || !preview.html) throw new Error("No se pudo compilar la vista previa final.");
+  const files = filesArray(state.files);
+  const leaked = files.find((file) => findSecret(file.content));
+  if (leaked) {
+    await failBuild(row, `El proyecto incluía un dato sensible en ${leaked.path}; no se guardó.`, deps);
+    return null;
+  }
+  const bytes = files.reduce((sum, file) => sum + Buffer.byteLength(file.content, "utf8"), 0);
+  if (files.length > builderLimits.maxFiles || bytes > builderLimits.maxBytes) throw new Error("El proyecto excede el tamaño permitido.");
+  const stored = await storeArtifacts({ userId: row.userId, buildId: row.id, files, html: preview.html }, { store: deps.store, env: deps.env });
+  const changed = changedTargets(state);
+  const saved = await appendProjectVersion(db, {
+    userId: row.userId,
+    projectId: plan.projectId,
+    actionId: row.actionId ?? `build:${row.id}`,
+    title: plan.title,
+    summary: `Cambios sobre la versión ${plan.baseVersion}: ${plan.note || plan.request}`.slice(0, 600),
+    files: stored.filesUrl ? [] : files,
+    suggestions: [],
+    bytes,
+    generator: builderGenerator,
+    filesUrl: stored.filesUrl,
+    previewUrl: stored.previewUrl,
+    previewHtml: stored.previewUrl ? null : preview.html,
+    buildId: row.id,
+  });
+  if (!saved) throw new Error("No se pudo guardar la versión.");
+  const now = deps.now?.() ?? new Date();
+  await db.projectBuild.update({
+    where: { id: row.id },
+    data: { status: "done", step: "done", projectId: saved.projectId, versionNumber: saved.versionNumber, finishedAt: now, lockedUntil: null, files: json({}) },
+    select: { id: true },
+  });
+  await updateAction(db, row.actionId, {
+    status: "done",
+    result: `Cambios listos en ${plan.title}: versión ${saved.versionNumber}`,
+    build: { buildId: row.id, status: "done", projectId: saved.projectId, versionNumber: saved.versionNumber, title: plan.title, files: changed.length },
+  });
+  return saved;
+}
+
+/** Entrega 4: arranca una edición de un proyecto v2 del socio (cobra el precio de edición; idempotente por `actionId`). */
+export async function startProjectEdit(
+  input: {
+    user: { id: string; package: string | null; role?: string | null };
+    conversationId: string | null;
+    actionId: string;
+    projectId: string;
+    versionNumber?: number;
+    request: string;
+  },
+  deps: RunnerDeps,
+): Promise<StartResult> {
+  if (!builderEnabled(deps.env)) return { ok: false, reason: "off", message: "El editor de proyectos está apagado." };
+  const db = deps.db;
+  const existing = await db.projectBuild.findUnique({ where: { actionId: input.actionId }, select: buildSelect });
+  if (existing) return { ok: true, build: buildView(existing), duplicate: true };
+  const request = input.request.trim();
+  if (request.length < 4) return { ok: false, reason: "project", message: "Falta describir el cambio." };
+
+  const base = await (deps.load ?? defaultLoad)(input.user.id, input.projectId, input.versionNumber);
+  if (!base) return { ok: false, reason: "project", message: "No encontré ese proyecto o esa versión en tus Proyectos." };
+  if (base.kind !== "sitio" && base.kind !== "app") return { ok: false, reason: "kind", message: "Solo se pueden editar sitios y apps." };
+  const files: ProjectFiles = Object.fromEntries(base.files.map((file) => [file.path, file.content]));
+  if (!isEditableProject(files)) {
+    return { ok: false, reason: "legacy", message: "Este proyecto se hizo con la versión básica y no se puede editar por partes; pídele a Vega uno nuevo con el generador premium." };
+  }
+  // Sitios hechos antes de Contactos: se agrega el ayudante para que la edición pueda usar sendLead.
+  if (base.kind === "sitio" && !files["src/lib/leads.ts"]) files["src/lib/leads.ts"] = leadsHelperSource;
+
+  const now = deps.now?.() ?? new Date();
+  const limit = builderDailyLimit(input.user, deps.env);
+  if (limit !== null) {
+    const today = await db.projectBuild.count({ where: { userId: input.user.id, createdAt: { gte: builderDayStart(now) }, refunded: false } });
+    if (today >= limit) return { ok: false, reason: "limit", message: `Llegaste al límite de ${limit} construcciones por día de tu plan. Mañana se reinicia (hora CDMX).` };
+  }
+
+  const price = builderPrice("edit", deps.env);
+  const charge = await (deps.charge ?? defaultCharge)(input.user.id, price, `Vega · cambios a «${base.title.slice(0, 60)}»`, `builder:${input.actionId}`);
+  if (!charge.ok) return { ok: false, reason: "credits", message: charge.error };
+
+  const state = initialEditState({ kind: asKind(base.kind), title: base.title, summary: base.summary, request, projectId: base.projectId, baseVersion: base.number, files });
+  try {
+    const row = await db.projectBuild.create({
+      data: {
+        userId: input.user.id,
+        conversationId: input.conversationId,
+        actionId: input.actionId,
+        kind: base.kind,
+        mode: "edit",
+        brief: request.slice(0, 12_000),
+        credits: price,
+        chargeId: charge.chargeId,
+        plan: json(state.plan),
+        files: json(state.files),
+        tasks: [],
+      },
+      select: buildSelect,
+    });
+    return { ok: true, build: buildView(row), duplicate: false };
+  } catch (error) {
+    const again = await db.projectBuild.findUnique({ where: { actionId: input.actionId }, select: buildSelect });
+    if (again) return { ok: true, build: buildView(again), duplicate: true };
+    if (!charge.duplicate) await (deps.refund ?? defaultRefund)(charge.chargeId, "Reembolso: no se pudo iniciar la edición");
+    throw error;
+  }
+}
+
 /**
  * Avanza un trabajo dentro de `budgetMs` (cabe en una función de 60 s de Vercel Hobby).
  * Si otra invocación lo tiene tomado, solo devuelve el estado.
@@ -345,41 +482,40 @@ export async function advanceBuild(id: string, deps: RunnerDeps, budgetMs: numbe
   const usage: ModelUsage[] = [];
   try {
     const plan = (current.plan as BuildPlan | null) ?? null;
-    const { state } = await advanceEngine(
-      stateOf(current),
-      { brief: current.brief, kind: asKind(current.kind), title: plan?.title ?? "" },
-      {
-        model: deps.model ?? gatewayBuilderModel,
-        now: () => clock().getTime(),
-        root: deps.root,
-        persist: async (next, stepUsage) => {
-          usage.push(...stepUsage);
-          const summary = summarizeUsage(stepUsage);
-          await db.projectBuild.update({
-            where: { id },
-            data: {
-              status: next.status === "failed" ? "running" : next.status,
-              step: next.step,
-              plan: next.plan ? json(next.plan) : undefined,
-              files: json(next.files),
-              tasks: json(next.tasks),
-              report: json({ issues: next.issues.slice(0, 40) }),
-              repairRound: next.repairRound,
-              failures: next.failures,
-              calls: { increment: summary.calls },
-              inputTokens: { increment: summary.inputTokens },
-              outputTokens: { increment: summary.outputTokens },
-              costUsd: { increment: summary.costUsd },
-              lockedUntil: new Date(clock().getTime() + builderLimits.leaseMs),
-            },
-            select: { id: true },
-          });
-        },
+    const editing = current.mode === "edit";
+    const engineDeps: EngineDeps = {
+      model: deps.model ?? gatewayBuilderModel,
+      now: () => clock().getTime(),
+      root: deps.root,
+      persist: async (next, stepUsage) => {
+        usage.push(...stepUsage);
+        const summary = summarizeUsage(stepUsage);
+        await db.projectBuild.update({
+          where: { id },
+          data: {
+            status: next.status === "failed" ? "running" : next.status,
+            step: next.step,
+            plan: next.plan ? json(next.plan) : undefined,
+            files: json(next.files),
+            tasks: json(next.tasks),
+            report: json({ issues: next.issues.slice(0, 40) }),
+            repairRound: next.repairRound,
+            failures: next.failures,
+            calls: { increment: summary.calls },
+            inputTokens: { increment: summary.inputTokens },
+            outputTokens: { increment: summary.outputTokens },
+            costUsd: { increment: summary.costUsd },
+            lockedUntil: new Date(clock().getTime() + builderLimits.leaseMs),
+          },
+          select: { id: true },
+        });
       },
-      budgetMs,
-    );
+    };
+    const { state } = editing
+      ? await advanceEdit(stateOf(current), engineDeps, budgetMs)
+      : await advanceEngine(stateOf(current), { brief: current.brief, kind: asKind(current.kind), title: plan?.title ?? "" }, engineDeps, budgetMs);
     if (state.status === "failed") await failBuild(current, state.error ?? "El generador no pudo terminar.", deps);
-    else if (state.step === "save") await saveBuild(current, state, deps);
+    else if (state.step === "save") await (editing ? saveEditBuild : saveBuild)(current, state, deps);
     else await db.projectBuild.update({ where: { id }, data: { lockedUntil: null }, select: { id: true } });
   } catch (error) {
     const message = error instanceof Error ? error.message : "Error inesperado.";

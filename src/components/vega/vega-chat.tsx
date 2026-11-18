@@ -125,6 +125,7 @@ export function VegaChat({
   justConnected,
   initialMessages = [],
   creditAllowance = 0,
+  initialDraft = "",
 }: {
   firstName: string;
   initialAgents: VegaAgentSummary[];
@@ -133,6 +134,8 @@ export function VegaChat({
   justConnected?: string | null;
   initialMessages?: ChatItem[];
   creditAllowance?: number;
+  /** Entrega 4: texto inicial (p. ej. «Editar con Vega» desde Proyectos). */
+  initialDraft?: string;
 }) {
   const { balance, syncBalance } = useCredits();
   const [agents, setAgents] = useState(initialAgents);
@@ -145,7 +148,7 @@ export function VegaChat({
   const [paneTab, setPaneTab] = useState<PaneTab>(justConnected ? "conexiones" : "resumen");
   const [paneOpen, setPaneOpen] = useState(Boolean(justConnected));
   const [paneHidden, setPaneHidden] = useState(false);
-  const [draft, setDraft] = useState("");
+  const [draft, setDraft] = useState(initialDraft);
   const [files, setFiles] = useState<DraftFile[]>([]);
   const [links, setLinks] = useState<DraftLink[]>([]);
   const [linkDraft, setLinkDraft] = useState("");

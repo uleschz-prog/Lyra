@@ -37,6 +37,15 @@ const systemLabels: Record<string, string> = {
   organic: "Orgánico",
 };
 
+const editLabels: Record<string, string> = {
+  plan: "Buscando qué archivos cambiar",
+  generate: "Reescribiendo los archivos",
+  validate: "Compilando y revisando",
+  repair: "Corrigiendo detalles",
+  save: "Guardando la versión nueva",
+  done: "Listo",
+};
+
 /** Tarjeta del generador v2: avanza el trabajo por pasos cortos y al final abre el proyecto. */
 export function BuildCard({
   action,
@@ -48,7 +57,8 @@ export function BuildCard({
   onSuggest?: (text: string) => void;
 }) {
   const ref = buildRefOf(action.payload)!;
-  const project = action.payload as ProjectDraft;
+  const project = action.payload as ProjectDraft & { edit?: { projectId: string } };
+  const editing = Boolean(project.edit);
   const [view, setView] = useState<BuildView | null>(null);
   const onChangeRef = useRef(onChange);
   const running = ref.status === "queued" || ref.status === "running";
@@ -77,9 +87,13 @@ export function BuildCard({
             ...action,
             status: "done",
             result:
-              build.status === "done"
-                ? `${build.kind === "app" ? "App" : "Sitio"} listo: ${build.title ?? project.title}. Ya está en Proyectos con vista previa y ZIP.`
-                : "El generador premium no pudo terminar: te dejé la versión básica y te devolvimos los créditos.",
+              editing
+                ? build.status === "done"
+                  ? `Cambios listos en ${build.title ?? project.title}: versión ${build.versionNumber ?? ""}. La anterior sigue en Proyectos.`
+                  : `No pude aplicar los cambios${build.error ? ` (${build.error})` : ""}. Tu proyecto quedó como estaba y te devolvimos los créditos.`
+                : build.status === "done"
+                  ? `${build.kind === "app" ? "App" : "Sitio"} listo: ${build.title ?? project.title}. Ya está en Proyectos con vista previa y ZIP.`
+                  : "El generador premium no pudo terminar: te dejé la versión básica y te devolvimos los créditos.",
             payload: {
               ...(action.payload as object),
               build: {
@@ -121,12 +135,12 @@ export function BuildCard({
           <LoaderCircle className="size-5 shrink-0 animate-spin text-[#7C3AED]" />
           <div className="min-w-0 flex-1">
             <p className="truncate text-sm font-medium text-[#252525]">
-              Construyendo {project.kind === "app" ? "tu app" : "tu sitio"} premium · {view?.title ?? project.title}
+              {editing ? "Aplicando cambios" : `Construyendo ${project.kind === "app" ? "tu app" : "tu sitio"} premium`} · {view?.title ?? project.title}
             </p>
             <p className="text-xs text-[#8A8680]">
-              {view?.label ?? "En cola"}
+              {(editing ? editLabels[view?.step ?? "plan"] : view?.label) ?? "En cola"}
               {view?.designSystem ? ` · estilo ${systemLabels[view.designSystem] ?? view.designSystem}` : ""}
-              {view?.files ? ` · ${view.files} componentes` : ""}
+              {view?.files ? ` · ${view.files} ${editing ? "archivos" : "componentes"}` : ""}
             </p>
           </div>
           <span className="text-xs tabular-nums text-[#8A8680]">{progress}%</span>
@@ -134,7 +148,11 @@ export function BuildCard({
         <div className="mt-3 h-1.5 overflow-hidden rounded-full bg-[#F0ECE6]" role="progressbar" aria-valuemin={0} aria-valuemax={100} aria-valuenow={progress}>
           <div className="h-full rounded-full bg-[#7C3AED] transition-all duration-500" style={{ width: `${progress}%` }} />
         </div>
-        <p className="mt-2 text-[11px] text-[#8A8680]">Tarda unos minutos. Puedes seguir platicando; si cierras el chat, se termina en segundo plano.</p>
+        <p className="mt-2 text-[11px] text-[#8A8680]">
+          {editing
+            ? "Tarda uno o dos minutos. La versión anterior no se toca; si algo falla, te devolvemos los créditos."
+            : "Tarda unos minutos. Puedes seguir platicando; si cierras el chat, se termina en segundo plano."}
+        </p>
       </div>
     );
   }
@@ -142,7 +160,9 @@ export function BuildCard({
   if (!ref.projectId) {
     return (
       <div className="mt-3 rounded-2xl border border-[#E7E2DA] bg-[#FCFBF9] px-4 py-4 text-sm text-[#5C5854]">
-        No se pudo terminar este proyecto. Te devolvimos los créditos; pídele a Vega que lo intente de nuevo.
+        {editing
+          ? `No pude aplicar los cambios${ref.error ? ` (${ref.error})` : ""}. Tu proyecto quedó como estaba y te devolvimos los créditos.`
+          : "No se pudo terminar este proyecto. Te devolvimos los créditos; pídele a Vega que lo intente de nuevo."}
       </div>
     );
   }
@@ -158,6 +178,7 @@ export function BuildCard({
           {project.kind === "app" ? "App" : "Sitio web"} · {ref.title ?? project.title}
           {premium && ref.designSystem ? ` · ${systemLabels[ref.designSystem] ?? ref.designSystem}` : ""}
           {!premium ? " · versión básica" : ""}
+          {editing && ref.versionNumber ? ` · versión ${ref.versionNumber} con tus cambios` : ""}
         </p>
         <div className="flex flex-wrap gap-2">
           <a

@@ -139,15 +139,27 @@ function inlineStyle(css: string) {
 
 /** HTML autocontenido de la vista previa (bundle + CSS en línea). */
 export async function buildPreviewHtml(plan: BuildPlan, files: ProjectFiles, options: { root?: string } = {}): Promise<CompileResult & { html?: string }> {
+  const system = getDesignSystem(plan.designSystem);
+  if (!system) return { ok: false, issues: [{ path: null, message: "Sistema de diseño desconocido." }], ms: 0 };
+  return previewHtmlWithHead(headHtml(plan, system), files, options);
+}
+
+/** Etiquetas del <head> del index.html del proyecto (sin scripts): las usa la edición, que no tiene plan. */
+export function headFromIndexHtml(indexHtml: string | undefined) {
+  const match = indexHtml?.match(/<head(?:\s[^>]*)?>([\s\S]*?)<\/head>/i);
+  const head = (match?.[1] ?? "").replace(/<script[\s\S]*?<\/script>/gi, "").trim();
+  return head || '<meta charset="UTF-8" />\n    <meta name="viewport" content="width=device-width, initial-scale=1.0" />';
+}
+
+/** Bundle + Tailwind + el <head> indicado en un solo HTML. */
+export async function previewHtmlWithHead(head: string, files: ProjectFiles, options: { root?: string } = {}): Promise<CompileResult & { html?: string }> {
   const bundled = await bundleProject(files, options);
   if (!bundled.ok) return bundled;
   const css = await compileTailwind(files, options);
-  const system = getDesignSystem(plan.designSystem);
-  if (!system) return { ok: false, issues: [{ path: null, message: "Sistema de diseño desconocido." }], ms: bundled.ms };
   const html = `<!doctype html>
 <html lang="es-MX">
   <head>
-    ${headHtml(plan, system)}
+    ${head}
     <style>${inlineStyle(css)}</style>
   </head>
   <body>

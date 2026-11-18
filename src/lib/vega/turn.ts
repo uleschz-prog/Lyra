@@ -30,7 +30,7 @@ import { xStatusLabels } from "@/lib/vega/x/tools";
 import { saveDeliveredProject } from "@/lib/projects/store";
 import { briefGate } from "@/lib/vega/briefing";
 import { builderEnabled, builderPrice } from "@/lib/builder/config";
-import { briefFromDelivery, startProjectBuild, type BuildView } from "@/lib/builder/runner";
+import { briefFromDelivery, startProjectBuild, startProjectEdit, type BuildView } from "@/lib/builder/runner";
 import { isUserToolkit, type UserToolkit } from "@/lib/vega/apps";
 import { HISTORY, SUMMARY_SLACK, scheduleSummary, summaryContext } from "@/lib/vega/summary";
 import { summarizeUsage, type ModelUsage } from "@/lib/vega/usage";
@@ -93,6 +93,8 @@ export function statusLabel(name: string) {
   if (name === "ver_comandos") return "Revisando los comandos…";
   if (name === "preparar_comando") return "Preparando el comando…";
   if (name === "entregar_proyecto") return "Armando la vista previa…";
+  if (name === "abrir_proyecto") return "Abriendo el proyecto…";
+  if (name === "editar_proyecto") return "Preparando los cambios…";
   if (name === "pedir_conexion") return "Preparando el botón para conectar…";
   if (name === backgroundJobTool) return "Preparando el trabajo en segundo plano…";
   if (name === delegateTool) return "Pasando la tarea a otro agente…";
@@ -442,7 +444,9 @@ export async function runVegaTurn(turn: VegaTurn, emit: (event: VegaEvent) => vo
           continue;
         }
         // PR C: sitios y apps los construye el generador v2; su precio por trabajo ya incluye la herramienta.
-        const builderCall = call.name === "entregar_proyecto" && builderEnabled() && (call.args?.tipo === "sitio" || call.args?.tipo === "app");
+        const editCall = call.name === "editar_proyecto";
+        // Entrega 4: la edición cobra su propio precio (2 créditos) en startProjectEdit.
+        const builderCall = editCall || (call.name === "entregar_proyecto" && builderEnabled() && (call.args?.tipo === "sitio" || call.args?.tipo === "app"));
         if (!toolCharged && !freeTools.has(call.name) && !builderCall) {
           const extra = await chargeCredits(userId, creditPrices.vegaTool - creditPrices.vegaMessage, "Vega · herramienta", `${chargeKey}:tool`);
           if (!extra.ok) {
@@ -507,7 +511,46 @@ export async function runVegaTurn(turn: VegaTurn, emit: (event: VegaEvent) => vo
           actionIds.push(action.id);
           let build: BuildView | null = null;
           let builderNote = "";
-          if (outcome.action === "deliver_project" && builderCall) {
+          let editError = "";
+          if (outcome.action === "deliver_project" && editCall) {
+            const draft = outcome.payload as { title?: string; edit?: { projectId: string; version: number | null; request: string } };
+            const started = draft.edit
+              ? await startProjectEdit(
+                  {
+                    user: turn.capUser ?? { id: userId, package: null },
+                    conversationId: chatId,
+                    actionId: action.id,
+                    projectId: draft.edit.projectId,
+                    versionNumber: draft.edit.version ?? undefined,
+                    request: draft.edit.request,
+                  },
+                  { db: prisma },
+                ).catch((error: unknown) => {
+                  console.error("[Editor] no se pudo iniciar", { errorType: error instanceof Error ? error.name : typeof error });
+                  return null;
+                })
+              : null;
+            if (started?.ok) {
+              build = started.build;
+              action = await prisma.vegaAction.update({
+                where: { id: action.id },
+                data: {
+                  status: "running",
+                  result: `Aplicando cambios a ${draft.title ?? "tu proyecto"}`,
+                  payload: { ...(outcome.payload as object), build: { buildId: build.id, status: build.status } } as unknown as Prisma.InputJsonValue,
+                },
+                select: { id: true, kind: true, payload: true, status: true, result: true },
+              });
+              if (!started.duplicate) emit({ t: "credits", v: await currentCredits(userId) });
+            } else {
+              editError = started?.message ?? "No se pudo iniciar la edición.";
+              action = await prisma.vegaAction.update({
+                where: { id: action.id },
+                data: { status: "done", result: editError, payload: { ...(outcome.payload as object), editError } as unknown as Prisma.InputJsonValue },
+                select: { id: true, kind: true, payload: true, status: true, result: true },
+              });
+            }
+          } else if (outcome.action === "deliver_project" && builderCall) {
             const draft = outcome.payload as { kind?: string; title?: string; summary?: string };
             const started = await startProjectBuild(
               {
@@ -536,7 +579,7 @@ export async function runVegaTurn(turn: VegaTurn, emit: (event: VegaEvent) => vo
               if (!started.duplicate) emit({ t: "credits", v: await currentCredits(userId) });
             } else if (started) builderNote = started.message;
           }
-          if (outcome.action === "deliver_project" && !build) {
+          if (outcome.action === "deliver_project" && !build && !editCall) {
             // v1 (respaldo): sin generador, o si no se pudo iniciar. Se cobra como herramienta normal.
             if (builderCall && !toolCharged) {
               const extra = await chargeCredits(userId, creditPrices.vegaTool - creditPrices.vegaMessage, "Vega · herramienta", `${chargeKey}:tool`);
@@ -552,10 +595,23 @@ export async function runVegaTurn(turn: VegaTurn, emit: (event: VegaEvent) => vo
             );
           }
           emit({ t: "action", v: actionView(action) });
-          const summary = build ? `Construyendo ${build.kind === "app" ? "tu app" : "tu sitio"} premium…` : outcome.summary;
+          const summary = editCall
+            ? build
+              ? "Aplicando los cambios…"
+              : "No se pudo editar"
+            : build
+              ? `Construyendo ${build.kind === "app" ? "tu app" : "tu sitio"} premium…`
+              : outcome.summary;
           statuses.push(summary);
           emit({ t: "status", v: summary });
-          response = build
+          response = editCall
+            ? build
+              ? {
+                  estado: "editando",
+                  nota: `El socio ve una tarjeta con el avance de la edición; tarda uno o dos minutos y queda como versión nueva en Proyectos (la anterior no se toca y se puede restaurar). Se cobraron ${builderPrice("edit")} créditos (se devuelven si falla). Si el sitio está publicado, la versión publicada no cambia hasta que el socio elija la nueva en Publicar. No digas que ya está listo.`,
+                }
+              : { estado: "no_se_pudo", error: editError }
+            : build
             ? {
                 estado: "construyendo",
                 nota: `El socio ve una tarjeta con el avance del generador premium (plan, componentes, compilación); tarda unos 2 a 4 minutos y al terminar queda en Proyectos con vista previa y ZIP. Se cobraron ${builderPrice(build.kind)} créditos por el trabajo (se devuelven si falla). No digas que ya está listo ni pegues código: di en una frase qué vas a construir y que puede seguir platicando mientras tanto.`,

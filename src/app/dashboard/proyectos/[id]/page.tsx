@@ -2,10 +2,11 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { headers } from "next/headers";
 import { notFound, redirect } from "next/navigation";
-import { ArrowLeft, Download, ExternalLink, FileCode2, Inbox, Store } from "lucide-react";
+import { ArrowLeft, Download, ExternalLink, FileCode2, Inbox, Sparkles, Store } from "lucide-react";
 
 import { ProjectActions } from "@/components/projects/project-actions";
 import { PublishPanel } from "@/components/projects/publish-panel";
+import { RestoreVersionButton } from "@/components/projects/restore-version-button";
 import { brand } from "@/config/brand";
 import { getCurrentUser } from "@/lib/auth/profile";
 import { hasReadySite } from "@/lib/projects/handoff";
@@ -83,6 +84,12 @@ export default async function ProjectPage({
             <FileCode2 className="size-3.5" />
             Descargar ZIP
           </a>
+          {hasReadySite(project.kind) && project.versions[0].generator === "vega-v2" ? (
+            <Link href={`/dashboard/super-agent?editar=${project.id}`} title="Pídele a Vega cambios; se guardan como versión nueva" className={button}>
+              <Sparkles className="size-3.5" />
+              Editar con Vega
+            </Link>
+          ) : null}
           {project.kind === "sitio" ? (
             <Link href={`/dashboard/proyectos/${project.id}/contactos`} className={button}>
               <Inbox className="size-3.5" />
@@ -102,7 +109,10 @@ export default async function ProjectPage({
         <section aria-label="Vista previa" className="overflow-hidden rounded-2xl border border-[#E7E2DA] bg-white dark:border-white/12">
           <div className="flex items-center justify-between border-b border-[#F0ECE6] px-4 py-2.5 text-xs text-[#5C5854] dark:border-white/10 dark:text-[#C8C4D4]">
             <span>Versión {current.number}</span>
-            <span>{formatProjectDate(current.createdAt)}</span>
+            <span className="flex items-center gap-2">
+              {current.number !== project.versions[0].number ? <RestoreVersionButton projectId={project.id} number={current.number} /> : null}
+              <span>{formatProjectDate(current.createdAt)}</span>
+            </span>
           </div>
           <iframe
             key={current.number}

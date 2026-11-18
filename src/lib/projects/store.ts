@@ -172,13 +172,22 @@ export async function saveProjectVersion(db: ProjectDb, input: VersionInput): Pr
     });
   }
 
+  const saved = await createNextVersion(db, project.id, input, { title: input.title, summary: input.summary });
+  return saved ? { ...saved, created } : null;
+}
+
+type NextVersionData = Pick<VersionInput, "actionId" | "title" | "summary" | "files" | "suggestions" | "bytes" | "generator" | "filesUrl" | "previewUrl" | "previewHtml" | "buildId">;
+
+/** Crea la versión número versionCount+1 (reintenta si otra petición tomó el número). Idempotente por `actionId`. */
+async function createNextVersion(db: ProjectDb, projectId: string, input: NextVersionData, projectPatch: { title?: string; summary?: string }) {
   for (let attempt = 0; attempt < 3; attempt += 1) {
-    const current = await db.project.findUnique({ where: { id: project.id }, select: { versionCount: true } });
-    const number = (current?.versionCount ?? project.versionCount) + 1;
+    const current = await db.project.findUnique({ where: { id: projectId }, select: { versionCount: true } });
+    if (!current) return null;
+    const number = current.versionCount + 1;
     try {
       await db.projectVersion.create({
         data: {
-          projectId: project.id,
+          projectId,
           number,
           title: input.title,
           summary: input.summary,
@@ -194,23 +203,29 @@ export async function saveProjectVersion(db: ProjectDb, input: VersionInput): Pr
         },
         select: { id: true },
       });
-      await db.project.update({
-        where: { id: project.id },
-        data: { versionCount: number, title: input.title, summary: input.summary },
-        select: { id: true },
-      });
-      return { projectId: project.id, versionNumber: number, created };
+      await db.project.update({ where: { id: projectId }, data: { versionCount: number, ...projectPatch }, select: { id: true } });
+      return { projectId, versionNumber: number };
     } catch (error) {
       if (!isUniqueError(error)) throw error;
       // Otra petición guardó la misma entrega o tomó ese número: se revisa y se reintenta.
-      const again = await db.projectVersion.findUnique({
-        where: { sourceActionId: input.actionId },
-        select: { projectId: true, number: true },
-      });
-      if (again) return { projectId: again.projectId, versionNumber: again.number, created: false };
+      const again = await db.projectVersion.findUnique({ where: { sourceActionId: input.actionId }, select: { projectId: true, number: true } });
+      if (again) return { projectId: again.projectId, versionNumber: again.number };
     }
   }
   return null;
+}
+
+/**
+ * Entrega 4: agrega una versión a un proyecto que ya existe (edición con Vega o «Restaurar esta versión»).
+ * No cambia el título ni el resumen del proyecto. Idempotente por `actionId`.
+ */
+export async function appendProjectVersion(db: ProjectDb, input: NextVersionData & { userId: string; projectId: string }): Promise<SavedProject | null> {
+  const existing = await db.projectVersion.findUnique({ where: { sourceActionId: input.actionId }, select: { projectId: true, number: true } });
+  if (existing) return { projectId: existing.projectId, versionNumber: existing.number, created: false };
+  const project = await db.project.findFirst({ where: { id: input.projectId, userId: input.userId, deletedAt: null }, select: { id: true } });
+  if (!project) return null;
+  const saved = await createNextVersion(db, project.id, input, {});
+  return saved ? { ...saved, created: false } : null;
 }
 
 /** Una entrega con construcción v2 en curso o lista no se importa como v1. */
