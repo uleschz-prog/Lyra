@@ -17,7 +17,7 @@ type Env = Record<string, string | undefined>;
 
 export const COST_TIMEZONE = DEFAULT_TIMEZONE;
 /** `builder` (generador v2) se registra pero no cuenta para el tope: el trabajo se cobra aparte en créditos. */
-export type UsageSource = "chat" | "whatsapp" | "routine" | "x" | "builder";
+export type UsageSource = "chat" | "whatsapp" | "routine" | "x" | "builder" | "job";
 
 /** Recarga mínima mensual (USD) por nivel; la misma que `rebuy` del plan. */
 const tierRecharge: Record<CostTier, number> = { inicio: 19, negocio: 49, pro: 99 };

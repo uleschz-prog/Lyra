@@ -43,7 +43,12 @@ export async function handleDispatch(request: Request, options: { horizonMs?: nu
     const left = DISPATCH_BUDGET_MS - (Date.now() - started);
     if (left < 20_000) return routines;
     const builds = await resumeIdleBuilds(left - 5_000).catch((error: unknown) => ({ error: error instanceof Error ? error.message : "builds failed" }));
-    return { ...routines, builds };
+    // Vega v2: con lo que sobre, retoma trabajos en segundo plano que nadie está avanzando.
+    const rest = DISPATCH_BUDGET_MS - (Date.now() - started);
+    if (rest < 25_000) return { ...routines, builds };
+    const { resumeJobs } = await import("@/lib/vega/jobs");
+    const jobs = await resumeJobs({ budgetMs: rest - 5_000 }).catch((error: unknown) => ({ error: error instanceof Error ? error.message : "jobs failed" }));
+    return { ...routines, builds, jobs };
   };
   if (new URL(request.url).searchParams.get("wait") === "1") {
     return NextResponse.json(await run());

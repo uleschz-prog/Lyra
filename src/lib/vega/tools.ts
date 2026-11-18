@@ -27,6 +27,7 @@ import {
 
 export type { VegaConnections } from "@/lib/vega/apps";
 export type { AppDraft } from "@/lib/vega/app-tools";
+import { backgroundJobDeclaration, type JobDraft } from "@/lib/vega/jobs-core";
 
 export type ActionKind =
   | "send_email"
@@ -38,8 +39,10 @@ export type ActionKind =
   | "create_image"
   | "create_video"
   | "deliver_project"
-  | "connect_app";
-export type ActionPayload = EmailDraft | EventDraft | WhatsappDraft | AppDraft | CommandDraft | ImageDraft | VideoDraft | ProjectDraft | ConnectDraft;
+  | "connect_app"
+  /** Vega v2: tarjeta con el avance de un trabajo en segundo plano. */
+  | "background_job";
+export type ActionPayload = EmailDraft | EventDraft | WhatsappDraft | AppDraft | CommandDraft | ImageDraft | VideoDraft | ProjectDraft | ConnectDraft | JobDraft;
 
 /** Tarjeta para conectar (o reconectar) una app del socio. No ejecuta nada por sí sola. */
 export type ConnectDraft = { toolkit: UserToolkit; label: string; reason: string; reconnect: boolean };
@@ -78,7 +81,7 @@ const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const localDateTime = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(:\d{2})?$/;
 
 /** Herramientas que no cobran el extra de créditos. */
-export const freeTools = new Set(["recordar", "olvidar", "buscar_memoria", "programar_rutina", "ver_rutinas", "pausar_rutina", "reanudar_rutina", "borrar_rutina", "preparar_whatsapp", "no_molestar_whatsapp", "actualizar_perfil", "listar_archivos", "buscar_archivos", "leer_archivo", "escribir_archivo", "ver_comandos", "pedir_conexion", "configurar_monitor_x"]);
+export const freeTools = new Set(["recordar", "olvidar", "buscar_memoria", "programar_rutina", "ver_rutinas", "pausar_rutina", "reanudar_rutina", "borrar_rutina", "preparar_whatsapp", "no_molestar_whatsapp", "actualizar_perfil", "listar_archivos", "buscar_archivos", "leer_archivo", "escribir_archivo", "ver_comandos", "pedir_conexion", "configurar_monitor_x", "trabajo_en_segundo_plano"]);
 const taskTools: FunctionDeclaration[] = [
   {
     name: "programar_rutina",
@@ -373,6 +376,7 @@ export function vegaTools(connections: VegaConnections, webSearch: boolean): Fun
   // Fase 8: X siempre aparece; si falta la credencial, la herramienta responde con un aviso claro.
   tools.push(...xTools());
   const missing = userToolkits.filter((toolkit) => !connections[toolkit]);
+  tools.push(backgroundJobDeclaration);
   if (missing.length) {
     tools.push({
       name: "pedir_conexion",
