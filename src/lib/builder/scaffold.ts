@@ -54,6 +54,7 @@ export const scaffoldPaths = new Set([
   "src/lib/router.tsx",
   "src/lib/data.ts",
   "src/lib/format.ts",
+  "src/lib/leads.ts",
   "src/data/stores.ts",
   "src/components/SectionBoundary.tsx",
 ]);
@@ -115,6 +116,16 @@ export function Link({ to, onNavigate, onClick, children, ...rest }: LinkProps) 
       {children}
     </a>
   );
+}
+`;
+
+/** Entrega 3: contactos. Solo llegan a LYRA cuando el sitio está publicado en LYRA (/s/…). */
+export const leadsHelperSource = `// Envía los datos de un formulario a la bandeja de Contactos de LYRA.
+// Solo funciona cuando el sitio está publicado en LYRA (/s/…): ahí LYRA agrega el receptor.
+// En la vista previa o en otro hosting no hace nada; muestra tu confirmación de todos modos.
+// LYRA también recibe los formularios que no usan esta función, así que es opcional.
+export function sendLead(fields: Record<string, string | number | boolean>) {
+  document.dispatchEvent(new CustomEvent("lyra:lead", { detail: fields }));
 }
 `;
 
@@ -393,7 +404,7 @@ npm run build   # genera dist/ para cualquier hosting estático
 ${
   app
     ? "- Las pantallas guardan los datos en el navegador de quien usa la app (localStorage). No hay servidor ni datos compartidos todavía.\n- Toda la lectura y escritura pasa por `src/lib/data.ts` (interfaz `DataStore`). Para conectar una base de datos real basta con reemplazar `createLocalStore`.\n- Los registros iniciales son de ejemplo."
-    : "- Los formularios muestran una confirmación en pantalla y, si diste WhatsApp, abren el mensaje listo; no envían correos ni guardan en un servidor.\n- Textos e información salen de tu descripción; revisa precios, horarios y datos de contacto antes de publicar."
+    : "- Si publicas el sitio desde LYRA (dirección /s/…), lo que la gente escribe en los formularios llega a la bandeja de Contactos del proyecto. En la vista previa o en otro hosting, los formularios solo muestran una confirmación y, si diste WhatsApp, abren el mensaje listo; no envían correos.\n- Textos e información salen de tu descripción; revisa precios, horarios y datos de contacto antes de publicar."
 }
 ${plan.assumptions.length ? `\n## Suposiciones\n\n${plan.assumptions.map((item) => `- ${item}`).join("\n")}\n` : ""}`;
 }
@@ -480,6 +491,7 @@ createRoot(document.getElementById("root")!).render(
     "src/lib/router.tsx": routerSource,
     "src/components/SectionBoundary.tsx": boundarySource,
   };
+  if (plan.kind === "sitio") files["src/lib/leads.ts"] = leadsHelperSource;
   if (plan.kind === "app") {
     files["src/lib/data.ts"] = dataSource(slug);
     files["src/lib/format.ts"] = formatSource;

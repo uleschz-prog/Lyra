@@ -26,7 +26,12 @@ export function readySiteFileName(title: string, number: number) {
 }
 
 /** Guía en español, sin promesas: qué es el archivo, cómo subirlo y qué no hace todavía. */
-export function hostingGuide(input: { title: string; kind: ProjectKind; number: number; generator: string }) {
+export function hostingGuide(input: {
+  title: string;
+  kind: ProjectKind;
+  number: number;
+  generator: string;
+}) {
   const app = input.kind === "app";
   const premium = input.generator === "vega-v2";
   return `# Cómo publicar «${input.title}» (versión ${input.number})
@@ -48,7 +53,7 @@ Para usar tu propio dominio (por ejemplo \`www.tunegocio.com\`), agrégalo en el
 ${
   app
     ? "- Los datos que captura la app se guardan **en el navegador de cada persona** (localStorage). No hay servidor ni datos compartidos entre usuarios, y no hay inicio de sesión.\n"
-    : "- Los formularios de este archivo **no envían correos ni guardan datos en un servidor**: muestran una confirmación y, si el sitio tiene WhatsApp, abren el mensaje listo para enviar.\n"
+    : "- Los formularios de este archivo **no envían correos ni guardan datos en un servidor**: muestran una confirmación y, si el sitio tiene WhatsApp, abren el mensaje listo para enviar. Si lo publicas desde LYRA (dirección /s/…), los formularios sí llegan a la bandeja de Contactos del proyecto.\n"
 }- No incluye cobros en línea ni analítica.
 - Revisa precios, horarios, teléfonos y textos antes de publicarlo: salen de lo que se le dio a Vega.
 ${
@@ -71,7 +76,13 @@ Hecho con LYRA.
 }
 
 /** Archivos que se agregan al ZIP para entregarlo listo para publicar. */
-export function handoffFiles(input: { title: string; kind: ProjectKind; number: number; generator: string; html: string }): ProjectFile[] {
+export function handoffFiles(input: {
+  title: string;
+  kind: ProjectKind;
+  number: number;
+  generator: string;
+  html: string;
+}): ProjectFile[] {
   return [
     { path: handoffGuidePath, content: hostingGuide(input) },
     { path: `${handoffFolder}/index.html`, content: input.html },

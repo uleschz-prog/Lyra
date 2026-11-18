@@ -1227,6 +1227,7 @@ model Project {
   user     User             @relation(fields: [userId], references: [id], onDelete: Cascade)
   versions ProjectVersion[]
   publish  ProjectPublish?
+  leads    ProjectLead[]
 
   @@index([userId, deletedAt, updatedAt])
   @@index([userId, groupKey])
@@ -1276,6 +1277,32 @@ model ProjectPublish {
   updatedAt   DateTime  @updatedAt
 
   project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+}
+
+// Entrega 3: contactos que llegan de los formularios de un sitio publicado en /s/[slug].
+// Solo el dueño los ve. No se guarda la IP (el límite usa hashes en AuthAttempt).
+model ProjectLead {
+  id            String   @id @default(cuid())
+  projectId     String
+  /// Dueño del proyecto (para la bandeja sin unir tablas).
+  userId        String
+  slug          String
+  versionNumber Int?
+  name          String?
+  email         String?
+  phone         String?
+  message       String?  @db.Text
+  /// [{ label, value }] tal como llegaron (ya limpios y recortados)
+  fields        Json
+  /// Ruta del sitio desde donde se envió (#/contacto)
+  page          String?
+  read          Boolean  @default(false)
+  createdAt     DateTime @default(now())
+
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@index([projectId, createdAt])
+  @@index([userId, read, createdAt])
 }
 
 // PR C: trabajo del generador v2 (plan → generar → validar → reparar → guardar) en pasos cortos

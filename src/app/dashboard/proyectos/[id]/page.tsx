@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { headers } from "next/headers";
 import { notFound, redirect } from "next/navigation";
-import { ArrowLeft, Download, ExternalLink, FileCode2, Store } from "lucide-react";
+import { ArrowLeft, Download, ExternalLink, FileCode2, Inbox, Store } from "lucide-react";
 
 import { ProjectActions } from "@/components/projects/project-actions";
 import { PublishPanel } from "@/components/projects/publish-panel";
@@ -12,6 +12,7 @@ import { hasReadySite } from "@/lib/projects/handoff";
 import { getProject, parseVersionParam } from "@/lib/projects/queries";
 import { getPrisma } from "@/lib/prisma";
 import { getPublishState } from "@/lib/publish/core";
+import { countUnreadLeads } from "@/lib/leads/queries";
 import { formatProjectDate, projectKindLabels } from "@/lib/projects/store";
 
 export const metadata: Metadata = { title: "Proyecto" };
@@ -34,6 +35,7 @@ export default async function ProjectPage({
   if (!project || project.versions.length === 0) notFound();
 
   const publish = hasReadySite(project.kind) ? await getPublishState(getPrisma(), user.id, project.id).catch(() => null) : null;
+  const unreadLeads = project.kind === "sitio" ? await countUnreadLeads(user.id, project.id).catch(() => 0) : 0;
   const head = await headers();
   const host = head.get("host");
   const origin = process.env.NEXT_PUBLIC_APP_URL?.trim().replace(/\/$/, "") || (host ? `${head.get("x-forwarded-proto") ?? "https"}://${host}` : "");
@@ -81,6 +83,13 @@ export default async function ProjectPage({
             <FileCode2 className="size-3.5" />
             Descargar ZIP
           </a>
+          {project.kind === "sitio" ? (
+            <Link href={`/dashboard/proyectos/${project.id}/contactos`} className={button}>
+              <Inbox className="size-3.5" />
+              Contactos
+              {unreadLeads ? <span className="rounded-full bg-[#7C3AED] px-1.5 text-[10px] font-semibold text-white">{unreadLeads}</span> : null}
+            </Link>
+          ) : null}
           <Link href={`/dashboard/marketplace/publicar?proyecto=${project.id}`} className={button}>
             <Store className="size-3.5" />
             Publicar en Marketplace
