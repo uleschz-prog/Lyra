@@ -8,6 +8,7 @@ import { briefingSchema } from "@/lib/vega/briefing";
 import { isUserToolkit, toolkitHints, toolkitLabels, userToolkits, type UserToolkit, type VegaConnections } from "@/lib/vega/apps";
 import type { FunctionDeclaration } from "@/lib/vega/gemini-stream";
 import { runXTool, xToolNames, xTools } from "@/lib/vega/x/tools";
+import type { AgentScope } from "@/lib/vega/agent-scope";
 import { forgetMemory, MEMORY_MAX_LENGTH, saveMemory, searchMemories } from "@/lib/vega/memory";
 import { memoryKindLabels, parseKind } from "@/lib/vega/memory-logic";
 import { saveVegaProfile } from "@/lib/vega/profile";
@@ -81,7 +82,7 @@ const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const localDateTime = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(:\d{2})?$/;
 
 /** Herramientas que no cobran el extra de créditos. */
-export const freeTools = new Set(["recordar", "olvidar", "buscar_memoria", "programar_rutina", "ver_rutinas", "pausar_rutina", "reanudar_rutina", "borrar_rutina", "preparar_whatsapp", "no_molestar_whatsapp", "actualizar_perfil", "listar_archivos", "buscar_archivos", "leer_archivo", "escribir_archivo", "ver_comandos", "pedir_conexion", "configurar_monitor_x", "trabajo_en_segundo_plano"]);
+export const freeTools = new Set(["recordar", "olvidar", "buscar_memoria", "programar_rutina", "ver_rutinas", "pausar_rutina", "reanudar_rutina", "borrar_rutina", "preparar_whatsapp", "no_molestar_whatsapp", "actualizar_perfil", "listar_archivos", "buscar_archivos", "leer_archivo", "escribir_archivo", "ver_comandos", "pedir_conexion", "configurar_monitor_x", "trabajo_en_segundo_plano", "delegar_a_agente"]);
 const taskTools: FunctionDeclaration[] = [
   {
     name: "programar_rutina",
@@ -431,7 +432,11 @@ export type ToolOutcome =
   | { kind: "delivery"; action: ActionKind; payload: ActionPayload; summary: string; modelNote: string; status?: "running" | "done" }
   | { kind: "invalid"; response: Record<string, unknown> };
 
-export async function runVegaTool(userId: string, name: string, args: Record<string, unknown>): Promise<ToolOutcome> {
+/** Contexto del turno: con `scope`, memoria y rutinas son las del agente que contesta. */
+export type ToolContext = { scope?: AgentScope | null };
+
+export async function runVegaTool(userId: string, name: string, args: Record<string, unknown>, ctx: ToolContext = {}): Promise<ToolOutcome> {
+  const scope = ctx.scope ?? null;
   if (appToolNames.has(name)) {
     const outcome = await runAppTool(userId, name, args);
     return outcome.kind === "app" ? { kind: "action", action: "app_action", payload: outcome.payload, summary: outcome.summary } : outcome;
@@ -453,7 +458,7 @@ export async function runVegaTool(userId: string, name: string, args: Record<str
   }
 
   if (name === "recordar") {
-    const saved = await saveMemory(userId, text(args.dato, MEMORY_MAX_LENGTH), parseKind(args.tipo));
+    const saved = await saveMemory(userId, text(args.dato, MEMORY_MAX_LENGTH), parseKind(args.tipo), scope);
     if (!saved.ok) return { kind: "invalid", response: { error: saved.error } };
     return {
       kind: "result",
@@ -469,7 +474,7 @@ export async function runVegaTool(userId: string, name: string, args: Record<str
   if (name === "buscar_memoria") {
     const query = text(args.busqueda, 120);
     if (!query) return { kind: "invalid", response: { error: "Falta qué buscar." } };
-    const found = await searchMemories(userId, query);
+    const found = await searchMemories(userId, query, 8, scope);
     return {
       kind: "result",
       status: `Busqué en tu memoria: ${found.length} dato${found.length === 1 ? "" : "s"}`,
@@ -483,7 +488,7 @@ export async function runVegaTool(userId: string, name: string, args: Record<str
 
   if (name === "olvidar") {
     const id = text(args.id, 40);
-    const removed = id ? await forgetMemory(userId, id) : false;
+    const removed = id ? await forgetMemory(userId, id, scope) : false;
     if (!removed) return { kind: "invalid", response: { error: "No encontré ese dato en la memoria." } };
     return { kind: "result", status: "Borré un dato de la memoria", response: { borrado: true } };
   }
@@ -528,7 +533,7 @@ export async function runVegaTool(userId: string, name: string, args: Record<str
       time: text(args.hora, 5) || DEFAULT_TIME,
       timezone: zone,
       cron: text(args.cron, 100) || undefined,
-    });
+    }, new Date(), scope);
     if (!created.ok) return { kind: "invalid", response: { error: created.error } };
     const next = new Date(created.task.runAt).toLocaleString("es-MX", {
       weekday: "long",
@@ -546,7 +551,7 @@ export async function runVegaTool(userId: string, name: string, args: Record<str
   }
 
   if (name === "ver_rutinas") {
-    const [tasks, runs] = await Promise.all([listTasks(userId), listRoutineRuns(userId, 5)]);
+    const [tasks, runs] = await Promise.all([listTasks(userId, false, scope), listRoutineRuns(userId, 5, scope)]);
     return {
       kind: "result",
       status: "Revisé tus rutinas",
@@ -566,19 +571,19 @@ export async function runVegaTool(userId: string, name: string, args: Record<str
   }
 
   if (name === "pausar_rutina") {
-    const paused = await pauseTask(userId, text(args.id, 40));
+    const paused = await pauseTask(userId, text(args.id, 40), scope);
     if (!paused.ok) return { kind: "invalid", response: { error: paused.error } };
     return { kind: "result", status: "Pausé una rutina", response: { pausada: true } };
   }
 
   if (name === "reanudar_rutina") {
-    const resumed = await resumeTask(userId, text(args.id, 40));
+    const resumed = await resumeTask(userId, text(args.id, 40), new Date(), scope);
     if (!resumed.ok) return { kind: "invalid", response: { error: resumed.error } };
     return { kind: "result", status: "Reanudé una rutina", response: { reanudada: true, proxima: resumed.runAt.toISOString() } };
   }
 
   if (name === "borrar_rutina") {
-    const removed = await deleteTask(userId, text(args.id, 40));
+    const removed = await deleteTask(userId, text(args.id, 40), scope);
     if (!removed) return { kind: "invalid", response: { error: "No encontré esa rutina." } };
     return { kind: "result", status: "Borré una rutina", response: { borrada: true } };
   }
@@ -720,7 +725,7 @@ export async function runVegaTool(userId: string, name: string, args: Record<str
     const route = text(args.ruta, 300);
     const content = typeof args.contenido === "string" ? args.contenido : "";
     if (!route || !content) return { kind: "invalid", response: { error: "Falta la ruta o el contenido." } };
-    const written = await writeWorkspaceFile(userId, route, content.slice(0, MAX_FILE_BYTES), args.sobrescribir !== true);
+    const written = await writeWorkspaceFile(userId, route, content.slice(0, MAX_FILE_BYTES), args.sobrescribir !== true, scope?.agentId);
     if (!written.ok) return { kind: "invalid", response: { error: written.error } };
     return { kind: "result", status: `Guardé ${written.path}`, response: { archivo: written.path, bytes: written.bytes } };
   }

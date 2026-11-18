@@ -96,6 +96,8 @@ export async function writeWorkspaceFile(
   raw: string,
   content: string,
   append = false,
+  /** Vega v2: agente que crea el archivo (los archivos se comparten entre agentes). */
+  authorAgentId?: string | null,
 ): Promise<{ ok: true; path: string; bytes: number; created: boolean } | Fail> {
   const target = normalizePath(raw);
   if (!target.ok) return target;
@@ -127,7 +129,7 @@ export async function writeWorkspaceFile(
     return { ok: true, path: target.path, bytes, created: false };
   }
   if (all.length >= MAX_FILES) return { ok: false, error: `Llegaste al máximo de ${MAX_FILES} archivos. Borra algunos desde el panel Archivos.` };
-  await prisma.vegaFile.create({ data: { userId, path: target.path, content: next, bytes }, select: { id: true } });
+  await prisma.vegaFile.create({ data: { userId, path: target.path, content: next, bytes, ...(authorAgentId ? { agentId: authorAgentId } : {}) }, select: { id: true } });
   return { ok: true, path: target.path, bytes, created: true };
 }
 

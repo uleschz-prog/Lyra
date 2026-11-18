@@ -16,7 +16,18 @@ const kindStyles: Record<MemoryKind, string> = {
   journal: "bg-[#FEF3C7] text-[#92400E]",
 };
 
-export function MemoryPanel({ onClose, variant = "sheet" }: { onClose?: () => void; variant?: PanelVariant }) {
+export function MemoryPanel({
+  onClose,
+  variant = "sheet",
+  agentId,
+  agentName,
+}: {
+  onClose?: () => void;
+  variant?: PanelVariant;
+  /** Vega v2 · V3: memoria de este agente (más el perfil compartido). */
+  agentId?: string;
+  agentName?: string;
+}) {
   const [memories, setMemories] = useState<VegaMemoryView[] | null>(null);
   const [draft, setDraft] = useState("");
   const [kind, setKind] = useState<MemoryKind>("fact");
@@ -25,19 +36,19 @@ export function MemoryPanel({ onClose, variant = "sheet" }: { onClose?: () => vo
 
   useEffect(() => {
     let alive = true;
-    void vegaMemories().then((items) => {
+    void vegaMemories(agentId).then((items) => {
       if (alive) setMemories(items);
     });
     return () => {
       alive = false;
     };
-  }, []);
+  }, [agentId]);
 
   async function add() {
     const content = draft.trim();
     if (content.length < 3 || busy) return;
     setBusy(true);
-    const result = await addVegaMemory(content, kind);
+    const result = await addVegaMemory(content, kind, agentId);
     setBusy(false);
     if (!result.ok) {
       toast.error(result.error);
@@ -51,7 +62,7 @@ export function MemoryPanel({ onClose, variant = "sheet" }: { onClose?: () => vo
   }
 
   async function remove(id: string) {
-    const result = await deleteVegaMemory(id);
+    const result = await deleteVegaMemory(id, agentId);
     if (!result.ok) {
       toast.error("No se pudo borrar. Intenta de nuevo.");
       return;
@@ -60,10 +71,13 @@ export function MemoryPanel({ onClose, variant = "sheet" }: { onClose?: () => vo
   }
 
   async function clearAll() {
-    if (!window.confirm("¿Borrar todo lo que Vega recuerda de ti? No se puede recuperar.")) return;
-    const result = await clearVegaMemories();
+    const question = agentId
+      ? `¿Borrar lo que ${agentName ?? "este agente"} recuerda? Los datos de perfil, que comparten todos tus agentes, se conservan. No se puede recuperar.`
+      : "¿Borrar todo lo que Vega recuerda de ti? No se puede recuperar.";
+    if (!window.confirm(question)) return;
+    const result = await clearVegaMemories(agentId);
     if (result.ok) {
-      setMemories([]);
+      setMemories((current) => (agentId ? (current ?? []).filter((memory) => memory.kind === "profile") : []));
       toast.success("Memoria borrada");
     }
   }
@@ -73,7 +87,7 @@ export function MemoryPanel({ onClose, variant = "sheet" }: { onClose?: () => vo
       <div className="flex items-center justify-between">
         <p className="flex items-center gap-2 text-sm font-semibold text-[#1E1E24]">
           <Brain className="size-4 text-[#7C3AED]" />
-          Lo que Vega recuerda de ti
+          Lo que {agentName ?? "Vega"} recuerda de ti
         </p>
         {onClose ? (
           <button type="button" onClick={onClose} className="rounded p-1 text-[#8A8680]" aria-label="Cerrar">
@@ -82,7 +96,9 @@ export function MemoryPanel({ onClose, variant = "sheet" }: { onClose?: () => vo
         ) : null}
       </div>
       <p className="mt-1 text-xs leading-5 text-[#8A8680]">
-        Vega usa estos datos en todas tus conversaciones. Solo tú los ves. Nunca guarda contraseñas, tarjetas ni llaves.
+        {agentId
+          ? `${agentName ?? "Este agente"} usa estos datos en sus conversaciones; los de perfil los comparten todos tus agentes. Solo tú los ves. Nunca guarda contraseñas, tarjetas ni llaves.`
+          : "Vega usa estos datos en todas tus conversaciones. Solo tú los ves. Nunca guarda contraseñas, tarjetas ni llaves."}
       </p>
 
       <form
@@ -150,7 +166,14 @@ export function MemoryPanel({ onClose, variant = "sheet" }: { onClose?: () => vo
                 <span className={`mt-0.5 shrink-0 rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase ${kindStyles[memory.kind] ?? kindStyles.fact}`}>
                   {memoryKindLabels[memory.kind] ?? "dato"}
                 </span>
-                <p className="min-w-0 flex-1 text-sm text-[#1E1E24]">{memory.content}</p>
+                <p className="min-w-0 flex-1 text-sm text-[#1E1E24]">
+                  {memory.content}
+                  {agentId && memory.kind === "profile" ? (
+                    <span className="ml-1.5 inline-block rounded-full bg-[#ECFEFF] px-1.5 py-px align-middle text-[10px] font-medium text-[#0E7490]" title="Lo ven todos tus agentes">
+                      Compartido
+                    </span>
+                  ) : null}
+                </p>
                 <button
                   type="button"
                   onClick={() => void remove(memory.id)}
@@ -167,7 +190,7 @@ export function MemoryPanel({ onClose, variant = "sheet" }: { onClose?: () => vo
 
       {memories?.length ? (
         <button type="button" onClick={() => void clearAll()} className="mt-3 self-start text-xs font-medium text-[#B42318]">
-          Borrar toda la memoria
+          {agentId ? `Borrar la memoria de ${agentName ?? "este agente"}` : "Borrar toda la memoria"}
         </button>
       ) : null}
     </div>

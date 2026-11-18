@@ -239,7 +239,7 @@ export function VegaChat({
   }
 
   function editAgent(agent: VegaAgentSummary) {
-    setAgentForm({ id: agent.id, isDefault: agent.isDefault, name: agent.name, specialty: agent.specialty, instructions: agent.instructions, avatar: agent.avatar });
+    setAgentForm({ id: agent.id, isDefault: agent.isDefault, name: agent.name, specialty: agent.specialty, instructions: agent.instructions, avatar: agent.avatar, persona: agent.persona ?? {} });
   }
 
   function setChatsCollapsed(hidden: boolean) {
@@ -282,6 +282,42 @@ export function VegaChat({
     setMood("neutral");
   }
 
+  /** Vega v2 · V3: abre la conversación de otro agente (p. ej. desde la tarjeta de una tarea delegada). */
+  async function openAgentChat(agentId: string, chatId: string) {
+    if (streaming) return;
+    const agent = agents.find((item) => item.id === agentId);
+    if (!agent) {
+      toast.error("Ese agente ya no existe.");
+      return;
+    }
+    setLoadingChat(true);
+    const loaded = await openVegaChat(chatId, agent.id);
+    setLoadingChat(false);
+    if (!loaded) {
+      toast.error("Esa conversación ya no existe.");
+      return;
+    }
+    setActiveAgentId(agent.id);
+    setChats(await listVegaChats(agent.id));
+    setActiveId(chatId);
+    setMessages(loaded);
+    setMood("neutral");
+    setListOpen(false);
+  }
+
+  const openAgentChatRef = useRef(openAgentChat);
+  useEffect(() => {
+    openAgentChatRef.current = openAgentChat;
+  });
+  useEffect(() => {
+    const onOpen = (event: Event) => {
+      const detail = (event as CustomEvent<{ agentId?: string; conversationId?: string }>).detail;
+      if (detail?.agentId && detail.conversationId) void openAgentChatRef.current(detail.agentId, detail.conversationId);
+    };
+    window.addEventListener("vega:open-chat", onOpen);
+    return () => window.removeEventListener("vega:open-chat", onOpen);
+  }, []);
+
   function newChat() {
     if (streaming) return;
     setActiveId(null);
@@ -306,15 +342,15 @@ export function VegaChat({
     setSavingAgent(true);
     try {
       if (agentForm.id) {
-        const { id, name, specialty, instructions, avatar } = agentForm;
-        const result = await updateVegaAgent({ id, name, specialty, instructions, avatar });
+        const { id, name, specialty, instructions, avatar, persona } = agentForm;
+        const result = await updateVegaAgent({ id, name, specialty, instructions, avatar, persona });
         if (!result.ok) {
           toast.error("error" in result ? result.error : "No se pudo guardar el agente.");
           return;
         }
       } else {
-        const { name, specialty, instructions, avatar } = agentForm;
-        const result = await createVegaAgent({ name, specialty, instructions, avatar });
+        const { name, specialty, instructions, avatar, persona } = agentForm;
+        const result = await createVegaAgent({ name, specialty, instructions, avatar, persona });
         if (!result.ok) {
           toast.error(result.error);
           return;
@@ -335,7 +371,7 @@ export function VegaChat({
   }
 
   async function removeAgent(agent: VegaAgentSummary) {
-    if (streaming || agent.isDefault || !window.confirm(`¿Eliminar a ${agent.name} y todas sus conversaciones?`)) return;
+    if (streaming || agent.isDefault || !window.confirm(`¿Eliminar a ${agent.name}? También se borran sus conversaciones, su memoria y sus rutinas. Los archivos que creó se conservan.`)) return;
     try {
       const result = await deleteVegaAgent(agent.id);
       if (!result.ok) {
@@ -580,7 +616,7 @@ export function VegaChat({
   const column = "max-w-3xl";
   const agentName = activeAgent?.name ?? "Vega";
   const overlay = listOpen || paneOpen;
-  const paneScopeNote = "Por ahora la memoria, los archivos, las rutinas y las conexiones son compartidos entre todos tus agentes.";
+  const paneScopeNote = "Cada agente tiene su propia memoria y sus rutinas; los datos de perfil se comparten. Archivos, conexiones y créditos son compartidos entre todos tus agentes.";
   const renderPaneTab = undefined;
 
   return (

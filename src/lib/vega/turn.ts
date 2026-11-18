@@ -17,7 +17,8 @@ import { noConnections } from "@/lib/vega/apps";
 import { actionView } from "@/lib/vega/decide";
 import type { VegaEvent, VegaMood } from "@/lib/vega/events";
 import { continueNote, createTurnBudget, vegaLimits, type StopReason, type VegaLimits } from "@/lib/vega/budget";
-import { backgroundJobTool, startBackgroundJob } from "@/lib/vega/jobs-tool";
+import { parsePersona, personaPrompt, type AgentScope } from "@/lib/vega/agent-scope";
+import { backgroundJobTool, delegateDeclaration, delegateTool, startBackgroundJob, startDelegation } from "@/lib/vega/jobs-tool";
 import type { FunctionDeclaration, GeminiContent, GeminiPart } from "@/lib/vega/gemini-stream";
 import { openVegaStream, type ModelStream } from "@/lib/vega/model-gateway";
 import { asItems, listMemories } from "@/lib/vega/memory";
@@ -94,6 +95,7 @@ export function statusLabel(name: string) {
   if (name === "entregar_proyecto") return "Armando la vista previa…";
   if (name === "pedir_conexion") return "Preparando el botón para conectar…";
   if (name === backgroundJobTool) return "Preparando el trabajo en segundo plano…";
+  if (name === delegateTool) return "Pasando la tarea a otro agente…";
   return "Trabajando…";
 }
 
@@ -102,6 +104,8 @@ export type VegaTurn = {
   chatId: string;
   /** Agente que responde este turno. */
   agentId?: string;
+  /** Vega v2 · V3: memoria y rutinas de este agente (el perfil se comparte). */
+  scope?: AgentScope;
   chargeId: string | null;
   chargeKey: string;
   balance: number;
@@ -138,6 +142,20 @@ type Prepared =
   | { ok: true; turn: VegaTurn }
   | { ok: false; status: number; error: string; credits?: number; conversationId?: string; capped?: boolean };
 
+/** Otros agentes del socio (para delegar). Si falla la consulta, simplemente no se ofrece delegar. */
+async function listTeammates(userId: string, agentId: string) {
+  try {
+    return await getPrisma().vegaAgent.findMany({
+      where: { userId, id: { not: agentId } },
+      orderBy: { createdAt: "asc" },
+      take: 12,
+      select: { id: true, name: true, specialty: true },
+    });
+  } catch {
+    return [];
+  }
+}
+
 /** Cobra el mensaje, lo guarda y abre la primera respuesta de Gemini. */
 export async function prepareVegaTurn(
   user: Pick<AuthProfile, "id" | "name" | "package"> & { role?: string | null },
@@ -162,9 +180,10 @@ export async function prepareVegaTurn(
   const prisma = getPrisma();
   const agent = await prisma.vegaAgent.findFirst({
     where: { id: input.agentId, userId: user.id },
-    select: { id: true, name: true, specialty: true, instructions: true, isDefault: true },
+    select: { id: true, name: true, specialty: true, instructions: true, isDefault: true, persona: true },
   });
   if (!agent) return { ok: false, status: 404, error: "Ese agente ya no existe." };
+  const scope: AgentScope = { agentId: agent.id, isDefault: agent.isDefault };
   let conversation: { id: string; summary?: string | null; summaryThrough?: Date | null } | null = input.conversationId
     ? await prisma.vegaConversation.findFirst({
         where: { id: input.conversationId, userId: user.id, agentId: agent.id },
@@ -224,8 +243,9 @@ export async function prepareVegaTurn(
   const connections = composioConfigured() ? await userConnections(user.id).catch(() => noConnections) : noConnections;
   const webSearch = Boolean(process.env.EXA_API_KEY);
   const excluded = new Set(input.excludeTools ?? []);
-  const tools = vegaTools(connections, webSearch).filter((tool) => !excluded.has(tool.name));
-  const allMemories = await listMemories(user.id).catch(() => []);
+  const teammates = excluded.has(delegateTool) ? [] : await listTeammates(user.id, agent.id);
+  const tools = [...vegaTools(connections, webSearch), ...(teammates.length ? [delegateDeclaration(teammates)] : [])].filter((tool) => !excluded.has(tool.name));
+  const allMemories = await listMemories(user.id, scope).catch(() => []);
   const slice = selectMemoriesForPrompt(asItems(allMemories), input.message);
   const chosen = new Set(slice.selected.map((item) => item.id));
   const memories = allMemories.filter((memory) => chosen.has(memory.id));
@@ -243,6 +263,10 @@ export async function prepareVegaTurn(
   const declined = await recentlyDeclined(user.id).catch(() => [] as string[]);
   const system = [
     vegaSystemPrompt(user, connections, webSearch, memories, profile, new Date(), agent, { memoryOmitted: slice.omitted }),
+    personaPrompt(parsePersona(agent.persona)),
+    teammates.length
+      ? `Otros agentes del socio (puedes pasarles tareas con ${delegateTool}): ${teammates.map((mate) => (mate.specialty ? `${mate.name} — ${mate.specialty}` : mate.name)).join("; ")}. Tu memoria y tus rutinas son solo tuyas; los datos de perfil del socio se comparten.`
+      : "",
     summaryContext(conversation.summary),
     await autonomyPrompt(user.id).catch(() => ""),
     declined.length
@@ -267,6 +291,7 @@ export async function prepareVegaTurn(
       userId: user.id,
       chatId,
       agentId: agent.id,
+      scope,
       limits,
       startedJobs: [],
       chargeId: charge.chargeId,
@@ -398,6 +423,24 @@ export async function runVegaTurn(turn: VegaTurn, emit: (event: VegaEvent) => vo
           responses.push({ functionResponse: { name: call.name, response: started.ok ? started.response : { error: started.error } } });
           continue;
         }
+        // Vega v2 · V3: otro agente del socio hace la tarea en su propia conversación.
+        if (call.name === delegateTool) {
+          emit({ t: "status", v: statusLabel(call.name) });
+          const started = turn.agentId
+            ? await startDelegation(prisma, { userId, chatId, fromAgentId: turn.agentId, args: call.args ?? {} }).catch((error: unknown) => {
+                console.error("[Vega delegate] no se pudo crear", { errorType: error instanceof Error ? error.name : typeof error });
+                return { ok: false as const, error: "No se pudo pasar la tarea al otro agente." };
+              })
+            : { ok: false as const, error: "No se pudo pasar la tarea al otro agente." };
+          if (started.ok) {
+            (turn.startedJobs ??= []).push(started.jobId);
+            actionIds.push(started.action.id);
+            emit({ t: "action", v: started.action });
+            statuses.push(`Delegado: ${started.title}`);
+          }
+          responses.push({ functionResponse: { name: call.name, response: started.ok ? started.response : { error: started.error } } });
+          continue;
+        }
         // PR C: sitios y apps los construye el generador v2; su precio por trabajo ya incluye la herramienta.
         const builderCall = call.name === "entregar_proyecto" && builderEnabled() && (call.args?.tipo === "sitio" || call.args?.tipo === "app");
         if (!toolCharged && !freeTools.has(call.name) && !builderCall) {
@@ -417,7 +460,7 @@ export async function runVegaTurn(turn: VegaTurn, emit: (event: VegaEvent) => vo
         }
 
         emit({ t: "status", v: statusLabel(call.name) });
-        const outcome = await runVegaTool(userId, call.name, call.args ?? {}).catch((error: unknown) => {
+        const outcome = await runVegaTool(userId, call.name, call.args ?? {}, { scope: turn.scope ?? null }).catch((error: unknown) => {
           console.error("[Vega tool] execution failed", {
             tool: call.name,
             errorType: error instanceof Error ? error.name : typeof error,

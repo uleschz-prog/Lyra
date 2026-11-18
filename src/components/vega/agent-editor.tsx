@@ -3,9 +3,108 @@
 import { X } from "lucide-react";
 import { useEffect, type FormEvent, type ReactNode } from "react";
 
+import type { Persona } from "@/lib/vega/agent-scope";
 import { cn } from "@/lib/utils";
 
-export type AgentDraft = { id?: string; isDefault?: boolean; name: string; specialty: string; instructions: string; avatar: string };
+export type AgentDraft = {
+  id?: string;
+  isDefault?: boolean;
+  name: string;
+  specialty: string;
+  instructions: string;
+  avatar: string;
+  /** Vega v2 · V3: personalidad. */
+  persona?: Persona;
+};
+
+type Choice<T extends string> = { value: T | undefined; label: string };
+
+const toneChoices: Choice<NonNullable<Persona["tone"]>>[] = [
+  { value: undefined, label: "Como Vega" },
+  { value: "cercano", label: "Cercano" },
+  { value: "profesional", label: "Profesional" },
+  { value: "entusiasta", label: "Entusiasta" },
+  { value: "directo", label: "Directo" },
+];
+const addressChoices: Choice<NonNullable<Persona["address"]>>[] = [
+  { value: undefined, label: "Como Vega" },
+  { value: "tu", label: "De tú" },
+  { value: "usted", label: "De usted" },
+];
+const emojiChoices: Choice<NonNullable<Persona["emojis"]>>[] = [
+  { value: undefined, label: "Como Vega" },
+  { value: "no", label: "Sin emojis" },
+  { value: "pocos", label: "Pocos" },
+  { value: "si", label: "Con gusto" },
+];
+const lengthChoices: Choice<NonNullable<Persona["length"]>>[] = [
+  { value: undefined, label: "Como Vega" },
+  { value: "breve", label: "Breves" },
+  { value: "detallada", label: "Detalladas" },
+];
+
+function Segmented<T extends string>({
+  legend,
+  choices,
+  value,
+  onPick,
+}: {
+  legend: string;
+  choices: Choice<T>[];
+  value: T | undefined;
+  onPick: (value: T | undefined) => void;
+}) {
+  return (
+    <fieldset className="space-y-1.5">
+      <legend className="text-xs font-medium text-[#5C5854] dark:text-[#C7C2D3]">{legend}</legend>
+      <div className="flex flex-wrap gap-1.5">
+        {choices.map((choice) => {
+          const active = choice.value === value;
+          return (
+            <button
+              key={choice.label}
+              type="button"
+              aria-pressed={active}
+              onClick={() => onPick(choice.value)}
+              className={cn(
+                "rounded-full border px-3 py-1 text-xs font-medium transition focus-visible:ring-2 focus-visible:ring-[#7C3AED] focus-visible:outline-none",
+                active
+                  ? "border-transparent bg-[linear-gradient(135deg,#7C3AED,#06B6D4)] text-white"
+                  : "border-[#E7E2DA] text-[#5C5854] hover:border-[#C4B5FD] dark:border-white/15 dark:text-[#C7C2D3]",
+              )}
+            >
+              {choice.label}
+            </button>
+          );
+        })}
+      </div>
+    </fieldset>
+  );
+}
+
+/** Personalidad del agente: tono, trato, emojis, extensión y reglas propias. */
+function PersonaFields({ persona, onChange }: { persona: Persona; onChange: (persona: Persona) => void }) {
+  return (
+    <div className="space-y-3 rounded-2xl border border-[#EEE9E2] bg-[#FCFBF9] p-3.5 dark:border-white/10 dark:bg-white/[0.03]">
+      <p className="text-sm font-semibold text-[#1E1E24] dark:text-white">Personalidad</p>
+      <Segmented legend="Tono" choices={toneChoices} value={persona.tone} onPick={(tone) => onChange({ ...persona, tone })} />
+      <Segmented legend="Trato" choices={addressChoices} value={persona.address} onPick={(address) => onChange({ ...persona, address })} />
+      <Segmented legend="Emojis" choices={emojiChoices} value={persona.emojis} onPick={(emojis) => onChange({ ...persona, emojis })} />
+      <Segmented legend="Respuestas" choices={lengthChoices} value={persona.length} onPick={(length) => onChange({ ...persona, length })} />
+      <label className="block space-y-1.5 text-xs font-medium text-[#5C5854] dark:text-[#C7C2D3]">
+        Reglas propias (opcional)
+        <textarea
+          maxLength={600}
+          rows={2}
+          value={persona.rules ?? ""}
+          onChange={(event) => onChange({ ...persona, rules: event.target.value })}
+          className={cn(field, "resize-y text-sm")}
+          placeholder="Ej.: nunca prometas fechas de entrega; firma como «Equipo Lyra»."
+        />
+      </label>
+    </div>
+  );
+}
 
 export const avatarChoices = ["✦", "🤖", "🦊", "🦉", "🚀", "💼", "📣", "🎯", "🧠", "🌱", "💬", "📊"];
 
@@ -56,7 +155,7 @@ export function AgentEditor({
               <p className="mt-1 text-sm text-[#8A8680]">
                 {draft.isDefault
                   ? "Vega es tu agente principal: puedes cambiar su avatar, especialidad y personalidad."
-                  : "Tendrá su propio nombre, especialidad y personalidad. Usa las mismas conexiones que Vega."}
+                  : "Tendrá su propio nombre, personalidad, memoria y rutinas. Usa las mismas conexiones y créditos que Vega."}
               </p>
             </div>
             <button type="button" onClick={onCancel} disabled={saving} className="rounded-full p-1.5 text-[#8A8680] hover:bg-[#F3F0EB] dark:hover:bg-white/10" aria-label="Cerrar">
@@ -130,6 +229,7 @@ export function AgentEditor({
               placeholder="Define su tono, enfoque y cómo debe ayudarte."
             />
           </label>
+          <PersonaFields persona={draft.persona ?? {}} onChange={(persona) => onChange({ ...draft, persona })} />
           {extra}
           <div className="flex justify-end gap-2 pt-1">
             <button type="button" disabled={saving} onClick={onCancel} className="rounded-xl px-4 py-2 text-sm text-[#5C5854] hover:bg-[#F3F0EB] disabled:opacity-50 dark:text-[#C7C2D3] dark:hover:bg-white/10">

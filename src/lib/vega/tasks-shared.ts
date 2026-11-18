@@ -24,6 +24,8 @@ export type VegaTaskView = {
   label: string;
   runCount: number;
   failCount: number;
+  /** Vega v2: agente dueño de la rutina (null = principal). */
+  agentId?: string | null;
 };
 
 export type RoutineRunStatus = "queued" | "running" | "done" | "failed" | "skipped";

@@ -4,7 +4,7 @@ import { creditPrices } from "@/lib/credits/prices";
 import { getPrisma } from "@/lib/prisma";
 import { canUseVega } from "@/lib/vega/access";
 import { ensureDefaultVegaAgent } from "@/lib/vega/agents";
-import { backgroundJobTool } from "@/lib/vega/jobs-tool";
+import { backgroundJobTool, delegateTool } from "@/lib/vega/jobs-tool";
 import {
   advanceJobOnce,
   isActive,
@@ -90,7 +90,7 @@ async function runStepTurn(db: Db, job: JobRecord, index: number, budgetMs: numb
     requestId: `job-${job.id}-${index}-${job.failures}`,
     channelNote: jobChannelNote(job.title),
     ephemeral: true,
-    excludeTools: [backgroundJobTool],
+    excludeTools: [backgroundJobTool, delegateTool],
     timeBudgetMs: Math.max(10_000, budgetMs - 5_000),
   });
   if (!prepared.ok) {
@@ -138,6 +138,25 @@ async function finishJob(db: Db, job: JobRecord) {
     });
   }
   await db.vegaConversation.updateMany({ where: { id: job.conversationId }, data: { updatedAt: new Date() } });
+  await reportToOrigin(db, job, done);
+}
+
+/** Vega v2 · V3: si otro agente hizo el trabajo, su resultado también llega a la conversación de origen. */
+async function reportToOrigin(db: Db, job: JobRecord, done: number) {
+  if (!job.actionId) return;
+  const action = await db.vegaAction.findUnique({ where: { id: job.actionId }, select: { conversationId: true } });
+  const origin = action?.conversationId;
+  if (!origin || origin === job.conversationId) return;
+  const agent = job.agentId ? await db.vegaAgent.findUnique({ where: { id: job.agentId }, select: { name: true } }) : null;
+  const name = agent?.name ?? "El otro agente";
+  const content =
+    job.status === "done"
+      ? `${name} terminó «${job.title}»:\n\n${job.result ?? ""}`.trim()
+      : job.status === "canceled"
+        ? `Se canceló «${job.title}», que estaba haciendo ${name} (${done} de ${job.steps.length} pasos hechos).`
+        : `${name} no pudo terminar «${job.title}». ${job.error ?? ""}`.replace(/\s+/g, " ").trim();
+  await db.vegaMessage.create({ data: { conversationId: origin, role: "assistant", content, meta: { job: job.id } } });
+  await db.vegaConversation.updateMany({ where: { id: origin }, data: { updatedAt: new Date() } });
 }
 
 export function defaultJobDeps(db: Db = getPrisma()): JobDeps {

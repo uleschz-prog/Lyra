@@ -1,6 +1,7 @@
 // Rutinas de Vega (Fase 6): recordatorios a hora exacta y horarios recurrentes
 // tipo cron en la zona horaria del socio. La ejecución vive en routine-runner.ts.
 import { getPrisma } from "@/lib/prisma";
+import { ownedWhere, type AgentScope } from "@/lib/vega/agent-scope";
 import { buildSchedule, DEFAULT_TIMEZONE, describeSchedule, nextRoutineRun } from "@/lib/vega/schedule";
 import { DEFAULT_TIME, type TaskKind, type TaskRepeat, type VegaRoutineRunView, type VegaTaskView } from "@/lib/vega/tasks-shared";
 
@@ -44,6 +45,7 @@ type TaskRow = {
   timezone: string;
   runCount: number;
   failCount: number;
+  agentId?: string | null;
 };
 
 export const taskSelect = {
@@ -61,6 +63,7 @@ export const taskSelect = {
   timezone: true,
   runCount: true,
   failCount: true,
+  agentId: true,
 } as const;
 
 export function taskView(task: TaskRow): VegaTaskView {
@@ -79,9 +82,10 @@ export function taskView(task: TaskRow): VegaTaskView {
   };
 }
 
-export async function listTasks(userId: string, includeDone = false) {
+/** Con `scope`, solo las rutinas de ese agente (las de antes de v2 son del principal). */
+export async function listTasks(userId: string, includeDone = false, scope?: AgentScope | null) {
   const rows = (await getPrisma().vegaTask.findMany({
-    where: { userId, ...(includeDone ? {} : { status: { in: ["active", "paused"] } }) },
+    where: { userId, ...ownedWhere(scope), ...(includeDone ? {} : { status: { in: ["active", "paused"] } }) },
     orderBy: [{ status: "asc" }, { runAt: "asc" }],
     take: 50,
     select: taskSelect,
@@ -104,7 +108,7 @@ export type CreateRoutineInput = {
   cron?: string;
 };
 
-export async function createTask(userId: string, input: CreateRoutineInput, now = new Date()) {
+export async function createTask(userId: string, input: CreateRoutineInput, now = new Date(), scope?: AgentScope | null) {
   const prisma = getPrisma();
   const limit = maxRoutines();
   const active = await prisma.vegaTask.count({ where: { userId, status: { in: ["active", "paused"] } } });
@@ -125,6 +129,7 @@ export async function createTask(userId: string, input: CreateRoutineInput, now 
   const task = (await prisma.vegaTask.create({
     data: {
       userId,
+      ...(scope ? { agentId: scope.agentId } : {}),
       title: input.title.slice(0, 120),
       instruction: input.instruction.slice(0, 1000),
       kind: input.kind,
@@ -139,17 +144,17 @@ export async function createTask(userId: string, input: CreateRoutineInput, now 
   return { ok: true as const, task: taskView(task) };
 }
 
-export async function pauseTask(userId: string, id: string) {
-  const updated = await getPrisma().vegaTask.updateMany({ where: { id, userId, status: "active" }, data: { status: "paused" } });
+export async function pauseTask(userId: string, id: string, scope?: AgentScope | null) {
+  const updated = await getPrisma().vegaTask.updateMany({ where: { id, userId, ...ownedWhere(scope), status: "active" }, data: { status: "paused" } });
   return updated.count > 0
     ? { ok: true as const }
     : { ok: false as const, error: "No encontré esa rutina activa." };
 }
 
 /** Reanuda una rutina en pausa. Las recurrentes saltan lo que se perdió y siguen en la próxima hora. */
-export async function resumeTask(userId: string, id: string, now = new Date()) {
+export async function resumeTask(userId: string, id: string, now = new Date(), scope?: AgentScope | null) {
   const prisma = getPrisma();
-  const task = (await prisma.vegaTask.findFirst({ where: { id, userId }, select: taskSelect })) as TaskRow | null;
+  const task = (await prisma.vegaTask.findFirst({ where: { id, userId, ...ownedWhere(scope) }, select: taskSelect })) as TaskRow | null;
   if (!task || task.status !== "paused") return { ok: false as const, error: "No encontré esa rutina en pausa." };
   let runAt = task.runAt;
   if (runAt.getTime() <= now.getTime()) {
@@ -168,8 +173,8 @@ export async function setTaskStatus(userId: string, id: string, status: "active"
   return result.ok;
 }
 
-export async function deleteTask(userId: string, id: string) {
-  const deleted = await getPrisma().vegaTask.deleteMany({ where: { id, userId } });
+export async function deleteTask(userId: string, id: string, scope?: AgentScope | null) {
+  const deleted = await getPrisma().vegaTask.deleteMany({ where: { id, userId, ...ownedWhere(scope) } });
   return deleted.count > 0;
 }
 
@@ -178,10 +183,10 @@ function pendingCount(actionIds: unknown, pending: Set<string>) {
 }
 
 /** Últimas ejecuciones de rutinas del socio (resultados y avisos). */
-export async function listRoutineRuns(userId: string, take = 20): Promise<VegaRoutineRunView[]> {
+export async function listRoutineRuns(userId: string, take = 20, scope?: AgentScope | null): Promise<VegaRoutineRunView[]> {
   const prisma = getPrisma();
   const runs = await prisma.vegaRoutineRun.findMany({
-    where: { userId },
+    where: { userId, ...(scope ? { task: ownedWhere(scope) } : {}) },
     orderBy: { createdAt: "desc" },
     take,
     select: {

@@ -34,6 +34,7 @@ const readTools = new Set([
 
 const internalTools = new Set([
   "trabajo_en_segundo_plano",
+  "delegar_a_agente",
   "recordar",
   "olvidar",
   "actualizar_perfil",
