@@ -1,11 +1,12 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
-import { ArrowLeft, Download, ExternalLink, Store } from "lucide-react";
+import { ArrowLeft, Download, ExternalLink, FileCode2, Store } from "lucide-react";
 
 import { ProjectActions } from "@/components/projects/project-actions";
 import { brand } from "@/config/brand";
 import { getCurrentUser } from "@/lib/auth/profile";
+import { hasReadySite } from "@/lib/projects/handoff";
 import { getProject, parseVersionParam } from "@/lib/projects/queries";
 import { formatProjectDate, projectKindLabels } from "@/lib/projects/store";
 
@@ -33,6 +34,8 @@ export default async function ProjectPage({
   const query = `?v=${current.number}`;
   const button =
     "inline-flex items-center gap-1.5 rounded-lg border border-[#E7E2DA] bg-white px-3 py-2 text-xs font-medium text-[#1E1E24] hover:border-[#C4B5FD] dark:border-white/12 dark:bg-[#181625] dark:text-[#F2F0F7]";
+  // Botón principal con sus propias clases: mezclarlo con `button` dejaba bg-white encima (texto blanco invisible).
+  const primary = "inline-flex items-center gap-1.5 rounded-lg border border-[#7C3AED] bg-[#7C3AED] px-3 py-2 text-xs font-medium text-white hover:border-[#6D28D9] hover:bg-[#6D28D9]";
 
   return (
     <div className="space-y-6">
@@ -52,8 +55,22 @@ export default async function ProjectPage({
             <ExternalLink className="size-3.5" />
             Abrir en pestaña
           </a>
-          <a href={`/api/proyectos/${project.id}/zip${query}`} className={`${button} border-[#7C3AED] bg-[#7C3AED] text-white hover:border-[#6D28D9] dark:bg-[#7C3AED]`}>
-            <Download className="size-3.5" />
+          {hasReadySite(project.kind) ? (
+            <a
+              href={`/api/proyectos/${project.id}/sitio${query}`}
+              title="Un solo archivo HTML listo para subir a cualquier hosting"
+              className={primary}
+            >
+              <Download className="size-3.5" />
+              Descargar sitio listo
+            </a>
+          ) : null}
+          <a
+            href={`/api/proyectos/${project.id}/zip${query}`}
+            title={hasReadySite(project.kind) ? "Código fuente, sitio listo y guía para publicarlo" : "Archivos del proyecto"}
+            className={hasReadySite(project.kind) ? button : primary}
+          >
+            <FileCode2 className="size-3.5" />
             Descargar ZIP
           </a>
           <Link href={`/dashboard/marketplace/publicar?proyecto=${project.id}`} className={button}>
