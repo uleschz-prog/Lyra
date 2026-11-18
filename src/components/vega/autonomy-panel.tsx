@@ -6,7 +6,7 @@ import { toast } from "sonner";
 
 import { updateVegaAutonomy, vegaAutonomy } from "@/app/dashboard/super-agent/actions";
 import type { AutonomySettings } from "@/lib/vega/autonomy";
-import { sheetClass } from "@/components/vega/sheet";
+import { panelClass, type PanelVariant } from "@/components/vega/sheet";
 
 // Correos, WhatsApp, publicaciones, cobros e invitaciones son envíos: siempre se confirman (no hay interruptor).
 const toggles: { key: "events" | "appActions"; label: string; hint: string }[] = [
@@ -14,7 +14,7 @@ const toggles: { key: "events" | "appActions"; label: string; hint: string }[] =
   { key: "appActions", label: "Acciones en tus apps", hint: "Agregar filas a tus hojas, crear documentos y reuniones de Zoom" },
 ];
 
-export function AutonomyPanel({ onClose }: { onClose: () => void }) {
+export function AutonomyPanel({ onClose, variant = "sheet" }: { onClose?: () => void; variant?: PanelVariant }) {
   const [settings, setSettings] = useState<AutonomySettings | null>(null);
   const [busy, setBusy] = useState(false);
 
@@ -41,15 +41,17 @@ export function AutonomyPanel({ onClose }: { onClose: () => void }) {
   }
 
   return (
-    <div className={sheetClass}>
+    <div className={panelClass(variant)}>
       <div className="flex items-center justify-between">
         <p className="flex items-center gap-2 text-sm font-semibold text-[#1E1E24]">
           <ShieldCheck className="size-4 text-[#7C3AED]" />
           Autonomía de Vega
         </p>
-        <button type="button" onClick={onClose} className="rounded p-1 text-[#8A8680]" aria-label="Cerrar">
-          <X className="size-4" />
-        </button>
+        {onClose ? (
+          <button type="button" onClick={onClose} className="rounded p-1 text-[#8A8680]" aria-label="Cerrar">
+            <X className="size-4" />
+          </button>
+        ) : null}
       </div>
       <p className="mt-1 text-xs leading-5 text-[#8A8680]">
         Lo que Vega puede ejecutar sin pedirte confirmación. Solo de 9:00 a 21:00 (Ciudad de México) y dentro de tu tope diario.

@@ -14,7 +14,7 @@ import {
   vegaTasks,
   vegaWhatsapp,
 } from "@/app/dashboard/super-agent/actions";
-import { sheetClass } from "@/components/vega/sheet";
+import { panelClass, type PanelVariant } from "@/components/vega/sheet";
 import { DEFAULT_TIMEZONE, MIN_INTERVAL_MINUTES, zonedParts } from "@/lib/vega/schedule";
 import {
   DEFAULT_TIME,
@@ -243,7 +243,7 @@ function WhatsappReminders() {
   );
 }
 
-export function RoutinesPanel({ onClose }: { onClose: () => void }) {
+export function RoutinesPanel({ onClose, variant = "sheet" }: { onClose?: () => void; variant?: PanelVariant }) {
   const [tasks, setTasks] = useState<VegaTaskView[] | null>(null);
   const [runs, setRuns] = useState<VegaRoutineRunView[]>([]);
 
@@ -287,15 +287,17 @@ export function RoutinesPanel({ onClose }: { onClose: () => void }) {
   }
 
   return (
-    <div className={sheetClass}>
+    <div className={panelClass(variant)}>
       <div className="flex items-center justify-between">
         <p className="flex items-center gap-2 text-sm font-semibold text-[#1E1E24]">
           <CalendarClock className="size-4 text-[#7C3AED]" />
           Rutinas
         </p>
-        <button type="button" onClick={onClose} className="rounded p-1 text-[#8A8680]" aria-label="Cerrar">
-          <X className="size-4" />
-        </button>
+        {onClose ? (
+          <button type="button" onClick={onClose} className="rounded p-1 text-[#8A8680]" aria-label="Cerrar">
+            <X className="size-4" />
+          </button>
+        ) : null}
       </div>
       <p className="mt-1 text-xs leading-5 text-[#8A8680]">
         Recordatorios a hora exacta y trabajos que Vega hace solo, una vez o con horario fijo. Te llegan a «Recordatorios de Vega», a tu

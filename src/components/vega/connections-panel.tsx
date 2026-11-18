@@ -18,7 +18,7 @@ import {
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
 
-import { sheetClass } from "@/components/vega/sheet";
+import { panelClass, type PanelVariant } from "@/components/vega/sheet";
 import { connectVegaApp, disconnectVegaApp, vegaConnections } from "@/app/dashboard/super-agent/actions";
 import { toolkitHints, toolkitLabels, type UserToolkit, type VegaConnections } from "@/lib/vega/apps";
 
@@ -47,7 +47,7 @@ const groups: { title: string; apps: { id: UserToolkit; icon: LucideIcon }[] }[]
   { title: "Cobros", apps: [{ id: "stripe", icon: CreditCard }] },
 ];
 
-export function ConnectionsPanel({ onClose }: { onClose: () => void }) {
+export function ConnectionsPanel({ onClose, variant = "sheet" }: { onClose?: () => void; variant?: PanelVariant }) {
   const [status, setStatus] = useState<Status | null>(null);
   const [busy, setBusy] = useState<UserToolkit | null>(null);
 
@@ -87,15 +87,17 @@ export function ConnectionsPanel({ onClose }: { onClose: () => void }) {
   }
 
   return (
-    <div className={sheetClass}>
+    <div className={panelClass(variant)}>
       <div className="flex items-center justify-between">
         <p className="flex items-center gap-2 text-sm font-semibold text-[#1E1E24]">
           <Plug className="size-4 text-[#7C3AED]" />
           Conexiones
         </p>
-        <button type="button" onClick={onClose} className="rounded p-1 text-[#8A8680]" aria-label="Cerrar">
-          <X className="size-4" />
-        </button>
+        {onClose ? (
+          <button type="button" onClick={onClose} className="rounded p-1 text-[#8A8680]" aria-label="Cerrar">
+            <X className="size-4" />
+          </button>
+        ) : null}
       </div>
       {!status ? (
         <p className="mt-4 text-sm text-[#8A8680]">Revisando…</p>

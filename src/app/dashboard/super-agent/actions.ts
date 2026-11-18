@@ -118,11 +118,13 @@ export async function updateVegaAgent(input: { id: string; name: string; special
   const instructions = input.instructions.trim().slice(0, 2000);
   const avatar = input.avatar?.trim().slice(0, 8) || "✦";
   if (!user || !name || !specialty) return { ok: false as const, error: "Indica un nombre y una especialidad para el agente." };
-  const updated = await getPrisma().vegaAgent.updateMany({
-    where: { id: input.id, userId: user.id, isDefault: false },
-    data: { name, specialty, instructions, avatar },
-  });
-  return { ok: updated.count > 0 };
+  // Vega v2: el agente principal también se ajusta (avatar, especialidad, personalidad), pero conserva su nombre.
+  const prisma = getPrisma();
+  const [custom, main] = await Promise.all([
+    prisma.vegaAgent.updateMany({ where: { id: input.id, userId: user.id, isDefault: false }, data: { name, specialty, instructions, avatar } }),
+    prisma.vegaAgent.updateMany({ where: { id: input.id, userId: user.id, isDefault: true }, data: { specialty, instructions, avatar } }),
+  ]);
+  return { ok: custom.count + main.count > 0 };
 }
 
 export async function deleteVegaAgent(id: string) {
