@@ -46,7 +46,7 @@ function todayLocal() {
 const fieldClass =
   "w-full rounded-lg border border-[#E7E2DA] bg-white px-3 py-1.5 text-base text-[#1E1E24] outline-none sm:text-xs focus:border-[#7C3AED]";
 
-function NewRoutine({ onCreated }: { onCreated: (task: VegaTaskView) => void }) {
+function NewRoutine({ onCreated, agentId }: { onCreated: (task: VegaTaskView) => void; agentId?: string }) {
   const [open, setOpen] = useState(false);
   const [busy, setBusy] = useState(false);
   const [title, setTitle] = useState("");
@@ -59,7 +59,7 @@ function NewRoutine({ onCreated }: { onCreated: (task: VegaTaskView) => void }) 
 
   async function submit() {
     setBusy(true);
-    const result = await createVegaRoutine({ title, instruction, kind, repeat, date, time, cron });
+    const result = await createVegaRoutine({ title, instruction, kind, repeat, date, time, cron, agentId });
     setBusy(false);
     if (!result.ok) {
       toast.error(result.error);
@@ -243,16 +243,25 @@ function WhatsappReminders() {
   );
 }
 
-export function RoutinesPanel({ onClose, variant = "sheet" }: { onClose?: () => void; variant?: PanelVariant }) {
+export function RoutinesPanel({
+  onClose,
+  variant = "sheet",
+  agentId,
+}: {
+  onClose?: () => void;
+  variant?: PanelVariant;
+  /** Vega v2 · V3: rutinas de este agente (corren como él). */
+  agentId?: string;
+}) {
   const [tasks, setTasks] = useState<VegaTaskView[] | null>(null);
   const [runs, setRuns] = useState<VegaRoutineRunView[]>([]);
 
   useEffect(() => {
     let alive = true;
-    void vegaTasks().then((items) => {
+    void vegaTasks(agentId).then((items) => {
       if (alive) setTasks(items);
     });
-    void vegaRoutineRuns().then((items) => {
+    void vegaRoutineRuns(agentId).then((items) => {
       if (!alive) return;
       setRuns(items);
       if (items.some((run) => !run.seen)) void markVegaRoutineRunsSeen();
@@ -260,11 +269,11 @@ export function RoutinesPanel({ onClose, variant = "sheet" }: { onClose?: () => 
     return () => {
       alive = false;
     };
-  }, []);
+  }, [agentId]);
 
   async function toggle(task: VegaTaskView) {
     const paused = task.status === "active";
-    const result = await toggleVegaTask(task.id, paused);
+    const result = await toggleVegaTask(task.id, paused, agentId);
     if (!result.ok) {
       toast.error(result.error ?? "No se pudo actualizar. Intenta de nuevo.");
       return;
@@ -278,7 +287,7 @@ export function RoutinesPanel({ onClose, variant = "sheet" }: { onClose?: () => 
   }
 
   async function remove(id: string) {
-    const result = await deleteVegaTask(id);
+    const result = await deleteVegaTask(id, agentId);
     if (!result.ok) {
       toast.error("No se pudo borrar. Intenta de nuevo.");
       return;
@@ -304,7 +313,7 @@ export function RoutinesPanel({ onClose, variant = "sheet" }: { onClose?: () => 
         correo si conectaste Gmail y a WhatsApp si lo activas. Los envíos a otras personas siempre esperan tu confirmación.
       </p>
       <WhatsappReminders />
-      <NewRoutine onCreated={(task) => setTasks((current) => [...(current ?? []), task].sort((a, b) => a.runAt.localeCompare(b.runAt)))} />
+      <NewRoutine agentId={agentId} onCreated={(task) => setTasks((current) => [...(current ?? []), task].sort((a, b) => a.runAt.localeCompare(b.runAt)))} />
 
       <div className="mt-3 min-h-0 flex-1 overflow-y-auto">
         {tasks === null ? (

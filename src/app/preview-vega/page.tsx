@@ -60,6 +60,7 @@ export default async function PreviewVega({ searchParams }: { searchParams: Prom
             instructions: "",
             avatar: "✦",
             isDefault: true,
+            persona: {},
           }]}
           initialChats={[
             { id: "c1", agentId: "agent-preview", title: "App de citas para la clínica", updatedAt: now },

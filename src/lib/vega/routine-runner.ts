@@ -43,7 +43,8 @@ type TurnOutcome =
 
 export type RunnerDeps = {
   canRun: (user: RoutineUser, now: Date) => boolean;
-  chat: (userId: string) => Promise<{ id: string; agentId: string }>;
+  /** Conversación de recordatorios del agente dueño de la rutina (null = principal). */
+  chat: (userId: string, agentId?: string | null) => Promise<{ id: string; agentId: string }>;
   charge: typeof chargeCredits;
   refund: typeof refundCharge;
   turn: (user: RoutineUser, input: { agentId: string; conversationId: string; message: string; requestId: string; channelNote: string }) => Promise<TurnOutcome>;
@@ -62,9 +63,11 @@ export function routineChannelNote(title: string) {
   ].join(" ");
 }
 
-async function remindersChat(userId: string) {
+async function remindersChat(userId: string, agentId?: string | null) {
   const prisma = getPrisma();
-  const agent = await ensureDefaultVegaAgent(userId);
+  // Vega v2 · V3: cada agente corre sus rutinas en su propia conversación de recordatorios.
+  const owner = agentId ? await prisma.vegaAgent.findFirst({ where: { id: agentId, userId }, select: { id: true } }) : null;
+  const agent = owner ?? (await ensureDefaultVegaAgent(userId));
   const existing = await prisma.vegaConversation.findFirst({
     where: { userId, agentId: agent.id, title: REMINDERS_CHAT_TITLE },
     select: { id: true },
@@ -228,7 +231,7 @@ export async function executeRun(runId: string, now: Date, deps: RunnerDeps = de
   }
 
   const late = now.getTime() - run.scheduledFor.getTime() > 30 * 60_000 ? " (con retraso)" : "";
-  const chat = await deps.chat(user.id);
+  const chat = await deps.chat(user.id, task.agentId ?? null);
 
   if (task.kind === "x_monitor") {
     // Sondeo sin modelo ni créditos: solo cuesta la consulta a X (tope diario y tope mensual de la Fase 7).

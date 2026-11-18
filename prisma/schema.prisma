@@ -409,12 +409,20 @@ model VegaAgent {
   instructions String   @default("") @db.Text
   avatar       String   @default("✦")
   isDefault    Boolean  @default(false)
+  /// Vega v2: personalidad (tono, trato, emojis, extensión, reglas). null = la de siempre.
+  persona      Json?
+  /// Reservado para el panel de administración (plantillas de agente con versión).
+  templateId      String?
+  templateVersion Int?
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 
   user          User              @relation(fields: [userId], references: [id], onDelete: Cascade)
   conversations VegaConversation[]
   jobs          VegaJob[]
+  memories      VegaMemory[]
+  tasks         VegaTask[]
+  files         VegaFile[]
 
   @@index([userId, createdAt])
 }
@@ -500,29 +508,37 @@ model VegaMessage {
 model VegaMemory {
   id        String   @id @default(cuid())
   userId    String
+  /// Vega v2: agente dueño del recuerdo. null = agente principal (datos de antes de v2).
+  /// Los de tipo «profile» se comparten entre todos los agentes del socio.
+  agentId   String?
   content   String
   /// profile | preference | fact | journal
   kind      String   @default("fact")
   createdAt DateTime @default(now())
   updatedAt DateTime @default(now()) @updatedAt
 
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user  User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  agent VegaAgent? @relation(fields: [agentId], references: [id], onDelete: Cascade)
 
   @@index([userId, createdAt])
   @@index([userId, kind])
+  @@index([userId, agentId])
 }
 
 /// Archivo de texto del espacio de trabajo de Vega (notas, borradores, resultados).
 model VegaFile {
   id        String   @id @default(cuid())
   userId    String
+  /// Vega v2: agente que creó el archivo (los archivos se comparten entre agentes). null = principal.
+  agentId   String?
   path      String
   content   String   @db.Text
   bytes     Int      @default(0)
   createdAt DateTime @default(now())
   updatedAt DateTime @default(now()) @updatedAt
 
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user  User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  agent VegaAgent? @relation(fields: [agentId], references: [id], onDelete: SetNull)
 
   @@unique([userId, path])
   @@index([userId, updatedAt])
@@ -531,6 +547,8 @@ model VegaFile {
 model VegaTask {
   id          String    @id @default(cuid())
   userId      String
+  /// Vega v2: agente dueño de la rutina (corre como ese agente). null = agente principal.
+  agentId     String?
   title       String
   instruction String    @db.Text
   kind        String    @default("reminder")
@@ -549,12 +567,14 @@ model VegaTask {
   runCount    Int       @default(0)
   failCount   Int       @default(0)
 
-  user User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user     User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  agent    VegaAgent?       @relation(fields: [agentId], references: [id], onDelete: Cascade)
   runs     VegaRoutineRun[]
   xMonitor VegaXMonitor?
 
   @@index([status, runAt])
   @@index([userId, status])
+  @@index([userId, agentId])
 }
 
 // Una ejecución de rutina. (taskId, scheduledFor) es único: dos despachos

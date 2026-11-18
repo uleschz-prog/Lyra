@@ -41,8 +41,15 @@ vi.mock("@/lib/credits", () => ({
 }));
 vi.mock("@/lib/vega/model-gateway", () => ({ openVegaStream }));
 const startBackgroundJob = vi.hoisted(() => vi.fn());
+const startDelegation = vi.hoisted(() => vi.fn());
 const chargeSpy = vi.hoisted(() => vi.fn());
-vi.mock("@/lib/vega/jobs-tool", () => ({ backgroundJobTool: "trabajo_en_segundo_plano", startBackgroundJob }));
+vi.mock("@/lib/vega/jobs-tool", () => ({
+  backgroundJobTool: "trabajo_en_segundo_plano",
+  delegateTool: "delegar_a_agente",
+  delegateDeclaration: () => ({ name: "delegar_a_agente" }),
+  startBackgroundJob,
+  startDelegation,
+}));
 vi.mock("@/lib/vega/tools", () => ({
   freeTools: new Set(["recordar"]),
   runVegaTool,
@@ -93,6 +100,7 @@ beforeEach(() => {
   openVegaStream.mockReset();
   runVegaTool.mockReset();
   startBackgroundJob.mockReset();
+  startDelegation.mockReset();
   chargeSpy.mockReset();
   vi.spyOn(console, "info").mockImplementation(() => undefined);
 });
@@ -125,5 +133,32 @@ describe("Vega v2 · turnos y trabajos en segundo plano", () => {
     expect(chargeSpy).not.toHaveBeenCalled();
     expect(result.actionIds).toEqual(["act_job"]);
     expect(db.messages[0].meta).toMatchObject({ actions: ["act_job"] });
+  });
+
+  it("delegar_a_agente pasa la tarea a otro agente, muestra la tarjeta y no cobra herramienta", async () => {
+    const action = {
+      id: "act_del",
+      kind: "background_job",
+      payload: { job: { jobId: "job_2", title: "Post", steps: ["Post"], delegate: { agentId: "luna", name: "Luna", avatar: "🦊", conversationId: "c9" } } },
+      status: "running",
+      result: null,
+    };
+    startDelegation.mockResolvedValue({ ok: true, jobId: "job_2", title: "Post", action, response: { estado: "delegado" } });
+    openVegaStream.mockResolvedValueOnce(stream({ text: "Se lo pasé a Luna." }));
+    const current = { ...turn(stream({ functionCall: { name: "delegar_a_agente", args: { agente: "Luna", tarea: "Escribe un post" } } })), agentId: "vega" };
+    const result = await runVegaTurn(current, () => undefined);
+    expect(startDelegation).toHaveBeenCalledWith(expect.anything(), expect.objectContaining({ userId: "u1", chatId: "c1", fromAgentId: "vega" }));
+    expect(current.startedJobs).toEqual(["job_2"]);
+    expect(chargeSpy).not.toHaveBeenCalled();
+    expect(runVegaTool).not.toHaveBeenCalled();
+    expect(result.actionIds).toEqual(["act_del"]);
+  });
+
+  it("las herramientas reciben el alcance del agente que contesta", async () => {
+    runVegaTool.mockResolvedValue({ kind: "result", status: "Guardé", response: { ok: true } });
+    openVegaStream.mockResolvedValueOnce(stream({ text: "Listo." }));
+    const scope = { agentId: "luna", isDefault: false };
+    await runVegaTurn({ ...turn(stream({ functionCall: { name: "recordar", args: { dato: "Prefiere WhatsApp" } } })), agentId: "luna", scope }, () => undefined);
+    expect(runVegaTool).toHaveBeenCalledWith("u1", "recordar", { dato: "Prefiere WhatsApp" }, { scope });
   });
 });

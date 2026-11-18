@@ -84,9 +84,9 @@ export function InfoPane({
   const custom = renderTab?.(tab);
   let body: ReactNode;
   if (custom !== undefined) body = custom;
-  else if (tab === "rutinas") body = <RoutinesPanel variant="pane" />;
+  else if (tab === "rutinas") body = <RoutinesPanel key={agent?.id ?? "all"} variant="pane" agentId={agent?.id} />;
   else if (tab === "archivos") body = <FilesPanel variant="pane" />;
-  else if (tab === "memoria") body = <MemoryPanel variant="pane" />;
+  else if (tab === "memoria") body = <MemoryPanel key={agent?.id ?? "all"} variant="pane" agentId={agent?.id} agentName={agent?.name} />;
   else if (tab === "conexiones") body = <ConnectionsPanel variant="pane" />;
   else if (extra === "perfil") body = <ExtraView onBack={() => setExtra(null)}><ProfilePanel variant="pane" /></ExtraView>;
   else if (extra === "autonomia") body = <ExtraView onBack={() => setExtra(null)}><AutonomyPanel variant="pane" /></ExtraView>;

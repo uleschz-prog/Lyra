@@ -6,6 +6,7 @@ import { composioConfigured } from "@/lib/ai/composio";
 import { disconnectUser, forgetConnections, userConnectUrl, userConnections, userExpiredToolkits, type UserToolkit } from "@/lib/ai/composio-user";
 import { getCurrentUser } from "@/lib/auth/profile";
 import { currentCredits } from "@/lib/credits";
+import { Prisma } from "@/generated/prisma/client";
 import { getPrisma } from "@/lib/prisma";
 import { canUseVega } from "@/lib/vega/access";
 import { ensureDefaultVegaAgent } from "@/lib/vega/agents";
@@ -13,6 +14,7 @@ import { isUserToolkit, noConnections } from "@/lib/vega/apps";
 import { attachmentChips } from "@/lib/vega/attachments";
 import type { VegaActionView, VegaSource } from "@/lib/vega/events";
 import { deleteWorkspaceFile, listFiles, readWorkspaceFile, type VegaFileView } from "@/lib/vega/files";
+import { parsePersona, type AgentScope, type Persona } from "@/lib/vega/agent-scope";
 import { forgetAllMemories, forgetMemory, listMemories, saveMemory, type VegaMemoryView } from "@/lib/vega/memory";
 import { defaultAutonomy, type AutonomySettings } from "@/lib/vega/autonomy";
 import { getVegaProfile, saveVegaProfile, type VegaProfile } from "@/lib/vega/profile";
@@ -47,6 +49,8 @@ export type VegaAgentSummary = {
   instructions: string;
   avatar: string;
   isDefault: boolean;
+  /** Vega v2 · V3: personalidad (tono, trato, emojis, extensión, reglas). */
+  persona: Persona;
 };
 export type VegaChatSummary = { id: string; agentId: string; title: string; updatedAt: string };
 export type VegaAttachmentChip = { kind: "file" | "link"; name: string; url?: string };
@@ -65,16 +69,39 @@ async function vegaUser() {
   return canUseVega(user) ? user : null;
 }
 
+/**
+ * Vega v2 · V3: alcance por agente para los paneles. Sin agentId = todo (compatibilidad);
+ * con un agentId ajeno = false (no se muestra ni se cambia nada).
+ */
+async function scopeFor(userId: string, agentId: unknown): Promise<AgentScope | null | false> {
+  if (agentId === undefined || agentId === null || agentId === "") return null;
+  if (typeof agentId !== "string") return false;
+  const agent = await getPrisma().vegaAgent.findFirst({ where: { id: agentId, userId }, select: { id: true, isDefault: true } });
+  return agent ? { agentId: agent.id, isDefault: agent.isDefault } : false;
+}
+
+const agentSelect = { id: true, name: true, specialty: true, instructions: true, avatar: true, isDefault: true, persona: true } as const;
+
+function agentSummary(row: { id: string; name: string; specialty: string; instructions: string; avatar: string; isDefault: boolean; persona: unknown }): VegaAgentSummary {
+  return { ...row, persona: parsePersona(row.persona) };
+}
+
+function personaData(raw: unknown) {
+  const persona = parsePersona(raw);
+  return Object.keys(persona).length ? (persona as Prisma.InputJsonValue) : Prisma.DbNull;
+}
+
 export async function listVegaAgents(): Promise<VegaAgentSummary[]> {
   const user = await vegaUser();
   if (!user) return [];
   const prisma = getPrisma();
   await ensureDefaultVegaAgent(user.id);
-  return prisma.vegaAgent.findMany({
+  const rows = await prisma.vegaAgent.findMany({
     where: { userId: user.id },
     orderBy: [{ isDefault: "desc" }, { createdAt: "asc" }],
-    select: { id: true, name: true, specialty: true, instructions: true, avatar: true, isDefault: true },
+    select: agentSelect,
   });
+  return rows.map(agentSummary);
 }
 
 export async function listVegaChats(agentId: string): Promise<VegaChatSummary[]> {
@@ -91,7 +118,7 @@ export async function listVegaChats(agentId: string): Promise<VegaChatSummary[]>
   return chats.map((chat) => ({ ...chat, updatedAt: chat.updatedAt.toISOString() }));
 }
 
-export async function createVegaAgent(input: { name: string; specialty: string; instructions: string; avatar?: string }) {
+export async function createVegaAgent(input: { name: string; specialty: string; instructions: string; avatar?: string; persona?: Persona }) {
   const user = await vegaUser();
   if (!input || typeof input.name !== "string" || typeof input.specialty !== "string" || typeof input.instructions !== "string") {
     return { ok: false as const, error: "Los datos del agente no son válidos." };
@@ -102,13 +129,13 @@ export async function createVegaAgent(input: { name: string; specialty: string; 
   const avatar = input.avatar?.trim().slice(0, 8) || "✦";
   if (!user || !name || !specialty) return { ok: false as const, error: "Indica un nombre y una especialidad para el agente." };
   const agent = await getPrisma().vegaAgent.create({
-    data: { userId: user.id, name, specialty, instructions, avatar },
-    select: { id: true, name: true, specialty: true, instructions: true, avatar: true, isDefault: true },
+    data: { userId: user.id, name, specialty, instructions, avatar, persona: personaData(input.persona) },
+    select: agentSelect,
   });
-  return { ok: true as const, agent };
+  return { ok: true as const, agent: agentSummary(agent) };
 }
 
-export async function updateVegaAgent(input: { id: string; name: string; specialty: string; instructions: string; avatar?: string }) {
+export async function updateVegaAgent(input: { id: string; name: string; specialty: string; instructions: string; avatar?: string; persona?: Persona }) {
   const user = await vegaUser();
   if (!input || typeof input.id !== "string" || typeof input.name !== "string" || typeof input.specialty !== "string" || typeof input.instructions !== "string") {
     return { ok: false as const, error: "Los datos del agente no son válidos." };
@@ -121,8 +148,8 @@ export async function updateVegaAgent(input: { id: string; name: string; special
   // Vega v2: el agente principal también se ajusta (avatar, especialidad, personalidad), pero conserva su nombre.
   const prisma = getPrisma();
   const [custom, main] = await Promise.all([
-    prisma.vegaAgent.updateMany({ where: { id: input.id, userId: user.id, isDefault: false }, data: { name, specialty, instructions, avatar } }),
-    prisma.vegaAgent.updateMany({ where: { id: input.id, userId: user.id, isDefault: true }, data: { specialty, instructions, avatar } }),
+    prisma.vegaAgent.updateMany({ where: { id: input.id, userId: user.id, isDefault: false }, data: { name, specialty, instructions, avatar, persona: personaData(input.persona) } }),
+    prisma.vegaAgent.updateMany({ where: { id: input.id, userId: user.id, isDefault: true }, data: { specialty, instructions, avatar, persona: personaData(input.persona) } }),
   ]);
   return { ok: custom.count + main.count > 0 };
 }
@@ -204,9 +231,11 @@ export async function vegaConnections() {
   return { available: true, connections, expired };
 }
 
-export async function vegaMemories(): Promise<VegaMemoryView[]> {
+export async function vegaMemories(agentId?: string): Promise<VegaMemoryView[]> {
   const user = await vegaUser();
-  return user ? listMemories(user.id) : [];
+  if (!user) return [];
+  const scope = await scopeFor(user.id, agentId);
+  return scope === false ? [] : listMemories(user.id, scope);
 }
 
 export async function vegaProfile(): Promise<VegaProfile> {
@@ -265,10 +294,12 @@ export async function updateVegaAutonomy(input: AutonomySettings): Promise<{ ok:
   return { ok: true };
 }
 
-export async function addVegaMemory(content: string, kind: string = "fact") {
+export async function addVegaMemory(content: string, kind: string = "fact", agentId?: string) {
   const user = await vegaUser();
   if (!user) return { ok: false as const, error: "Vega está incluida en cualquier membresía activa." };
-  return saveMemory(user.id, String(content ?? ""), String(kind ?? "fact"));
+  const scope = await scopeFor(user.id, agentId);
+  if (scope === false) return { ok: false as const, error: "Ese agente ya no existe." };
+  return saveMemory(user.id, String(content ?? ""), String(kind ?? "fact"), scope);
 }
 
 /** Bitácora de acciones de Vega del socio (lo que confirmó, canceló, venció o ejecutó la autonomía). */
@@ -293,30 +324,39 @@ export async function deleteVegaFile(path: string) {
   return { ok: user ? await deleteWorkspaceFile(user.id, String(path ?? "")) : false };
 }
 
-export async function deleteVegaMemory(id: string) {
+export async function deleteVegaMemory(id: string, agentId?: string) {
   const user = await vegaUser();
-  return { ok: user ? await forgetMemory(user.id, id) : false };
+  if (!user) return { ok: false };
+  const scope = await scopeFor(user.id, agentId);
+  return { ok: scope === false ? false : await forgetMemory(user.id, id, scope) };
 }
 
-export async function clearVegaMemories() {
+/** Con agentId borra solo la memoria de ese agente; el perfil compartido se conserva. */
+export async function clearVegaMemories(agentId?: string) {
   const user = await vegaUser();
   if (!user) return { ok: false as const, deleted: 0 };
-  return { ok: true as const, deleted: await forgetAllMemories(user.id) };
+  const scope = await scopeFor(user.id, agentId);
+  if (scope === false) return { ok: false as const, deleted: 0 };
+  return { ok: true as const, deleted: await forgetAllMemories(user.id, scope) };
 }
 
-export async function vegaTasks(): Promise<VegaTaskView[]> {
+export async function vegaTasks(agentId?: string): Promise<VegaTaskView[]> {
   const user = await vegaUser();
-  return user ? listTasks(user.id) : [];
+  if (!user) return [];
+  const scope = await scopeFor(user.id, agentId);
+  return scope === false ? [] : listTasks(user.id, false, scope);
 }
 
-export async function toggleVegaTask(id: string, paused: boolean) {
+export async function toggleVegaTask(id: string, paused: boolean, agentId?: string) {
   const user = await vegaUser();
   if (!user) return { ok: false as const, error: "Inicia sesión de nuevo." };
+  const scope = await scopeFor(user.id, agentId);
+  if (scope === false) return { ok: false as const, error: "Ese agente ya no existe." };
   if (paused) {
-    const result = await pauseTask(user.id, id);
+    const result = await pauseTask(user.id, id, scope);
     return result.ok ? { ok: true as const, runAt: null } : { ok: false as const, error: result.error };
   }
-  const result = await resumeTask(user.id, id);
+  const result = await resumeTask(user.id, id, new Date(), scope);
   return result.ok ? { ok: true as const, runAt: result.runAt.toISOString() } : { ok: false as const, error: result.error };
 }
 
@@ -331,9 +371,13 @@ export async function createVegaRoutine(input: {
   time: string;
   cron?: string;
   useWeb?: boolean;
+  /** Vega v2 · V3: agente dueño de la rutina (sin agentId = principal). */
+  agentId?: string;
 }) {
   const user = await vegaUser();
   if (!user) return { ok: false as const, error: "Inicia sesión de nuevo." };
+  const scope = await scopeFor(user.id, input.agentId);
+  if (scope === false) return { ok: false as const, error: "Ese agente ya no existe." };
   const title = String(input.title ?? "").trim().slice(0, 120);
   const instruction = String(input.instruction ?? "").trim().slice(0, 1000);
   if (!title || !instruction) return { ok: false as const, error: "Escribe un título y qué debe hacer Vega." };
@@ -347,12 +391,14 @@ export async function createVegaRoutine(input: {
     date: String(input.date ?? ""),
     time: String(input.time ?? ""),
     cron: input.repeat === "custom" ? String(input.cron ?? "").slice(0, 100) : undefined,
-  });
+  }, new Date(), scope);
 }
 
-export async function vegaRoutineRuns(): Promise<VegaRoutineRunView[]> {
+export async function vegaRoutineRuns(agentId?: string): Promise<VegaRoutineRunView[]> {
   const user = await vegaUser();
-  return user ? listRoutineRuns(user.id, 20) : [];
+  if (!user) return [];
+  const scope = await scopeFor(user.id, agentId);
+  return scope === false ? [] : listRoutineRuns(user.id, 20, scope);
 }
 
 /** Medidor del tope mensual de costo de IA (solo porcentaje; null si no aplica). */
@@ -375,10 +421,11 @@ export async function markVegaRoutineRunsSeen() {
   return { ok: true as const };
 }
 
-export async function deleteVegaTask(id: string) {
+export async function deleteVegaTask(id: string, agentId?: string) {
   const user = await vegaUser();
   if (!user) return { ok: false as const };
-  return { ok: await deleteTask(user.id, id) };
+  const scope = await scopeFor(user.id, agentId);
+  return { ok: scope === false ? false : await deleteTask(user.id, id, scope) };
 }
 
 export async function vegaWhatsapp() {

@@ -119,6 +119,11 @@ export function JobCard({ action, onChange }: { action: VegaActionView; onChange
           {status === "done" ? <Check className="size-4" /> : status === "failed" ? <TriangleAlert className="size-4" /> : status === "canceled" ? <Ban className="size-4" /> : <LoaderCircle className="size-4 animate-spin" />}
         </span>
         <div className="min-w-0 flex-1">
+          {draft.delegate ? (
+            <p className="mb-0.5 text-[11px] font-medium text-[#7C3AED] dark:text-[#C4B5FD]">
+              <span aria-hidden>{draft.delegate.avatar}</span> Lo hace {draft.delegate.name}
+            </p>
+          ) : null}
           <p className="truncate text-sm font-medium text-[#1E1E24] dark:text-white">{draft.title}</p>
           <p className="text-xs text-[#8A8680]">
             {status === "done"
@@ -172,6 +177,17 @@ export function JobCard({ action, onChange }: { action: VegaActionView; onChange
           );
         })}
       </ol>
+      {draft.delegate ? (
+        <div className="border-t border-[#F0ECE6] px-4 py-2 dark:border-white/8">
+          <button
+            type="button"
+            onClick={() => window.dispatchEvent(new CustomEvent("vega:open-chat", { detail: { agentId: draft.delegate?.agentId, conversationId: draft.delegate?.conversationId } }))}
+            className="text-xs font-medium text-[#7C3AED] underline-offset-2 hover:underline focus-visible:ring-2 focus-visible:ring-[#7C3AED] focus-visible:outline-none dark:text-[#C4B5FD]"
+          >
+            Ver la conversación de {draft.delegate.name}
+          </button>
+        </div>
+      ) : null}
       {active ? (
         <p className="border-t border-[#F0ECE6] px-4 py-2 text-[11px] text-[#8A8680] dark:border-white/8">
           Cada paso cuesta como un mensaje de Vega. Si cierras el chat, sigue en segundo plano y el resultado queda en esta conversación.

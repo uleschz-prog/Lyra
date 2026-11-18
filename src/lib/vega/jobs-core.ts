@@ -9,7 +9,15 @@
 import type { FunctionDeclaration } from "@/lib/vega/gemini-stream";
 
 /** Lo que guarda la tarjeta del chat (VegaAction.payload) sobre su trabajo. */
-export type JobDraft = { job: { jobId: string; title: string; steps: string[] } };
+export type JobDraft = {
+  job: {
+    jobId: string;
+    title: string;
+    steps: string[];
+    /** Vega v2 · V3: el trabajo lo hace otro agente del socio en su propia conversación. */
+    delegate?: { agentId: string; name: string; avatar: string; conversationId: string };
+  };
+};
 
 export function jobDraftOf(payload: unknown): JobDraft["job"] | null {
   if (!payload || typeof payload !== "object") return null;
@@ -19,6 +27,7 @@ export function jobDraftOf(payload: unknown): JobDraft["job"] | null {
 }
 
 export const backgroundJobTool = "trabajo_en_segundo_plano";
+export const delegateTool = "delegar_a_agente";
 
 export type JobStepState = "pending" | "running" | "done" | "failed" | "skipped";
 export type JobStep = { title: string; state: JobStepState; result?: string; actionIds?: string[] };
@@ -97,7 +106,10 @@ export type JobDeps = {
 const clean = (value: unknown, max: number) => (typeof value === "string" ? value.replace(/\s+/g, " ").trim().slice(0, max) : "");
 
 /** Valida lo que Vega pidió con la herramienta `trabajo_en_segundo_plano`. */
-export function planFromArgs(args: Record<string, unknown>): { ok: true; title: string; goal: string; steps: JobStep[] } | { ok: false; error: string } {
+export function planFromArgs(
+  args: Record<string, unknown>,
+  minSteps = 2,
+): { ok: true; title: string; goal: string; steps: JobStep[] } | { ok: false; error: string } {
   const title = clean(args.titulo, jobLimits.titleChars);
   const goal = typeof args.objetivo === "string" ? args.objetivo.trim().slice(0, jobLimits.goalChars) : "";
   const raw = Array.isArray(args.pasos) ? args.pasos : [];
@@ -107,7 +119,7 @@ export function planFromArgs(args: Record<string, unknown>): { ok: true; title: 
     .slice(0, jobLimits.maxSteps)
     .map((stepTitle): JobStep => ({ title: stepTitle, state: "pending" }));
   if (!title || !goal) return { ok: false, error: "Falta el título o el objetivo del trabajo." };
-  if (steps.length < 2) return { ok: false, error: "Un trabajo en segundo plano necesita al menos 2 pasos; si cabe en una respuesta, hazlo directo." };
+  if (steps.length < minSteps) return { ok: false, error: "Un trabajo en segundo plano necesita al menos 2 pasos; si cabe en una respuesta, hazlo directo." };
   return { ok: true, title, goal, steps };
 }
 
@@ -273,3 +285,42 @@ export const backgroundJobDeclaration: FunctionDeclaration = {
     required: ["titulo", "objetivo", "pasos"],
   },
 };
+
+/** Normaliza un nombre para compararlo sin mayúsculas ni acentos. */
+export function nameKey(value: string) {
+  return value.normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim().toLowerCase();
+}
+
+/** Busca al agente destino por id o por nombre (sin acentos ni mayúsculas). */
+export function pickTeammate<T extends { id: string; name: string }>(agents: T[], raw: unknown): T | null {
+  const wanted = typeof raw === "string" ? raw.trim() : "";
+  if (!wanted) return null;
+  return agents.find((agent) => agent.id === wanted) ?? agents.find((agent) => nameKey(agent.name) === nameKey(wanted)) ?? null;
+}
+
+/** Plan de una delegación: la tarea es el objetivo; los pasos son opcionales (1 paso si no hay). */
+export function delegationPlan(args: Record<string, unknown>) {
+  const task = typeof args.tarea === "string" ? args.tarea.trim().slice(0, jobLimits.goalChars) : "";
+  if (!task) return { ok: false as const, error: "Falta qué tarea le pasas al otro agente." };
+  const title = clean(args.titulo, jobLimits.titleChars) || clean(task, jobLimits.titleChars);
+  const steps = Array.isArray(args.pasos) && args.pasos.some((step) => clean(step, jobLimits.stepChars)) ? args.pasos : [clean(task, jobLimits.stepChars)];
+  return planFromArgs({ titulo: title, objetivo: task, pasos: steps }, 1);
+}
+
+export function delegateDeclaration(teammates: { name: string; specialty: string | null }[]): FunctionDeclaration {
+  const roster = teammates.map((agent) => (agent.specialty ? `${agent.name} (${agent.specialty})` : agent.name)).join(", ");
+  return {
+    name: delegateTool,
+    description: `Pasa una tarea a otro agente del socio para que la haga en segundo plano, con su propia memoria y personalidad, en su propia conversación. Úsala cuando el socio lo pida o cuando la tarea encaje claramente con la especialidad de otro agente. Agentes disponibles: ${roster}. Cada paso cuesta como un mensaje de Vega. Después de llamarla responde en UNA frase: a quién se la pasaste y que el resultado llegará aquí.`,
+    parameters: {
+      type: "object",
+      properties: {
+        agente: { type: "string", description: "Nombre del agente que hará la tarea (tal como aparece en la lista)." },
+        tarea: { type: "string", description: "Qué debe hacer y cómo debe verse el resultado, con todo el contexto necesario." },
+        titulo: { type: "string", description: "Nombre corto de la tarea (opcional, máx. 80 caracteres)." },
+        pasos: { type: "array", items: { type: "string" }, description: `Opcional: de 1 a ${jobLimits.maxSteps} pasos en orden.` },
+      },
+      required: ["agente", "tarea"],
+    },
+  };
+}
