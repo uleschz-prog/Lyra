@@ -94,9 +94,9 @@ export function InfoPane({
   else {
     body = (
       <div className="min-h-0 flex-1 space-y-4 overflow-y-auto overscroll-contain px-4 py-4">
-        <section className="relative overflow-hidden rounded-3xl border border-[#EEE9E2] bg-white p-4 dark:border-white/10 dark:bg-[#16131F]">
+        <section className="relative overflow-hidden rounded-3xl bg-white p-4 dark:bg-[#1B1924]">
           <span
-            className="pointer-events-none absolute inset-x-0 top-0 h-28 bg-[radial-gradient(ellipse_at_15%_0%,rgba(124,58,237,0.25),transparent_60%),radial-gradient(ellipse_at_85%_10%,rgba(6,182,212,0.2),transparent_55%),radial-gradient(ellipse_at_50%_120%,rgba(16,185,129,0.12),transparent_60%)]"
+            className="pointer-events-none absolute inset-x-0 top-0 h-28 bg-[radial-gradient(ellipse_at_15%_0%,rgba(124,58,237,0.12),transparent_60%),radial-gradient(ellipse_at_85%_10%,rgba(6,182,212,0.1),transparent_55%)]"
             aria-hidden
           />
           <div className="relative flex items-center gap-3">
@@ -119,14 +119,14 @@ export function InfoPane({
         </section>
 
         <section className="grid grid-cols-2 gap-2" aria-label="Créditos y uso">
-          <div className="flex items-center gap-2.5 rounded-2xl border border-[#EEE9E2] bg-white p-3 dark:border-white/10 dark:bg-[#16131F]">
+          <div className="flex items-center gap-2.5 rounded-2xl bg-white p-3 dark:bg-[#1B1924]">
             <CreditRing balance={balance} tank={tank} size={30} />
             <div className="min-w-0">
               <p className="text-sm font-semibold tabular-nums text-[#1E1E24] dark:text-white">{formatCredits(balance)}</p>
               <p className="text-[11px] text-[#8A8680]">créditos</p>
             </div>
           </div>
-          <div className="flex flex-col justify-center gap-1 rounded-2xl border border-[#EEE9E2] bg-white p-3 dark:border-white/10 dark:bg-[#16131F]">
+          <div className="flex flex-col justify-center gap-1 rounded-2xl bg-white p-3 dark:bg-[#1B1924]">
             <p className="text-[11px] text-[#8A8680]">Uso de IA este mes</p>
             {costMeter && costMeter.level !== "unlimited" ? (
               <UsageMeter view={costMeter} className="self-start" />
@@ -140,7 +140,7 @@ export function InfoPane({
           <h3 id="vega-extras" className="mb-1.5 px-1 text-[11px] font-semibold tracking-[0.14em] text-[#8A8680] uppercase">
             Ajustes
           </h3>
-          <ul className="overflow-hidden rounded-2xl border border-[#EEE9E2] bg-white dark:border-white/10 dark:bg-[#16131F]">
+          <ul className="overflow-hidden rounded-2xl bg-white dark:bg-[#1B1924]">
             {extras.map(({ id, label, hint, icon: Icon }) => (
               <li key={id} className="border-b border-[#F3EFEA] last:border-0 dark:border-white/6">
                 <button
@@ -171,9 +171,9 @@ export function InfoPane({
       id="vega-info"
       aria-label="Información del agente"
       className={cn(
-        "fixed inset-x-0 bottom-[var(--lyra-tab)] z-50 flex h-[82dvh] flex-col rounded-t-3xl border-t border-[#EEE9E2] bg-[#FBFAF8] shadow-2xl transition-transform duration-200 dark:border-white/10 dark:bg-[#0F0D16]",
-        "md:absolute md:inset-y-0 md:right-0 md:left-auto md:h-auto md:w-[380px] md:rounded-none md:border-t-0 md:border-l",
-        "xl:static xl:z-auto xl:w-[360px] xl:translate-x-0 xl:shadow-none",
+        "fixed inset-x-0 bottom-[var(--lyra-tab)] z-50 flex h-[82dvh] flex-col rounded-t-[28px] bg-[#F4F3F0] shadow-2xl transition-transform duration-200 dark:bg-[#121019]",
+        "md:absolute md:inset-y-2 md:right-2 md:left-auto md:h-auto md:w-[380px] md:rounded-[28px]",
+        "xl:static xl:z-auto xl:w-[340px] xl:rounded-none xl:bg-transparent xl:translate-x-0 xl:shadow-none dark:xl:bg-transparent",
         open ? "translate-y-0 md:translate-x-0" : "invisible translate-y-full md:translate-x-full md:translate-y-0 xl:visible",
         hidden && "xl:hidden",
       )}

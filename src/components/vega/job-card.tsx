@@ -6,6 +6,8 @@ import { toast } from "sonner";
 
 import type { VegaActionView } from "@/lib/vega/events";
 import { jobDraftOf, type JobStepState, type JobView } from "@/lib/vega/jobs-core";
+import { AgentMascot } from "@/components/vega/agent-mascot";
+import { mascotOf } from "@/lib/vega/mascot";
 import { cn } from "@/lib/utils";
 
 const stepIcon: Record<JobStepState, typeof Check> = {
@@ -107,7 +109,7 @@ export function JobCard({ action, onChange }: { action: VegaActionView; onChange
   const pendingCancel = Boolean(view?.cancelRequested) && active;
 
   return (
-    <div className="mt-3 overflow-hidden rounded-2xl border border-[#E7E2DA] bg-[#FCFBF9] dark:border-white/10 dark:bg-[#16131F]" aria-live="polite">
+    <div className="mt-3 overflow-hidden rounded-3xl bg-white ring-1 ring-black/[0.05] dark:bg-[#15131D] dark:ring-white/8" aria-live="polite">
       <div className="flex items-center gap-3 px-4 pt-3.5">
         <span
           className={cn(
@@ -120,8 +122,9 @@ export function JobCard({ action, onChange }: { action: VegaActionView; onChange
         </span>
         <div className="min-w-0 flex-1">
           {draft.delegate ? (
-            <p className="mb-0.5 text-[11px] font-medium text-[#7C3AED] dark:text-[#C4B5FD]">
-              <span aria-hidden>{draft.delegate.avatar}</span> Lo hace {draft.delegate.name}
+            <p className="mb-0.5 flex items-center gap-1 text-[11px] font-medium text-[#7C3AED] dark:text-[#C4B5FD]">
+              <AgentMascot mascot={mascotOf({ id: draft.delegate.agentId, avatar: draft.delegate.avatar, name: draft.delegate.name })} seed={draft.delegate.agentId} still className="size-4" />
+              Lo hace {draft.delegate.name}
             </p>
           ) : null}
           <p className="truncate text-sm font-medium text-[#1E1E24] dark:text-white">{draft.title}</p>

@@ -286,7 +286,54 @@ body {
   animation: none;
 }
 
+/* Vega v2 · mascotas de agentes: parpadeo y un leve flotar. */
+@keyframes mascot-float {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-1.5px);
+  }
+}
+
+@keyframes mascot-hop {
+  0%,
+  100% {
+    transform: translateY(0) scale(1, 1);
+  }
+  40% {
+    transform: translateY(-3px) scale(0.97, 1.03);
+  }
+  70% {
+    transform: translateY(0) scale(1.03, 0.97);
+  }
+}
+
+.mascot-body {
+  transform-box: fill-box;
+  transform-origin: 50% 100%;
+  animation: mascot-float 5s ease-in-out infinite;
+}
+
+.agent-mascot[data-thinking] .mascot-body {
+  animation: mascot-hop 1.1s ease-in-out infinite;
+}
+
+.mascot-eye {
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: vega-blink 5s ease-in-out infinite;
+}
+
+.agent-mascot[data-static] .mascot-body,
+.agent-mascot[data-static] .mascot-eye {
+  animation: none;
+}
+
 @media (prefers-reduced-motion: reduce) {
+  .mascot-body,
+  .mascot-eye,
   .animate-lyra-rise,
   .animate-ping,
   .lyra-marquee,
@@ -805,4 +852,33 @@ body {
 }
 .vega-mascot-core {
   animation: vega-mascot-core 1.7s ease-in-out infinite;
+}
+
+/* Vega v2: cuando el chat de Vega está en pantalla, ocupa todo el ancho. El menú de LYRA
+   sigue a un toque (ficha del socio en Vega o pestaña «Menú» en móvil) y se abre encima. */
+.lyra-office:has(#vega-root) .lyra-shell-header {
+  display: none;
+}
+
+.lyra-office:has(#vega-root) .lyra-shell-main {
+  max-width: none;
+  padding: 0 0 var(--lyra-tab);
+}
+
+@media (min-width: 768px) {
+  .lyra-office:has(#vega-root) .lyra-shell-aside:not([data-open]) {
+    transform: translateX(-100%);
+  }
+
+  .lyra-office:has(#vega-root) .lyra-shell-aside[data-open] {
+    box-shadow: 0 30px 80px -20px rgba(16, 12, 32, 0.45);
+  }
+
+  .lyra-office:has(#vega-root) .lyra-shell-content {
+    padding-left: 0;
+  }
+
+  .lyra-office:has(#vega-root) .lyra-shell-overlay {
+    display: block;
+  }
 }
