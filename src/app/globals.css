@@ -882,3 +882,25 @@ body {
     display: block;
   }
 }
+
+/* PWA: la invitación a instalar entra desde abajo. */
+@keyframes lyra-install-in {
+  from {
+    opacity: 0;
+    transform: translateY(24px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.lyra-install-sheet {
+  animation: lyra-install-in 0.32s cubic-bezier(0.2, 0.8, 0.2, 1) both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .lyra-install-sheet {
+    animation: none;
+  }
+}

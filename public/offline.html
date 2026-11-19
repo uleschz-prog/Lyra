@@ -1,0 +1,32 @@
+<!doctype html>
+<html lang="es">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <meta name="theme-color" content="#0B0A10" />
+    <meta name="robots" content="noindex" />
+    <title>Sin conexión · LYRA</title>
+    <style>
+      html,body{margin:0;height:100%;background:#0B0A10;color:#fff;font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
+      main{min-height:100%;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:32px 24px;box-sizing:border-box;text-align:center}
+      .mark{width:88px;height:88px}
+      h1{font-size:22px;margin:28px 0 8px;font-weight:600}
+      p{margin:0;max-width:300px;color:#A9A3B8;font-size:15px;line-height:1.5}
+      button{margin-top:24px;border:0;border-radius:999px;background:#fff;color:#0B0A10;font:inherit;font-weight:600;font-size:15px;padding:12px 22px}
+    </style>
+  </head>
+  <body>
+    <main>
+      <svg class="mark" viewBox="0 0 32 32" aria-hidden="true">
+        <circle cx="16" cy="16" r="10.25" fill="#7C3AED" />
+        <path d="M2.5 11.6 L24.7 4.8 L14 30.1" fill="none" stroke="#F5F3FF" stroke-width="1.55" stroke-linecap="round" stroke-linejoin="round" />
+        <circle cx="2.5" cy="11.6" r="1.7" fill="#F5F3FF" />
+        <circle cx="24.7" cy="4.8" r="2.25" fill="#F5F3FF" />
+        <circle cx="14" cy="30.1" r="1.7" fill="#F5F3FF" />
+      </svg>
+      <h1>Sin conexión</h1>
+      <p>LYRA necesita internet para mostrar tus datos. Revisa tu conexión y vuelve a intentar.</p>
+      <button type="button" onclick="location.reload()">Reintentar</button>
+    </main>
+  </body>
+</html>

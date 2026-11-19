@@ -1,7 +1,13 @@
 import { ImageResponse } from "next/og";
 
+/**
+ * Ícono de la app instalada: el logo de LYRA (círculo violeta con la constelación de Lira,
+ * igual que en components/brand/logo.tsx) sobre el fondo oscuro de la marca. El «maskable»
+ * deja el logo dentro de la zona segura (80 %) para que Android lo recorte sin cortarlo.
+ */
 export function pwaIcon(size: number, maskable = false) {
-  const face = Math.round(size * (maskable ? 0.46 : 0.58));
+  const mark = Math.round(size * (maskable ? 0.56 : 0.72));
+  const line = "#F5F3FF";
   return new ImageResponse(
     (
       <div
@@ -11,15 +17,15 @@ export function pwaIcon(size: number, maskable = false) {
           display: "flex",
           alignItems: "center",
           justifyContent: "center",
-          background: "linear-gradient(135deg, #A78BFA 0%, #7C3AED 55%, #4C1D95 100%)",
-          borderRadius: maskable ? 0 : Math.round(size * 0.22),
+          background: "radial-gradient(circle at 50% 45%, #241046 0%, #0B0A10 72%)",
         }}
       >
-        <svg width={face} height={face} viewBox="0 0 24 24">
-          <circle cx="12" cy="12" r="11" fill="#FFFFFF" fillOpacity="0.16" />
-          <rect x="7.6" y="9" width="2.4" height="4.4" rx="1.2" fill="#FFFFFF" />
-          <rect x="14" y="9" width="2.4" height="4.4" rx="1.2" fill="#FFFFFF" />
-          <path d="M9 16.2 Q12 18.4 15 16.2" stroke="#FFFFFF" strokeWidth="1.5" strokeLinecap="round" fill="none" />
+        <svg width={mark} height={mark} viewBox="0 0 32 32">
+          <circle cx="16" cy="16" r="10.25" fill="#7C3AED" />
+          <path d="M2.5 11.6 L24.7 4.8 L14 30.1" fill="none" stroke={line} strokeWidth="1.55" strokeLinecap="round" strokeLinejoin="round" />
+          <circle cx="2.5" cy="11.6" r="1.7" fill={line} />
+          <circle cx="24.7" cy="4.8" r="2.25" fill={line} />
+          <circle cx="14" cy="30.1" r="1.7" fill={line} />
         </svg>
       </div>
     ),

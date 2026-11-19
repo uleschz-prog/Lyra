@@ -4,6 +4,7 @@ import Script from "next/script";
 import { Toaster } from "sonner";
 
 import { brand } from "@/config/brand";
+import { InstallPrompt, ServiceWorkerRegister, installCaptureScript } from "@/components/app/install-prompt";
 import { Splash } from "@/components/app/splash";
 import "./globals.css";
 
@@ -60,6 +61,8 @@ export const metadata: Metadata = {
     apple: [{ url: "/apple-touch-icon.png", sizes: "180x180", type: "image/png" }],
   },
   appleWebApp: { capable: true, title: brand.name, statusBarStyle: "black-translucent" },
+  // iOS anteriores a 16.4 aún leen esta etiqueta para abrir la app a pantalla completa.
+  other: { "apple-mobile-web-app-capable": "yes" },
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
@@ -72,6 +75,8 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <Script id="lyra-theme" strategy="beforeInteractive">
           {themeScript}
         </Script>
+        {/* Script en línea (no next/script): debe escuchar «beforeinstallprompt» antes de que React arranque. */}
+        <script id="lyra-install-capture" dangerouslySetInnerHTML={{ __html: installCaptureScript }} />
         {startupImages.map((img) => (
           <link key={img.href} rel="apple-touch-startup-image" href={img.href} media={img.media} />
         ))}
@@ -79,6 +84,8 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       <body className="min-h-full bg-background font-sans text-foreground">
         <Splash />
         {children}
+        <InstallPrompt />
+        <ServiceWorkerRegister />
         <Toaster
           theme="system"
           position="bottom-right"
