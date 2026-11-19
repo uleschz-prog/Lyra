@@ -32,6 +32,19 @@ const nextConfig: NextConfig = {
     "/api/vega/tasks/run": builderFiles,
   },
   // P1: la Academia y su centro de notificaciones se retiraron; los enlaces viejos vuelven al inicio (308).
+  // PWA: el service worker siempre se revisa en la red (si no, una versión vieja se queda pegada).
+  async headers() {
+    return [
+      {
+        source: "/sw.js",
+        headers: [
+          { key: "Cache-Control", value: "no-cache, no-store, must-revalidate" },
+          { key: "Content-Type", value: "application/javascript; charset=utf-8" },
+          { key: "Service-Worker-Allowed", value: "/" },
+        ],
+      },
+    ];
+  },
   async redirects() {
     return [
       { source: "/dashboard/academy", destination: "/dashboard", permanent: true },
