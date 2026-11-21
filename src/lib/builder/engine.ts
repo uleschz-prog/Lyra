@@ -10,6 +10,7 @@ import { parseJsonObject, type BuilderModel } from "@/lib/builder/model";
 import { composeSkeleton, normalizePlan, planSystemPrompt, planUserPrompt } from "@/lib/builder/plan";
 import { fileTasks, scaffoldFiles, sectionForTask } from "@/lib/builder/scaffold";
 import type { BuildKind, BuildPlan, FileTask, ProjectFiles } from "@/lib/builder/types";
+import { isRestaurantBrief, restaurantFiles, restaurantPlan } from "@/lib/builder/templates/restaurant";
 import type { ModelUsage } from "@/lib/vega/usage";
 
 export type BuildStep = "plan" | "generate" | "validate" | "repair" | "save" | "done";
@@ -89,6 +90,11 @@ export function blameIssues(issues: CompileIssue[], tasks: FileTask[]) {
 }
 
 async function planStep(state: EngineState, input: EngineInput, deps: EngineDeps, usage: ModelUsage[]): Promise<EngineState> {
+  // Restaurante con datos en vivo: plantilla probada (pantallas por rol), sin llamada al modelo.
+  if (input.live && input.kind === "app" && isRestaurantBrief(input.brief)) {
+    const plan = restaurantPlan({ brief: input.brief, title: input.title });
+    return { ...state, status: "running", step: "generate", plan, files: { ...scaffoldFiles(plan), ...restaurantFiles(plan) }, tasks: [], failures: 0 };
+  }
   const composition = composeSkeleton(input.brief, input.kind);
   const call = await deps.model({
     purpose: "plan",

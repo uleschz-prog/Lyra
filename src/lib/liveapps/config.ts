@@ -5,7 +5,7 @@
  * Interruptor de código. false: solo administradores de LYRA pueden activar datos en vivo.
  * true: cualquier socio que use Vega. (No depende de variables de entorno.)
  */
-export const LIVE_APPS_ENABLED = false;
+export const LIVE_APPS_ENABLED = true;
 
 /** Créditos por construir una app con datos en vivo (la app local cuesta builderPrice("app")). */
 export const LIVE_APP_BUILD_PRICE = 20;
