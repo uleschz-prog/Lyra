@@ -18,6 +18,7 @@ import { actionView } from "@/lib/vega/decide";
 import type { VegaEvent, VegaMood } from "@/lib/vega/events";
 import { continueNote, createTurnBudget, vegaLimits, type StopReason, type VegaLimits } from "@/lib/vega/budget";
 import { parsePersona, personaPrompt, type AgentScope } from "@/lib/vega/agent-scope";
+import { chatGeneration, humanizeToolNames } from "@/lib/vega/answer-style";
 import { backgroundJobTool, delegateDeclaration, delegateTool, startBackgroundJob, startDelegation } from "@/lib/vega/jobs-tool";
 import type { FunctionDeclaration, GeminiContent, GeminiPart } from "@/lib/vega/gemini-stream";
 import { openVegaStream, type ModelStream } from "@/lib/vega/model-gateway";
@@ -282,7 +283,7 @@ export async function prepareVegaTurn(
   const base = vegaLimits();
   const limits = input.timeBudgetMs ? { ...base, timeBudgetMs: Math.max(10_000, Math.min(base.timeBudgetMs, input.timeBudgetMs)) } : base;
   const budget = createTurnBudget(limits, startedAt);
-  const first = await openVegaStream(system, contents, tools, { timeoutMs: budget.modelTimeoutMs(), models });
+  const first = await openVegaStream(system, contents, tools, { timeoutMs: budget.modelTimeoutMs(), models, generation: chatGeneration });
   if (!first.ok) {
     await refundCharge(charge.chargeId, "Reembolso: Vega no pudo responder");
     return { ok: false, status: 502, error: first.error, conversationId: chatId };
@@ -677,7 +678,7 @@ export async function runVegaTurn(turn: VegaTurn, emit: (event: VegaEvent) => vo
         stopReason = stillRoom.reason;
         break;
       }
-      const next = await openVegaStream(system, contents, tools, { timeoutMs: budget.modelTimeoutMs(), models: turn.models ?? null });
+      const next = await openVegaStream(system, contents, tools, { timeoutMs: budget.modelTimeoutMs(), models: turn.models ?? null, generation: chatGeneration });
       modelCalls += 1;
       if (!next.ok) {
         failed = true;
@@ -720,7 +721,8 @@ export async function runVegaTurn(turn: VegaTurn, emit: (event: VegaEvent) => vo
     await refundCharge(toolChargeId, "Reembolso: Vega no pudo completar la herramienta");
   }
 
-  const content = reply.trim() || (actionIds.length ? "Te dejé la acción lista para que la confirmes." : "");
+  // Nunca guardar nombres internos de herramientas en lo que ve el socio (chat, WhatsApp, Telegram).
+  const content = humanizeToolNames(reply.trim()) || (actionIds.length ? "Te dejé la acción lista para que la confirmes." : "");
   const persist = turn.persistReply !== false;
   const allActionIds = [...(turn.extraActionIds ?? []), ...actionIds];
   if (content && persist) {

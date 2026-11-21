@@ -1,6 +1,7 @@
 "use client";
 
 import {
+  ArrowDown,
   ArrowUp,
   Bot,
   Check,
@@ -8,6 +9,8 @@ import {
   Globe,
   Link2,
   MessageSquarePlus,
+  Mic,
+  MicOff,
   ChevronLeft,
   PanelLeftOpen,
   PanelRight,
@@ -19,6 +22,7 @@ import {
   X,
   type LucideIcon,
 } from "lucide-react";
+import { Inter } from "next/font/google";
 import { useEffect, useRef, useState, type FormEvent } from "react";
 import { toast } from "sonner";
 
@@ -119,6 +123,9 @@ const briefIntro: Record<BriefKind, string> = {
   agente: "¡Va! Para que tu agente hable como tu negocio, necesito esto:",
 };
 
+// Tipografía del chat: Inter (o la sans del sistema mientras carga), 16 px con interlineado 1.5.
+const chatFont = Inter({ subsets: ["latin"], display: "swap", variable: "--font-chat" });
+
 export function VegaChat({
   firstName,
   initialAgents,
@@ -180,14 +187,95 @@ export function VegaChat({
   }, []);
   const abortRef = useRef<AbortController | null>(null);
   const endRef = useRef<HTMLDivElement>(null);
+  const scrollRef = useRef<HTMLDivElement>(null);
+  const stickRef = useRef(true);
+  const [atBottom, setAtBottom] = useState(true);
+  const [listening, setListening] = useState(false);
+  const [canDictate, setCanDictate] = useState(false);
+  const dictationRef = useRef<{ stop: () => void } | null>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const fileRef = useRef<HTMLInputElement>(null);
   const activeAgent = agents.find((agent) => agent.id === activeAgentId) ?? agents[0];
 
+  // Solo sigue el final si ya estabas abajo; si subiste a leer, aparece el botón para bajar.
   useEffect(() => {
-    if (messages.length === 0) return;
+    if (messages.length === 0 || !stickRef.current) return;
     endRef.current?.scrollIntoView({ block: "end" });
   }, [messages, files, links]);
+
+  useEffect(() => {
+    const frame = window.requestAnimationFrame(() => {
+      const w = window as unknown as { SpeechRecognition?: unknown; webkitSpeechRecognition?: unknown };
+      setCanDictate(Boolean(w.SpeechRecognition || w.webkitSpeechRecognition));
+    });
+    return () => {
+      window.cancelAnimationFrame(frame);
+      dictationRef.current?.stop();
+    };
+  }, []);
+
+  function onScroll() {
+    const box = scrollRef.current;
+    if (!box) return;
+    const near = box.scrollHeight - box.scrollTop - box.clientHeight < 120;
+    stickRef.current = near;
+    setAtBottom(near);
+  }
+
+  function scrollToBottom() {
+    stickRef.current = true;
+    setAtBottom(true);
+    endRef.current?.scrollIntoView({ block: "end", behavior: "smooth" });
+  }
+
+  /** Dictado por voz (Web Speech API, es-MX): agrega lo que dices al mensaje; tú decides enviarlo. */
+  function toggleDictation() {
+    if (listening) {
+      dictationRef.current?.stop();
+      return;
+    }
+    type Recognition = {
+      lang: string;
+      interimResults: boolean;
+      continuous: boolean;
+      onresult: ((event: { resultIndex: number; results: ArrayLike<ArrayLike<{ transcript: string }> & { isFinal: boolean }> }) => void) | null;
+      onend: (() => void) | null;
+      onerror: ((event: { error?: string }) => void) | null;
+      start: () => void;
+      stop: () => void;
+    };
+    const w = window as unknown as { SpeechRecognition?: new () => Recognition; webkitSpeechRecognition?: new () => Recognition };
+    const Ctor = w.SpeechRecognition ?? w.webkitSpeechRecognition;
+    if (!Ctor) {
+      toast.error("Tu navegador no permite dictar. Prueba con el micrófono del teclado.");
+      return;
+    }
+    const recognition = new Ctor();
+    recognition.lang = "es-MX";
+    recognition.interimResults = false;
+    recognition.continuous = true;
+    recognition.onresult = (event) => {
+      let heard = "";
+      for (let index = event.resultIndex; index < event.results.length; index += 1) {
+        if (event.results[index].isFinal) heard += event.results[index][0]?.transcript ?? "";
+      }
+      if (heard.trim()) setDraft((current) => `${current}${current && !current.endsWith(" ") ? " " : ""}${heard.trim()}`);
+    };
+    recognition.onerror = (event) => {
+      if (event.error === "not-allowed" || event.error === "service-not-allowed") toast.error("Permite el micrófono para dictar.");
+    };
+    recognition.onend = () => {
+      setListening(false);
+      dictationRef.current = null;
+    };
+    try {
+      recognition.start();
+      dictationRef.current = recognition;
+      setListening(true);
+    } catch {
+      setListening(false);
+    }
+  }
 
   useEffect(() => {
     const frame = window.requestAnimationFrame(() => {
@@ -508,6 +596,9 @@ export function VegaChat({
       return;
     }
 
+    stickRef.current = true;
+    setAtBottom(true);
+    dictationRef.current?.stop();
     const userId = crypto.randomUUID();
     const replyId = crypto.randomUUID();
     const chips: VegaAttachmentChip[] = [
@@ -661,6 +752,8 @@ export function VegaChat({
       className={cn(
         "fixed inset-x-0 top-0 bottom-[var(--lyra-tab)] z-20 flex min-h-0 flex-col overflow-hidden bg-[#F4F3F0] md:relative md:inset-auto md:bottom-auto md:z-auto md:h-[100dvh] md:min-h-[560px] md:flex-row dark:bg-[#0E0D14]",
         view === "home" && "bg-[#0B0A10] md:flex-col dark:bg-[#0B0A10]",
+        chatFont.variable,
+        "font-[family-name:var(--font-chat),ui-sans-serif,system-ui,-apple-system,'Segoe_UI',Roboto,sans-serif]",
       )}
     >
       {agentForm ? (
@@ -773,12 +866,12 @@ export function VegaChat({
           <button
             type="button"
             onClick={() => activeAgent && editAgent(activeAgent)}
-            className="pointer-events-auto flex min-w-0 items-center gap-2 rounded-full bg-white/90 py-1 pr-3.5 pl-1 text-left shadow-[0_1px_2px_rgba(16,12,32,0.06),0_8px_24px_-16px_rgba(16,12,32,0.35)] ring-1 ring-black/[0.05] backdrop-blur transition hover:bg-white focus-visible:ring-2 focus-visible:ring-[#7C3AED] focus-visible:outline-none dark:bg-[#211E2B]/90 dark:ring-white/8 dark:hover:bg-[#262231]"
+            className="pointer-events-auto flex min-w-0 items-center gap-2 rounded-full py-1 pr-3 pl-1 text-left transition hover:bg-black/[0.04] focus-visible:ring-2 focus-visible:ring-[#7C3AED] focus-visible:outline-none dark:hover:bg-white/[0.06]"
             aria-label={`Ajustar a ${agentName}`}
           >
             <AgentAvatar agent={activeAgent} mood={mood} thinking={streaming} className="size-8" />
             <span className="min-w-0">
-              <span className="block truncate text-sm leading-tight font-semibold text-[#1E1E24] dark:text-white">{agentName}</span>
+              <span className="block truncate text-[15px] leading-tight font-semibold text-[#1E1E24] dark:text-white">{agentName}</span>
               <span className="flex items-center gap-1 truncate text-[11px] leading-tight text-[#8A8680]" aria-live="polite">
                 <span className={cn("size-1.5 rounded-full", streaming ? "animate-pulse bg-[#06B6D4]" : "bg-[#10B981]")} aria-hidden />
                 {streaming ? "Trabajando…" : activeAgent?.specialty || "Listo"}
@@ -817,7 +910,11 @@ export function VegaChat({
           </button>
         </header>
 
-        <div className={cn("relative z-10 min-h-0 flex-1 overscroll-contain overflow-y-auto px-3 sm:px-8", empty ? "pt-16 pb-1" : "pt-20 pb-6")}>
+        <div
+          ref={scrollRef}
+          onScroll={onScroll}
+          className={cn("relative z-10 min-h-0 flex-1 overscroll-contain overflow-y-auto px-4 sm:px-8", empty ? "pt-16 pb-1" : "pt-20 pb-8")}
+        >
           {loadingChat ? <p className="text-center text-sm text-[#8A8680]">Abriendo conversación…</p> : null}
           {empty && !loadingChat ? (
             <div className="mx-auto flex min-h-full w-full max-w-2xl flex-col items-center justify-center px-1 py-6 text-center">
@@ -849,11 +946,11 @@ export function VegaChat({
               </div>
             </div>
           ) : null}
-          <div className={cn("mx-auto space-y-6", column)}>
+          <div className={cn("mx-auto space-y-7", column)}>
             {messages.map((message, index) =>
               message.role === "user" ? (
                 <div key={message.id} className="flex justify-end">
-                  <div className="max-w-[85%] rounded-[22px] rounded-br-lg bg-[#7C3AED] px-4 py-2.5 text-[15px] leading-relaxed text-white sm:text-sm">
+                  <div className="max-w-[85%] rounded-[22px] rounded-br-md bg-[#7C3AED] px-4 py-2.5 text-base leading-[1.5] text-white sm:max-w-[75%]">
                     {message.attachments?.length ? (
                       <ul className={cn("flex flex-wrap gap-1.5", message.content ? "mb-2" : "")}>
                         {message.attachments.map((item) => (
@@ -880,7 +977,7 @@ export function VegaChat({
                       {agentName}
                     </span>
                   ) : null}
-                  <div className="vega-bubble w-full max-w-full min-w-0 rounded-[22px] rounded-tl-lg bg-[#F4F3F0] px-4 py-3 text-[15px] leading-relaxed text-[#1E1E24] sm:w-auto sm:min-w-[40%] sm:text-sm dark:bg-[#1F1C29] dark:text-[#ECEAF3]">
+                  <div className="vega-reply w-full max-w-full min-w-0 text-base leading-[1.5] text-[#1E1E24] dark:text-[#ECEAF3]">
                     {message.statuses?.length ? (
                       <ul className="mb-2 space-y-0.5">
                         {message.statuses.map((status, statusIndex) => (
@@ -961,13 +1058,23 @@ export function VegaChat({
             if (event.dataTransfer.files.length) void addFiles(event.dataTransfer.files);
           }}
         >
+          {!empty && !atBottom ? (
+            <button
+              type="button"
+              onClick={scrollToBottom}
+              className="absolute -top-12 left-1/2 z-20 grid size-10 -translate-x-1/2 place-items-center rounded-full bg-white text-[#1E1E24] shadow-[0_4px_16px_-4px_rgba(16,12,32,0.25)] ring-1 ring-black/[0.08] transition hover:bg-[#F6F5F2] focus-visible:ring-2 focus-visible:ring-[#7C3AED] focus-visible:outline-none dark:bg-[#262231] dark:text-white dark:ring-white/10 dark:hover:bg-[#2E2A3B]"
+              aria-label="Ir al final de la conversación"
+            >
+              <ArrowDown className="size-5" />
+            </button>
+          ) : null}
           <div
             className={cn(
-              "mx-auto rounded-[28px] border bg-[#F4F3F0] p-1.5 transition dark:bg-[#1F1C29]",
+              "mx-auto rounded-[28px] border bg-[#FFFFFF] p-1.5 shadow-[0_2px_12px_-6px_rgba(16,12,32,0.18)] transition dark:bg-[#1F1C29] dark:shadow-none",
               column,
               dragging
                 ? "border-[#7C3AED] bg-[#F5F3FF] shadow-[0_0_0_4px_rgba(124,58,237,0.2)]"
-                : "border-transparent focus-within:border-[#DDD6FE] focus-within:bg-white focus-within:shadow-[0_10px_40px_-24px_rgba(76,29,149,0.6)] dark:focus-within:border-[#7C3AED]/50 dark:focus-within:bg-[#221F2D]",
+                : "border-black/[0.09] focus-within:border-[#C4B5FD] focus-within:shadow-[0_10px_40px_-24px_rgba(76,29,149,0.6)] dark:border-white/[0.08] dark:focus-within:border-[#7C3AED]/50",
             )}
           >
             {files.length || links.length ? (
@@ -1091,8 +1198,22 @@ export function VegaChat({
                 enterKeyHint="send"
                 aria-label={`Mensaje para ${agentName}`}
                 placeholder={empty ? `Pídeselo a ${agentName}…` : `Escríbele a ${agentName}…`}
-                className="max-h-32 min-h-10 flex-1 resize-none bg-transparent px-1 py-2 text-base text-[#1E1E24] outline-none field-sizing-content placeholder:text-[#A8A29E] sm:max-h-40 sm:text-sm dark:text-white dark:placeholder:text-white/35"
+                className="max-h-32 min-h-10 flex-1 resize-none bg-transparent px-1 py-2 text-base text-[#1E1E24] outline-none field-sizing-content placeholder:text-[#A8A29E] sm:max-h-40 dark:text-white dark:placeholder:text-white/35"
               />
+              {canDictate ? (
+                <button
+                  type="button"
+                  onClick={toggleDictation}
+                  className={cn(
+                    "grid size-10 shrink-0 place-items-center rounded-full transition focus-visible:ring-2 focus-visible:ring-[#7C3AED] focus-visible:outline-none",
+                    listening ? "bg-[#FEE2E2] text-[#DC2626] dark:bg-[#DC2626]/20 dark:text-[#FCA5A5]" : "text-[#5C5854] hover:bg-black/[0.05] dark:text-white/70 dark:hover:bg-white/10",
+                  )}
+                  aria-label={listening ? "Detener dictado" : "Dictar mensaje"}
+                  aria-pressed={listening}
+                >
+                  {listening ? <MicOff className="size-5" /> : <Mic className="size-5" />}
+                </button>
+              ) : null}
               <CreditRing balance={balance} tank={tank} size={26} className="mb-2 md:hidden" />
               {streaming ? (
                 <button
@@ -1107,7 +1228,7 @@ export function VegaChat({
                 <button
                   type="submit"
                   disabled={!draft.trim() && files.length === 0 && links.length === 0}
-                  className="grid size-10 shrink-0 place-items-center rounded-full bg-[#1E1E24] text-white transition hover:bg-[#7C3AED] focus-visible:ring-2 focus-visible:ring-[#7C3AED] focus-visible:ring-offset-2 focus-visible:outline-none disabled:bg-[#D9D6D0] disabled:text-white dark:bg-white dark:text-[#0B0A10] dark:hover:bg-[#C4B5FD] dark:focus-visible:ring-offset-[#1F1C29] dark:disabled:bg-white/15 dark:disabled:text-white/50"
+                  className="grid size-10 shrink-0 place-items-center rounded-full bg-[#7C3AED] text-white transition hover:bg-[#6D28D9] focus-visible:ring-2 focus-visible:ring-[#7C3AED] focus-visible:ring-offset-2 focus-visible:outline-none disabled:bg-[#E7E5E4] disabled:text-[#A8A29E] dark:hover:bg-[#8B5CF6] dark:focus-visible:ring-offset-[#1F1C29] dark:disabled:bg-white/10 dark:disabled:text-white/40"
                   aria-label="Enviar"
                 >
                   <ArrowUp className="size-5 sm:size-4" />
