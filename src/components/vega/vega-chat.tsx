@@ -13,7 +13,6 @@ import {
   MicOff,
   ChevronLeft,
   PanelLeftOpen,
-  PanelRight,
   Paperclip,
   Plus,
   Search,
@@ -46,15 +45,13 @@ import { useCredits } from "@/components/dashboard/credit-provider";
 import { ActionCard } from "@/components/vega/action-card";
 import { BriefingCard } from "@/components/vega/briefing-card";
 import type { BriefKind, BriefRequest } from "@/lib/vega/briefing";
-import { CreditRing } from "@/components/vega/credit-ring";
-import { UsageMeter } from "@/components/vega/usage-meter";
 import type { CostMeterView } from "@/lib/vega/cost-shared";
 import { AgentAvatar } from "@/components/vega/agent-avatar";
 import { defaultMascot, encodeMascot } from "@/lib/vega/mascot";
 import { AgentEditor, type AgentDraft } from "@/components/vega/agent-editor";
 import { AgentSidebar } from "@/components/vega/agent-sidebar";
+import { SettingsModal } from "@/components/vega/settings-modal";
 import { VegaHome, type AgentTemplateDraft } from "@/components/vega/vega-home";
-import { InfoPane, type PaneTab } from "@/components/vega/info-pane";
 import { RichText } from "@/components/vega/rich-text";
 import { attachmentAccept, attachmentLimits } from "@/lib/vega/attachment-limits";
 import { isUserToolkit, toolkitLabels } from "@/lib/vega/apps";
@@ -154,9 +151,7 @@ export function VegaChat({
   const [savingAgent, setSavingAgent] = useState(false);
   const [activeId, setActiveId] = useState<string | null>(null);
   const [messages, setMessages] = useState<ChatItem[]>(initialMessages);
-  const [paneTab, setPaneTab] = useState<PaneTab>(justConnected ? "conexiones" : "resumen");
-  const [paneOpen, setPaneOpen] = useState(Boolean(justConnected));
-  const [paneHidden, setPaneHidden] = useState(false);
+  const [settingsOpen, setSettingsOpen] = useState(false);
   const [draft, setDraft] = useState(initialDraft);
   const [files, setFiles] = useState<DraftFile[]>([]);
   const [links, setLinks] = useState<DraftLink[]>([]);
@@ -286,9 +281,8 @@ export function VegaChat({
 
   useEffect(() => {
     if (!justConnected) return;
-    toast.success(
-      `${isUserToolkit(justConnected) ? toolkitLabels[justConnected] : "La app"}: revisa que aparezca como conectada.`,
-    );
+    const label = isUserToolkit(justConnected) ? toolkitLabels[justConnected] : "La app";
+    toast.success(`${label} quedó conectada. Escribe «listo» en el chat para que Vega continúe.`);
     window.history.replaceState(null, "", window.location.pathname);
   }, [justConnected]);
 
@@ -296,7 +290,6 @@ export function VegaChat({
     const frame = window.requestAnimationFrame(() => {
       try {
         if (sessionStorage.getItem("lyra-vega-chats") === "0") setChatsHidden(true);
-        if (sessionStorage.getItem("lyra-vega-pane") === "0") setPaneHidden(true);
       } catch {
         /* modo privado */
       }
@@ -306,32 +299,12 @@ export function VegaChat({
 
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
-      if (event.key !== "Escape" || agentForm) return;
+      if (event.key !== "Escape" || agentForm || settingsOpen) return;
       setListOpen(false);
-      setPaneOpen(false);
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [agentForm]);
-
-  function setPaneCollapsed(hidden: boolean) {
-    setPaneHidden(hidden);
-    try {
-      sessionStorage.setItem("lyra-vega-pane", hidden ? "0" : "1");
-    } catch {
-      /* modo privado */
-    }
-  }
-
-  /** En pantallas grandes muestra u oculta la columna; en móvil y tableta abre la hoja. */
-  function togglePane(tab?: PaneTab) {
-    if (tab) setPaneTab(tab);
-    if (window.matchMedia("(min-width: 1280px)").matches) {
-      setPaneCollapsed(!paneHidden && !tab ? true : false);
-      return;
-    }
-    setPaneOpen((open) => (tab ? true : !open));
-  }
+  }, [agentForm, settingsOpen]);
 
   function editAgent(agent: VegaAgentSummary) {
     setAgentForm({ id: agent.id, isDefault: agent.isDefault, name: agent.name, specialty: agent.specialty, instructions: agent.instructions, avatar: agent.avatar, persona: agent.persona ?? {} });
@@ -414,7 +387,7 @@ export function VegaChat({
   function goHome() {
     if (streaming) return;
     setListOpen(false);
-    setPaneOpen(false);
+    setSettingsOpen(false);
     setView("home");
     void listVegaAgents()
       .then((next) => {
@@ -742,9 +715,7 @@ export function VegaChat({
   const empty = messages.length === 0;
   const column = "max-w-3xl";
   const agentName = activeAgent?.name ?? "Vega";
-  const overlay = listOpen || paneOpen;
-  const paneScopeNote = "Cada agente tiene su propia memoria y sus rutinas; los datos de perfil se comparten. Archivos, conexiones y créditos son compartidos entre todos tus agentes.";
-  const renderPaneTab = undefined;
+  const overlay = listOpen;
 
   return (
     <div
@@ -788,18 +759,19 @@ export function VegaChat({
             else newChat();
           }}
           onOpenLyraMenu={() => window.dispatchEvent(new Event("lyra:menu"))}
+          onOpenSettings={() => setSettingsOpen(true)}
+          balance={balance}
+          tank={tank}
+          costMeter={costMeter}
         />
       ) : (
         <>
       {overlay ? (
         <button
           type="button"
-          aria-label="Cerrar paneles"
-          className={cn("fixed inset-0 z-40 bg-black/40 backdrop-blur-[2px] md:absolute", !listOpen && "xl:hidden", listOpen && !paneOpen && "md:hidden")}
-          onClick={() => {
-            setListOpen(false);
-            setPaneOpen(false);
-          }}
+          aria-label="Cerrar agentes"
+          className="fixed inset-0 z-40 bg-black/40 backdrop-blur-[2px] md:hidden"
+          onClick={() => setListOpen(false)}
         />
       ) : null}
 
@@ -812,6 +784,13 @@ export function VegaChat({
         chats={chats}
         activeChatId={activeId}
         userName={firstName}
+        balance={balance}
+        tank={tank}
+        costMeter={costMeter}
+        onOpenSettings={() => {
+          setListOpen(false);
+          setSettingsOpen(true);
+        }}
         onOpenLyraMenu={() => {
           setListOpen(false);
           window.dispatchEvent(new Event("lyra:menu"));
@@ -879,8 +858,6 @@ export function VegaChat({
             </span>
           </button>
           <span className="flex-1" />
-          <UsageMeter view={costMeter} className="pointer-events-auto hidden lg:inline-flex" />
-          <CreditRing balance={balance} tank={tank} className="pointer-events-auto hidden md:block" />
           <button
             type="button"
             onClick={newChat}
@@ -890,23 +867,6 @@ export function VegaChat({
             title="Nueva conversación"
           >
             <MessageSquarePlus className="size-5" />
-          </button>
-          <button
-            type="button"
-            onClick={() => togglePane()}
-            className={cn(
-              "pointer-events-auto inline-flex h-10 items-center gap-1.5 rounded-full px-3 text-sm font-medium ring-1 transition focus-visible:ring-2 focus-visible:ring-[#7C3AED] focus-visible:outline-none",
-              paneOpen || !paneHidden
-                ? "bg-[#F3EEFF] text-[#5B21B6] ring-[#DDD6FE] dark:bg-[#7C3AED]/20 dark:text-[#DDD6FE] dark:ring-[#7C3AED]/40"
-                : "bg-white/90 text-[#1E1E24] ring-black/[0.06] hover:bg-white dark:bg-[#211E2B]/90 dark:text-white dark:ring-white/8",
-            )}
-            aria-label="Información del agente"
-            aria-controls="vega-info"
-            aria-expanded={paneOpen}
-            title="Resumen, rutinas, archivos, memoria y conexiones"
-          >
-            <PanelRight className="size-4" />
-            <span className="hidden sm:inline">Detalles</span>
           </button>
         </header>
 
@@ -1214,7 +1174,6 @@ export function VegaChat({
                   {listening ? <MicOff className="size-5" /> : <Mic className="size-5" />}
                 </button>
               ) : null}
-              <CreditRing balance={balance} tank={tank} size={26} className="mb-2 md:hidden" />
               {streaming ? (
                 <button
                   type="button"
@@ -1242,25 +1201,16 @@ export function VegaChat({
         </form>
       </section>
 
-      <InfoPane
-        open={paneOpen}
-        hidden={paneHidden}
-        tab={paneTab}
-        agent={activeAgent}
-        balance={balance}
-        tank={tank}
-        costMeter={costMeter}
-        scopeNote={paneScopeNote}
-        renderTab={renderPaneTab}
-        onTab={setPaneTab}
-        onClose={() => {
-          setPaneOpen(false);
-          if (window.matchMedia("(min-width: 1280px)").matches) setPaneCollapsed(true);
-        }}
-        onEditAgent={() => activeAgent && editAgent(activeAgent)}
-      />
         </>
       )}
+
+      {settingsOpen ? (
+        <SettingsModal
+          agentId={activeAgent?.id}
+          agentName={activeAgent?.name}
+          onClose={() => setSettingsOpen(false)}
+        />
+      ) : null}
     </div>
   );
 }

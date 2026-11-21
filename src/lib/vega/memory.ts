@@ -84,7 +84,7 @@ export async function saveMemory(userId: string, raw: string, kindInput: unknown
     // El diario rota solo: se borra la entrada más vieja del diario.
     const oldestJournal = existing.filter((row) => row.kind === "journal").sort((a, b) => a.updatedAt.getTime() - b.updatedAt.getTime())[0];
     if (kind !== "journal" || !oldestJournal) {
-      return { ok: false, error: `La memoria está llena (${MEMORY_LIMIT} datos). Borra algunos desde el panel Memoria.` };
+      return { ok: false, error: `La memoria está llena (${MEMORY_LIMIT} datos). Borra algunos desde Ajustes → Memoria.` };
     }
     await prisma.vegaMemory.deleteMany({ where: { id: oldestJournal.id, userId } });
   }

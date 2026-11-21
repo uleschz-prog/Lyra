@@ -89,7 +89,7 @@ export function ConnectionsPanel({ onClose, variant = "sheet" }: { onClose?: () 
   return (
     <div className={panelClass(variant)}>
       <div className="flex items-center justify-between">
-        <p className="flex items-center gap-2 text-sm font-semibold text-[#1E1E24]">
+        <p className="flex items-center gap-2 text-sm font-semibold text-[#1E1E24] dark:text-white">
           <Plug className="size-4 text-[#7C3AED]" />
           Conexiones
         </p>
@@ -100,9 +100,9 @@ export function ConnectionsPanel({ onClose, variant = "sheet" }: { onClose?: () 
         ) : null}
       </div>
       {!status ? (
-        <p className="mt-4 text-sm text-[#8A8680]">Revisando…</p>
+        <p className="mt-4 text-sm text-[#8A8680] dark:text-[#A9A3B8]">Revisando…</p>
       ) : !status.available ? (
-        <p className="mt-4 text-sm text-[#8A8680]">Las conexiones no están disponibles por ahora.</p>
+        <p className="mt-4 text-sm text-[#8A8680] dark:text-[#A9A3B8]">Las conexiones no están disponibles por ahora.</p>
       ) : (
         <div className="mt-3 min-h-0 flex-1 space-y-4 overflow-y-auto">
           {groups.map((group) => (
@@ -114,11 +114,11 @@ export function ConnectionsPanel({ onClose, variant = "sheet" }: { onClose?: () 
                   const expired = !connected && Boolean(status.expired?.includes(app.id));
                   const Icon = app.icon;
                   return (
-                    <li key={app.id} className="rounded-xl border border-[#F0ECE6] px-3 py-2.5">
+                    <li key={app.id} className="rounded-xl border border-[#F0ECE6] px-3 py-2.5 dark:border-white/10">
                       <div className="flex items-center gap-3">
                         <Icon className="size-4.5 shrink-0 text-[#5C5854]" />
                         <div className="min-w-0 flex-1">
-                          <p className="text-sm font-medium text-[#1E1E24]">
+                          <p className="text-sm font-medium text-[#1E1E24] dark:text-white">
                             {toolkitLabels[app.id]}
                             {connected ? <span className="ml-1.5 text-xs font-normal text-[#067647]">· Conectado</span> : null}
                             {expired ? <span className="ml-1.5 text-xs font-normal text-[#B54708]">· La conexión venció</span> : null}
@@ -130,7 +130,7 @@ export function ConnectionsPanel({ onClose, variant = "sheet" }: { onClose?: () 
                             type="button"
                             disabled={busy !== null}
                             onClick={() => void disconnect(app.id)}
-                            className="shrink-0 rounded-lg border border-[#E7E2DA] px-2.5 py-1.5 text-xs font-medium text-[#1E1E24] disabled:opacity-50"
+                            className="shrink-0 rounded-lg border border-[#E7E2DA] px-2.5 py-1.5 text-xs font-medium text-[#1E1E24] disabled:opacity-50 dark:border-white/15 dark:text-white"
                           >
                             Quitar
                           </button>

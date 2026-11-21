@@ -121,14 +121,14 @@ export async function writeWorkspaceFile(
   if (bytes > MAX_FILE_BYTES) return { ok: false, error: `El archivo superaría el límite de ${MAX_FILE_BYTES / 1000} KB.` };
   const used = all.reduce((sum, file) => sum + (file.id === current?.id ? 0 : file.bytes), 0);
   if (used + bytes > MAX_USER_BYTES) {
-    return { ok: false, error: `Tu espacio superaría ${MAX_USER_BYTES / 1_000_000} MB. Borra archivos desde el panel Archivos.` };
+    return { ok: false, error: `Tu espacio superaría ${MAX_USER_BYTES / 1_000_000} MB. Borra archivos desde Ajustes → Archivos.` };
   }
 
   if (current) {
     await prisma.vegaFile.updateMany({ where: { id: current.id, userId }, data: { content: next, bytes, updatedAt: new Date() } });
     return { ok: true, path: target.path, bytes, created: false };
   }
-  if (all.length >= MAX_FILES) return { ok: false, error: `Llegaste al máximo de ${MAX_FILES} archivos. Borra algunos desde el panel Archivos.` };
+  if (all.length >= MAX_FILES) return { ok: false, error: `Llegaste al máximo de ${MAX_FILES} archivos. Borra algunos desde Ajustes → Archivos.` };
   await prisma.vegaFile.create({ data: { userId, path: target.path, content: next, bytes, ...(authorAgentId ? { agentId: authorAgentId } : {}) }, select: { id: true } });
   return { ok: true, path: target.path, bytes, created: true };
 }

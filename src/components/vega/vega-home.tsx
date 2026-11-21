@@ -5,6 +5,8 @@ import { useEffect, useRef, useState } from "react";
 
 import type { VegaAgentSummary } from "@/app/dashboard/super-agent/actions";
 import { AgentAvatar } from "@/components/vega/agent-avatar";
+import { UserMenu } from "@/components/vega/user-menu";
+import type { CostMeterView } from "@/lib/vega/cost-shared";
 import { favoriteStorageKey, homeLayout, matchesAgent, relativeDay } from "@/lib/vega/home";
 import { encodeMascot, type Mascot } from "@/lib/vega/mascot";
 import { cn } from "@/lib/utils";
@@ -56,6 +58,10 @@ export function VegaHome({
   onCreateAgent,
   onNewVegaChat,
   onOpenLyraMenu,
+  onOpenSettings,
+  balance,
+  tank,
+  costMeter,
 }: {
   agents: VegaAgentSummary[];
   userName: string;
@@ -64,6 +70,10 @@ export function VegaHome({
   onCreateAgent: (template?: AgentTemplateDraft) => void;
   onNewVegaChat: () => void;
   onOpenLyraMenu: () => void;
+  onOpenSettings: () => void;
+  balance: number;
+  tank: number;
+  costMeter: CostMeterView | null;
 }) {
   const [query, setQuery] = useState("");
   const [favoriteId, setFavoriteId] = useState<string | null>(null);
@@ -106,13 +116,6 @@ export function VegaHome({
   const { main, companion, companionIsFavorite, rest } = homeLayout(agents, favoriteId);
   const searching = query.trim().length > 0;
   const results = searching ? [main, companion, ...rest].filter((agent): agent is VegaAgentSummary => Boolean(agent) && matchesAgent(agent!, query)) : rest;
-  const initials =
-    userName
-      .split(/\s+/)
-      .filter(Boolean)
-      .slice(0, 2)
-      .map((part) => part[0]?.toUpperCase())
-      .join("") || "TÚ";
 
   return (
     <section aria-labelledby="vega-home-title" className="relative flex min-h-0 flex-1 flex-col bg-[#0B0A10] text-white">
@@ -123,15 +126,15 @@ export function VegaHome({
       <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain">
         <div className="mx-auto w-full max-w-xl px-5 pt-[max(1rem,env(safe-area-inset-top))] pb-6 sm:px-6 md:pt-8">
           <header className="flex items-center justify-between">
-            <button
-              type="button"
-              onClick={onOpenLyraMenu}
-              className={cn("grid size-11 place-items-center rounded-full bg-[linear-gradient(135deg,#7C3AED,#06B6D4)] text-sm font-semibold text-white", focusRing)}
-              aria-label={`Menú de LYRA · ${userName}`}
-              title="Menú de LYRA"
-            >
-              {initials}
-            </button>
+            <UserMenu
+              variant="home"
+              userName={userName}
+              balance={balance}
+              tank={tank}
+              costMeter={costMeter}
+              onOpenSettings={onOpenSettings}
+              onOpenLyraMenu={onOpenLyraMenu}
+            />
             <button
               type="button"
               onClick={() => onCreateAgent()}

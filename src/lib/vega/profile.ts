@@ -72,7 +72,7 @@ export function profilePrompt(profile: VegaProfile): string {
     })
     .filter(Boolean);
   if (lines.length === 0) {
-    return "Todavía no tiene perfil estructurado (negocio, metas, tono). Si lo menciona en la conversación, invítalo a completarlo en el panel Perfil de Vega para responderle mejor.";
+    return "Todavía no hay un perfil estructurado. Si el socio cuenta algo duradero sobre él o su negocio, guárdalo con recordar (tipo perfil, preferencia o dato). No le pidas que llene un formulario de perfil.";
   }
-  return ["Perfil del socio (contexto estructurado, actualízalo con la herramienta actualizar_perfil cuando cambie algo):", ...lines].join("\n");
+  return ["Perfil del socio (contexto ya guardado; si cambia algo, actualízalo con actualizar_perfil o recuérdalo con recordar):", ...lines].join("\n");
 }

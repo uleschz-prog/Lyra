@@ -1,10 +1,12 @@
 "use client";
 
-import { LayoutGrid, MessageSquarePlus, PanelLeftClose, Pencil, Plus, Search, Trash2, X } from "lucide-react";
+import { MessageSquarePlus, PanelLeftClose, Pencil, Plus, Search, Trash2, X } from "lucide-react";
 import { useState } from "react";
 
 import type { VegaAgentSummary, VegaChatSummary } from "@/app/dashboard/super-agent/actions";
 import { AgentAvatar } from "@/components/vega/agent-avatar";
+import { UserMenu } from "@/components/vega/user-menu";
+import type { CostMeterView } from "@/lib/vega/cost-shared";
 import { cn } from "@/lib/utils";
 
 const iconButton =
@@ -20,7 +22,7 @@ function matches(query: string, ...values: (string | null | undefined)[]) {
 
 /**
  * Columna izquierda de Vega v2: buscar, tus agentes principales en mosaicos, los demás en
- * lista con su último mensaje, las conversaciones del agente activo y tu ficha (menú de LYRA).
+ * lista con su último mensaje, las conversaciones del agente activo y tu ficha (créditos, ajustes y menú de LYRA).
  */
 export function AgentSidebar({
   open,
@@ -31,6 +33,9 @@ export function AgentSidebar({
   chats,
   activeChatId,
   userName,
+  balance,
+  tank,
+  costMeter,
   onClose,
   onCollapse,
   onNewChat,
@@ -41,6 +46,7 @@ export function AgentSidebar({
   onRenameChat,
   onDeleteChat,
   onOpenLyraMenu,
+  onOpenSettings,
 }: {
   open: boolean;
   hidden: boolean;
@@ -50,6 +56,9 @@ export function AgentSidebar({
   chats: VegaChatSummary[];
   activeChatId: string | null;
   userName: string;
+  balance: number;
+  tank: number;
+  costMeter: CostMeterView | null;
   onClose: () => void;
   onCollapse: () => void;
   onNewChat: () => void;
@@ -60,19 +69,13 @@ export function AgentSidebar({
   onRenameChat: (chat: VegaChatSummary) => void;
   onDeleteChat: (id: string) => void;
   onOpenLyraMenu: () => void;
+  onOpenSettings: () => void;
 }) {
   const [query, setQuery] = useState("");
   const activeAgent = agents.find((agent) => agent.id === activeAgentId);
   const pinned = agents.slice(0, PINNED);
   const others = agents.slice(PINNED).filter((agent) => matches(query, agent.name, agent.specialty, agent.preview));
   const visibleChats = chats.filter((chat) => matches(query, chat.title));
-  const initials = userName
-    .split(/\s+/)
-    .filter(Boolean)
-    .slice(0, 2)
-    .map((part) => part[0]?.toUpperCase())
-    .join("") || "TÚ";
-
   return (
     <aside
       id="vega-agents"
@@ -260,19 +263,14 @@ export function AgentSidebar({
       </div>
 
       <div className="px-3 pt-1 pb-3">
-        <button
-          type="button"
-          onClick={onOpenLyraMenu}
-          className="flex w-full items-center gap-2.5 rounded-2xl px-2 py-2 text-left transition hover:bg-white/70 focus-visible:ring-2 focus-visible:ring-[#7C3AED] focus-visible:outline-none dark:hover:bg-white/[0.05]"
-          aria-label="Abrir el menú de LYRA"
-        >
-          <span className="grid size-9 shrink-0 place-items-center rounded-full bg-[linear-gradient(135deg,#7C3AED,#06B6D4)] text-xs font-semibold text-white">{initials}</span>
-          <span className="min-w-0 flex-1">
-            <span className="block truncate text-sm font-medium text-[#1E1E24] dark:text-white">{userName}</span>
-            <span className="block truncate text-xs text-[#8A8680]">Menú de LYRA · red, billetera y más</span>
-          </span>
-          <LayoutGrid className="size-4 shrink-0 text-[#8A8680]" aria-hidden />
-        </button>
+        <UserMenu
+          userName={userName}
+          balance={balance}
+          tank={tank}
+          costMeter={costMeter}
+          onOpenSettings={onOpenSettings}
+          onOpenLyraMenu={onOpenLyraMenu}
+        />
       </div>
     </aside>
   );
