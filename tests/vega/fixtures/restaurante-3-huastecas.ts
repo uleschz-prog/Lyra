@@ -40,3 +40,34 @@ Ventas del sistema vs. efectivo + terminal, con faltantes y sobrantes por cajero
 3. Semana 4: corte de caja por turno.
 
 Puedo armarte ahora un prototipo navegable en Proyectos o un documento de propuesta con fases y costos. ¿Cuántas comandas al día maneja cada sucursal y qué punto de venta usan hoy?`;
+
+/**
+ * Caso real en producción (21 nov 2026), ya con el prompt de experto: Ule pidió el sistema completo
+ * (2 sucursales, inventario de insumos por orden, comandas, meseros/cocina/caja a la vez y dinero en
+ * caja) y Vega respondió con la lista de lo que la app no podía hacer.
+ */
+export const restaurantSystemPrompt =
+  "Mi cliente Las 3 Huastecas tiene 2 sucursales. Quiere una app para controlar el inventario de insumos (cecina, arrachera, chorizo, queso) con sus equivalencias a órdenes, que los meseros levanten comandas, que cocina las vea y que caja cobre al mismo tiempo, y saber cuánto dinero debe haber en caja. ¿Me haces la app?";
+
+export const productionRefusalAnswer = `Entiendo tu interés en una app, LyraMaster. Sin embargo, es importante que sepas que la herramienta de creación de apps que tengo disponible genera prototipos interactivos que guardan la información solo en el navegador del usuario.
+
+Esto significa que no puedo crear una app que:
+
+- Gestione inventarios en tiempo real con múltiples insumos y recetas.
+- Sincronice datos entre dos sucursales.
+- Permita que varios usuarios (meseros, cocineros, cajeros) trabajen al mismo tiempo con la misma información.
+
+Lo que sí puedo hacer es crear un prototipo de app que se enfoque en un flujo específico.`;
+
+export const proposeAndBuildAnswer = `[animo: feliz] ¡Va! Te armo el sistema de Las 3 Huastecas completo: comandas, cocina, caja e inventario por receta en las 2 sucursales.
+
+## Cómo funciona
+- **Meseros** levantan la comanda; al enviarla a cocina se descuentan los insumos de cada platillo según su receta (por ejemplo, 200 g de cecina por orden).
+- **Cocina** ve las comandas de su sucursal y las marca como listas.
+- **Caja** cobra, y el corte del turno te dice cuánto efectivo debe haber.
+
+## Plan por fases
+1. App con las pantallas de cada rol y el menú con recetas.
+2. Conteos físicos y reporte de merma por sucursal.
+
+Empiezo ya con la fase 1. ¿Cómo se llaman las dos sucursales?`;
