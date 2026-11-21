@@ -25,12 +25,12 @@ export function UserNav({ user }: { user: AuthProfile }) {
 
   return (
     <DropdownMenu>
-      <DropdownMenuTrigger className="grid h-10 w-10 place-items-center rounded-lg border border-border bg-[#F4F1EC] text-xs text-[#1E1E24] outline-none focus-visible:ring-2 focus-visible:ring-[#7C3AED]/50">
+      <DropdownMenuTrigger className="grid h-10 w-10 place-items-center rounded-full bg-[linear-gradient(135deg,#7C3AED,#06B6D4)] text-xs font-semibold text-white outline-none transition hover:brightness-110 focus-visible:ring-2 focus-visible:ring-[#7C3AED]/50">
         {initials(user.name)}
       </DropdownMenuTrigger>
-      <DropdownMenuContent align="end">
+      <DropdownMenuContent align="end" className="dark:border-white/10 dark:bg-[#1B1924] dark:text-white">
         <div className="px-3 py-2">
-          <p className="text-sm text-[#1E1E24]">{user.name}</p>
+          <p className="text-sm text-[#1E1E24] dark:text-white">{user.name}</p>
           <p className="text-xs text-[#8A8680]">@{user.username}</p>
           <p className="mt-2 text-[11px] uppercase tracking-[0.18em] text-[#7C3AED]">
             {packageLabel[user.package]}

@@ -1,17 +1,11 @@
 import { monthStart } from "@/lib/compensation/activity";
 import { roundMoney } from "@/lib/compensation/engine";
+import { buildDailyTrend, startOfTrendWindow, type HomeActivity, type TrendPoint } from "@/lib/dashboard/home-logic";
 import { getPrisma } from "@/lib/prisma";
 import type { AuthProfile } from "@/lib/types";
 import { canUseVega } from "@/lib/vega/access";
 
-export type HomeActivity = {
-  id: string;
-  kind: "commission" | "credits" | "spend" | "rebuy" | "adjustment" | "referral";
-  title: string;
-  amount: number | null;
-  credits: number | null;
-  at: string;
-};
+export type { HomeActivity, TrendPoint };
 
 export type HomeStep = {
   id: string;
@@ -26,8 +20,11 @@ export type HomeSummary = {
   commissionsTotal: number;
   directs: number;
   joinedThisMonth: number;
+  activeDirects: number;
   steps: HomeStep[];
   activity: HomeActivity[];
+  commissionsTrend: TrendPoint[];
+  creditsTrend: TrendPoint[];
 };
 
 const kindMap = {
@@ -54,7 +51,8 @@ export async function homeSummary(user: AuthProfile): Promise<HomeSummary> {
   const month = monthStart();
   const vega = canUseVega(user);
 
-  const [monthAgg, totalAgg, directs, joined, transactions, recentReferrals, vegaChats] = await Promise.all([
+  const trendSince = startOfTrendWindow();
+  const [monthAgg, totalAgg, directs, joined, transactions, recentReferrals, trendRows, vegaChats] = await Promise.all([
     safe(prisma.transaction.aggregate({ where: { userId: user.id, kind: "COMMISSION", createdAt: { gte: month } }, _sum: { amount: true } }), null),
     safe(prisma.transaction.aggregate({ where: { userId: user.id, kind: "COMMISSION" }, _sum: { amount: true } }), null),
     safe(prisma.user.count({ where: { sponsorId: user.id } }), 0),
@@ -63,7 +61,7 @@ export async function homeSummary(user: AuthProfile): Promise<HomeSummary> {
       prisma.transaction.findMany({
         where: { userId: user.id },
         orderBy: { createdAt: "desc" },
-        take: 6,
+        take: 40,
         select: { id: true, kind: true, description: true, amount: true, creditDelta: true, createdAt: true },
       }),
       [],
@@ -72,8 +70,15 @@ export async function homeSummary(user: AuthProfile): Promise<HomeSummary> {
       prisma.user.findMany({
         where: { sponsorId: user.id },
         orderBy: { createdAt: "desc" },
-        take: 3,
+        take: 8,
         select: { id: true, name: true, createdAt: true },
+      }),
+      [],
+    ),
+    safe(
+      prisma.transaction.findMany({
+        where: { userId: user.id, createdAt: { gte: trendSince } },
+        select: { kind: true, amount: true, creditDelta: true, createdAt: true },
       }),
       [],
     ),
@@ -112,14 +117,17 @@ export async function homeSummary(user: AuthProfile): Promise<HomeSummary> {
     })),
   ]
     .sort((left, right) => right.at.localeCompare(left.at))
-    .slice(0, 6);
+    .slice(0, 40);
 
   return {
     commissionsMonth: roundMoney(Number(monthAgg?._sum.amount ?? 0)),
     commissionsTotal: roundMoney(Math.max(Number(totalAgg?._sum.amount ?? 0), user.walletBalance)),
     directs,
     joinedThisMonth: joined,
+    activeDirects: user.activeDirects,
     steps,
     activity,
+    commissionsTrend: buildDailyTrend(trendRows, "commissions"),
+    creditsTrend: buildDailyTrend(trendRows, "credits"),
   };
 }

@@ -32,8 +32,8 @@ export function Sidebar({
   const mode = officeModes[0];
 
   return (
-    <div className="flex h-full flex-col bg-white dark:bg-[#181625]">
-      <div className="flex items-center justify-between px-4 pt-5">
+    <div className="flex h-full flex-col bg-white/90 backdrop-blur-sm dark:bg-[#181625]/95">
+      <div className="flex items-center justify-between px-4 pt-5 pb-1">
         <Link
           href={brand.links.dashboard}
           aria-label="LYRA, ir al inicio"
@@ -46,7 +46,7 @@ export function Sidebar({
             <button
               type="button"
               aria-label="Cerrar menú"
-              className="grid h-9 w-9 place-items-center rounded-xl text-[#5C5854] md:hidden"
+              className="grid h-9 w-9 place-items-center rounded-xl text-[#5C5854] transition hover:bg-[#F6F4F1] dark:text-[#A9A3B8] dark:hover:bg-white/8 md:hidden"
               onClick={onClose}
             >
               <X className="h-4 w-4" />
@@ -56,10 +56,10 @@ export function Sidebar({
       </div>
 
       <div className="px-3 pt-5">
-        <p className="px-2 text-[11px] font-medium tracking-[0.22em] text-[#8A8680] uppercase">{mode.label}</p>
+        <p className="px-3 text-[11px] font-medium tracking-[0.22em] text-[#8A8680] uppercase">{mode.label}</p>
       </div>
 
-      <nav aria-label="Backoffice" className="mt-4 flex-1 space-y-1 overflow-y-auto px-3">
+      <nav aria-label="Backoffice" className="mt-3 flex-1 space-y-1 overflow-y-auto px-3">
         {mode.items.map((item) => {
           const active = isActive(item.href, pathname);
           const Icon = item.icon;
@@ -70,13 +70,14 @@ export function Sidebar({
               aria-current={active ? "page" : undefined}
               onClick={onClose}
               className={cn(
-                "flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm transition-colors",
+                "relative flex items-center gap-3 rounded-2xl px-3 py-2.5 text-sm transition duration-200",
                 active
-                  ? "bg-[#EDE9FE] text-[#1E1E24] dark:bg-[#221F30] dark:text-[#F2F0F7]"
-                  : "text-[#5C5854] hover:bg-[#F6F4F1] hover:text-[#1E1E24] dark:text-[#9B96AC] dark:hover:bg-[#221F30] dark:hover:text-[#F2F0F7]",
+                  ? "bg-[linear-gradient(135deg,rgba(124,58,237,0.16),rgba(124,58,237,0.05))] font-medium text-[#1E1E24] shadow-[inset_0_0_0_1px_rgba(124,58,237,0.16)] dark:bg-[linear-gradient(135deg,rgba(124,58,237,0.32),rgba(124,58,237,0.08))] dark:text-white dark:shadow-[inset_0_0_0_1px_rgba(167,139,250,0.22)]"
+                  : "text-[#5C5854] hover:bg-[#F6F4F1] hover:text-[#1E1E24] dark:text-[#9B96AC] dark:hover:bg-white/6 dark:hover:text-[#F2F0F7]",
               )}
             >
-              <Icon className={cn("h-4 w-4", active ? "text-[#7C3AED]" : "text-[#8A8680]")} aria-hidden />
+              {active ? <span className="absolute top-1/2 left-0 h-5 w-1 -translate-y-1/2 rounded-full bg-[#7C3AED]" aria-hidden /> : null}
+              <Icon className={cn("h-4 w-4", active ? "text-[#7C3AED] dark:text-[#C4B5FD]" : "text-[#8A8680]")} aria-hidden />
               <span>{item.label}</span>
             </Link>
           );
@@ -86,7 +87,7 @@ export function Sidebar({
       <div className="space-y-2 p-3">
         <ThemeToggle
           showLabel
-          className="hidden min-h-10 w-full items-center gap-3 rounded-xl border border-[#E7E2DA] bg-white px-3 text-left text-sm font-medium text-[#5C5854] transition-colors hover:bg-[#F6F4F1] dark:border-white/12 dark:bg-[#181625] dark:text-[#F2F0F7] dark:hover:bg-[#221F30] md:flex"
+          className="hidden min-h-10 w-full items-center gap-3 rounded-2xl border border-[#E7E2DA] bg-white/80 px-3 text-left text-sm font-medium text-[#5C5854] transition hover:bg-[#F6F4F1] dark:border-white/10 dark:bg-white/4 dark:text-[#F2F0F7] dark:hover:bg-white/8 md:flex"
         />
         {user.role === "ADMIN" ? (
           <Link
@@ -94,10 +95,10 @@ export function Sidebar({
             onClick={onClose}
             aria-current={isActive("/dashboard/admin", pathname) ? "page" : undefined}
             className={cn(
-              "flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm transition-colors",
+              "flex items-center gap-3 rounded-2xl px-3 py-2.5 text-sm transition-colors",
               isActive("/dashboard/admin", pathname)
                 ? "bg-[#1E1E24] text-white dark:bg-[#EDE9FE] dark:text-[#2E1065]"
-                : "bg-[#F6F4F1] text-[#1E1E24] hover:bg-[#EDE9FE] dark:bg-[#221F30] dark:text-[#F2F0F7] dark:hover:bg-[#2B2740]",
+                : "bg-[#F6F4F1] text-[#1E1E24] hover:bg-[#EDE9FE] dark:bg-white/6 dark:text-[#F2F0F7] dark:hover:bg-white/10",
             )}
           >
             <ShieldCheck className="h-4 w-4 text-[#7C3AED]" aria-hidden />
@@ -107,7 +108,7 @@ export function Sidebar({
         <Link
           href={brand.links.upgrade}
           onClick={onClose}
-          className="flex items-center gap-3 rounded-2xl border border-[#E7E2DA] px-3 py-3 transition-colors hover:border-[#C4B5FD] dark:border-white/12 dark:hover:border-[#A78BFA]"
+          className="flex items-center gap-3 rounded-2xl border border-[#DDD6FE] bg-gradient-to-br from-[#F5F3FF] to-white px-3 py-3 transition hover:border-[#A78BFA] dark:border-[#7C3AED]/30 dark:from-[#2A2150]/40 dark:to-[#1B1924] dark:hover:border-[#A78BFA]/60"
         >
           <span className="min-w-0 flex-1">
             <span className="block text-sm font-medium text-[#1E1E24] dark:text-[#F2F0F7]">Mejorar tu plan</span>
@@ -123,11 +124,11 @@ export function Sidebar({
           <Presentation className="h-3.5 w-3.5" aria-hidden />
           <span>Presentación de LYRA</span>
         </Link>
-        <div className="flex items-center gap-2 px-1 py-1">
+        <div className="flex items-center gap-2.5 rounded-2xl px-1.5 py-1.5 transition hover:bg-[#F6F4F1] dark:hover:bg-white/5">
           <UserNav user={user} />
           <div className="min-w-0 flex-1">
-            <p className="truncate text-sm text-[#1E1E24] dark:text-[#F2F0F7]">{user.name}</p>
-            <p className="text-xs text-[#7C3AED]">{formatCredits(balance)} créditos</p>
+            <p className="truncate text-sm font-medium text-[#1E1E24] dark:text-[#F2F0F7]">{user.name}</p>
+            <p className="text-xs text-[#7C3AED] tabular-nums dark:text-[#C4B5FD]">{formatCredits(balance)} créditos</p>
           </div>
         </div>
       </div>
