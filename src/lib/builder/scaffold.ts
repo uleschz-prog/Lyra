@@ -1,7 +1,8 @@
 // Andamiaje determinista del proyecto v2 (Vite + React + Tailwind v4). Estos archivos no los
 // escribe el modelo: router, capa de datos, páginas, App y configuración.
 import { getDesignSystem, themeCss, type DesignSystem } from "@/lib/builder/design-systems";
-import type { BuildPlan, FileTask, PlannedSection, ProjectFiles } from "@/lib/builder/types";
+import { liveGateSource, liveInputFromPlan, liveSource } from "@/lib/builder/live-runtime";
+import type { BuildPlan, Entity, FileTask, PlannedSection, ProjectFiles } from "@/lib/builder/types";
 
 export function projectSlug(title: string) {
   const slug = title
@@ -53,6 +54,9 @@ export const scaffoldPaths = new Set([
   "src/App.tsx",
   "src/lib/router.tsx",
   "src/lib/data.ts",
+  "src/lib/live.ts",
+  "src/components/LiveGate.tsx",
+  "lyra.app.json",
   "src/lib/format.ts",
   "src/lib/leads.ts",
   "src/data/stores.ts",
@@ -129,21 +133,31 @@ export function sendLead(fields: Record<string, string | number | boolean>) {
 }
 `;
 
-const dataSource = (slug: string) => `// Capa de datos de la app. Hoy guarda en este navegador (localStorage, o memoria si no hay acceso).
-// Las pantallas solo usan la interfaz DataStore: el PR E de LYRA la conecta a la Data API
-// (datos reales por socio) cambiando createLocalStore, sin tocar las pantallas.
-import { useSyncExternalStore } from "react";
+const dataSource = (slug: string) => `// Capa de datos de la app. Las pantallas solo usan DataStore y useCollection.
+// - Vista previa u otro hosting: guarda en este navegador (localStorage, o memoria si no hay acceso).
+// - Publicada en LYRA con datos en vivo: cada cambio se guarda en LYRA y se sincroniza entre
+//   dispositivos y sucursales (ver ./live.ts). Las pantallas no cambian.
+import { useMemo, useSyncExternalStore } from "react";
 
-export type FieldType = "text" | "longtext" | "number" | "money" | "date" | "time" | "email" | "phone" | "select" | "boolean";
-export type Field = { key: string; label: string; type: FieldType; options?: string[]; required?: boolean };
-export type EntitySchema = { key: string; label: string; singular: string; icon: string; fields: Field[] };
-export type Row = { id: string; createdAt: string; updatedAt: string; [key: string]: unknown };
+import { getLive, isLive, liveRows, liveWrite, newId, subscribeRows, useLive, writeBranch } from "./live";
+
+export { transact, useLive } from "./live";
+
+export type FieldType = "text" | "longtext" | "number" | "money" | "date" | "time" | "email" | "phone" | "select" | "boolean" | "ref" | "items";
+export type Field = { key: string; label: string; type: FieldType; options?: string[]; required?: boolean; ref?: string; fields?: Field[] };
+export type EntitySchema = { key: string; label: string; singular: string; icon: string; fields: Field[]; scope?: "branch" | "shared" };
+export type Row = { id: string; createdAt: string; updatedAt: string; branchId?: string | null; [key: string]: unknown };
 
 export interface DataStore {
+  readonly key: string;
+  readonly scope: "branch" | "shared";
   list(): Row[];
   get(id: string): Row | undefined;
+  /** Crea un registro. Puedes pasar id propio (letras, números, - y _) y, si eres administración, branchId. */
   create(values: Record<string, unknown>): Row;
   update(id: string, values: Record<string, unknown>): Row | undefined;
+  /** Suma (o resta) a un campo numérico sin pisar lo que otros dispositivos sumaron. */
+  inc(id: string, field: string, by: number): void;
   remove(id: string): void;
   subscribe(listener: () => void): () => void;
 }
@@ -167,11 +181,29 @@ function save(key: string, value: string) {
   }
 }
 
-function uid() {
-  return Math.random().toString(36).slice(2, 10) + Date.now().toString(36);
+const idPattern = /^[A-Za-z0-9_-]{2,64}$/;
+
+/** Sucursal de un registro nuevo: administración (o la vista previa) puede indicar branchId. */
+function branchFor(values: Record<string, unknown>) {
+  const live = getLive();
+  const chosen = typeof values.branchId === "string" && live.branches.some((item) => item.id === values.branchId) ? values.branchId : null;
+  return chosen && (live.member?.role === "admin" || live.status === "local") ? chosen : writeBranch();
 }
 
-export function createLocalStore(collection: string, seed: Record<string, unknown>[]): DataStore {
+function rowId(values: Record<string, unknown>) {
+  return typeof values.id === "string" && idPattern.test(values.id) ? values.id : newId();
+}
+
+function withoutMeta(values: Record<string, unknown>) {
+  const copy = { ...values };
+  delete copy.id;
+  delete copy.createdAt;
+  delete copy.updatedAt;
+  delete copy.branchId;
+  return copy;
+}
+
+export function createLocalStore(collection: string, seed: Record<string, unknown>[], scope: "branch" | "shared" = "shared"): DataStore {
   let rows: Row[] | null = null;
   const listeners = new Set<() => void>();
   const read = () => {
@@ -187,7 +219,13 @@ export function createLocalStore(collection: string, seed: Record<string, unknow
     }
     if (!rows) {
       const now = new Date().toISOString();
-      rows = seed.map((values, index) => ({ ...values, id: "s" + index, createdAt: now, updatedAt: now }));
+      rows = seed.map((values, index) => ({
+        ...withoutMeta(values),
+        id: typeof values.id === "string" ? values.id : collection + "-s" + index,
+        branchId: scope === "branch" ? (typeof values.branchId === "string" ? values.branchId : writeBranch()) : null,
+        createdAt: now,
+        updatedAt: now,
+      }));
     }
     return rows;
   };
@@ -196,19 +234,25 @@ export function createLocalStore(collection: string, seed: Record<string, unknow
     save(collection, JSON.stringify(next));
     listeners.forEach((listener) => listener());
   };
-  return {
+  const store: DataStore = {
+    key: collection,
+    scope,
     list: read,
     get: (id) => read().find((row) => row.id === id),
     create(values) {
       const now = new Date().toISOString();
-      const row: Row = { ...values, id: uid(), createdAt: now, updatedAt: now };
+      const row: Row = { ...withoutMeta(values), id: rowId(values), branchId: scope === "branch" ? branchFor(values) : null, createdAt: now, updatedAt: now };
       write([row, ...read()]);
       return row;
     },
     update(id, values) {
       let updated: Row | undefined;
-      write(read().map((row) => (row.id === id ? (updated = { ...row, ...values, id, updatedAt: new Date().toISOString() }) : row)));
+      write(read().map((row) => (row.id === id ? (updated = { ...row, ...withoutMeta(values), id, updatedAt: new Date().toISOString() }) : row)));
       return updated;
+    },
+    inc(id, field, by) {
+      const row = store.get(id);
+      if (row) store.update(id, { [field]: (Number(row[field]) || 0) + by });
     },
     remove(id) {
       write(read().filter((row) => row.id !== id));
@@ -220,11 +264,53 @@ export function createLocalStore(collection: string, seed: Record<string, unknow
       };
     },
   };
+  return store;
 }
 
-/** Lista reactiva de una colección. */
-export function useCollection(store: DataStore): Row[] {
-  return useSyncExternalStore(store.subscribe, store.list, store.list);
+/** Colección guardada en LYRA (datos en vivo). Escribe al instante en pantalla y sincroniza. */
+export function createRemoteStore(collection: string, scope: "branch" | "shared" = "shared"): DataStore {
+  const store: DataStore = {
+    key: collection,
+    scope,
+    list: () => liveRows(collection) as Row[],
+    get: (id) => liveRows(collection).find((row) => row.id === id) as Row | undefined,
+    create(values) {
+      const id = rowId(values);
+      const branch = scope === "branch" ? branchFor(values) : null;
+      liveWrite({ op: "create", c: collection, id, data: withoutMeta(values), branch });
+      return (store.get(id) ?? { ...values, id, branchId: branch, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() }) as Row;
+    },
+    update(id, values) {
+      liveWrite({ op: "update", c: collection, id, data: withoutMeta(values) });
+      return store.get(id);
+    },
+    inc(id, field, by) {
+      liveWrite({ op: "inc", c: collection, id, field, by });
+    },
+    remove(id) {
+      liveWrite({ op: "delete", c: collection, id });
+    },
+    subscribe: (listener) => subscribeRows(collection, listener),
+  };
+  return store;
+}
+
+/** En vivo cuando LYRA lo activa; si no, local con los datos de ejemplo. */
+export function createCollection(collection: string, seed: Record<string, unknown>[], scope: "branch" | "shared" = "shared"): DataStore {
+  return isLive ? createRemoteStore(collection, scope) : createLocalStore(collection, seed, scope);
+}
+
+/**
+ * Lista reactiva de una colección. En colecciones por sucursal muestra solo la sucursal en
+ * pantalla (administración puede elegir «todas»); con { allBranches: true } trae todas.
+ */
+export function useCollection(store: DataStore, options: { allBranches?: boolean } = {}): Row[] {
+  const rows = useSyncExternalStore(store.subscribe, store.list, store.list);
+  const { branch } = useLive();
+  return useMemo(
+    () => (store.scope === "branch" && branch && !options.allBranches ? rows.filter((row) => row.branchId === branch) : rows),
+    [rows, branch, store.scope, options.allBranches],
+  );
 }
 
 export function readSettings(): Record<string, string> {
@@ -292,11 +378,38 @@ export default class SectionBoundary extends Component<{ name: string; children:
 }
 `;
 
+function entityScope(plan: BuildPlan, entity: Entity): "branch" | "shared" {
+  return plan.live && entity.scope === "branch" ? "branch" : "shared";
+}
+
+/** Manifiesto de datos en vivo (lyra.app.json): LYRA lo usa para crear la base de la app. */
+export function liveManifest(plan: BuildPlan) {
+  if (!plan.live) return null;
+  return {
+    version: 1,
+    title: plan.title,
+    roles: liveInputFromPlan(plan).roles,
+    branches: plan.live.branches,
+    collections: plan.entities.map((entity) => ({
+      key: entity.key,
+      label: entity.label,
+      singular: entity.singular,
+      icon: entity.icon,
+      fields: entity.fields,
+      scope: entityScope(plan, entity),
+      sync: entity.sync === "recent" ? "recent" : "all",
+      ...(entity.write?.length ? { write: entity.write } : {}),
+      ...(entity.read?.length ? { read: entity.read } : {}),
+      seed: entity.seed,
+    })),
+  };
+}
+
 function storesSource(plan: BuildPlan) {
-  const schema = Object.fromEntries(plan.entities.map((entity) => [entity.key, { key: entity.key, label: entity.label, singular: entity.singular, icon: entity.icon, fields: entity.fields }]));
-  const lines = plan.entities.map((entity) => `  ${entity.key}: createLocalStore(${JSON.stringify(entity.key)}, ${JSON.stringify(entity.seed)}),`);
+  const schema = Object.fromEntries(plan.entities.map((entity) => [entity.key, { key: entity.key, label: entity.label, singular: entity.singular, icon: entity.icon, fields: entity.fields, scope: entityScope(plan, entity) }]));
+  const lines = plan.entities.map((entity) => `  ${entity.key}: createCollection(${JSON.stringify(entity.key)}, ${JSON.stringify(entity.seed)}, ${JSON.stringify(entityScope(plan, entity))}),`);
   return `// Esquema y colecciones de la app (generado por LYRA a partir del plan).
-import { createLocalStore, type DataStore, type EntitySchema } from "../lib/data";
+import { createCollection, type DataStore, type EntitySchema } from "../lib/data";
 
 export type { Row } from "../lib/data";
 
@@ -343,9 +456,10 @@ function appSource(plan: BuildPlan) {
       </main>
       <Footer />
     </RouterProvider>`;
+  const gate = plan.kind === "app" && plan.live;
   return `import type { ComponentType } from "react";
 
-import { RouterProvider, useRoute } from "./lib/router";
+${gate ? 'import LiveGate from "./components/LiveGate";\n' : ""}import { RouterProvider, useRoute } from "./lib/router";
 ${chromeImports}
 ${pageImports}
 
@@ -361,7 +475,7 @@ function Current() {
 
 export default function App() {
   return (
-    ${layout}
+    ${gate ? `<LiveGate>\n    ${layout}\n    </LiveGate>` : layout}
   );
 }
 `;
@@ -403,7 +517,9 @@ npm run build   # genera dist/ para cualquier hosting estático
 
 ${
   app
-    ? "- Las pantallas guardan los datos en el navegador de quien usa la app (localStorage); cada dispositivo tiene su propia copia. En la dirección pública de LYRA (/s/…) la página corre aislada y los datos duran mientras la pestaña esté abierta.\n- Toda la lectura y escritura pasa por `src/lib/data.ts` (interfaz `DataStore`). Para conectar una base de datos real basta con reemplazar `createLocalStore`.\n- Los registros iniciales son de ejemplo."
+    ? plan.live
+      ? "- Datos en vivo: publicada en LYRA (/s/…) y con «Datos en vivo» activado en Proyectos, cada persona entra con su PIN y los datos se guardan en LYRA y se sincronizan entre dispositivos y sucursales cada pocos segundos. Las sucursales, el equipo y los PIN se administran en Proyectos.\n- En la vista previa y en otro hosting la app usa datos de ejemplo en este navegador.\n- El esquema de datos está en `lyra.app.json`; las pantallas solo usan `src/lib/data.ts` (DataStore y useCollection).\n- Al recargar la página se vuelve a pedir el PIN."
+      : "- Las pantallas guardan los datos en el navegador de quien usa la app (localStorage); cada dispositivo tiene su propia copia. En la dirección pública de LYRA (/s/…) la página corre aislada y los datos duran mientras la pestaña esté abierta.\n- Toda la lectura y escritura pasa por `src/lib/data.ts` (interfaz `DataStore`). Para guardar en una base de datos compartida, pídele a Vega la versión con datos en vivo.\n- Los registros iniciales son de ejemplo."
     : "- Si publicas el sitio desde LYRA (dirección /s/…), lo que la gente escribe en los formularios llega a la bandeja de Contactos del proyecto. En la vista previa o en otro hosting, los formularios solo muestran una confirmación y, si diste WhatsApp, abren el mensaje listo; no envían correos.\n- Textos e información salen de tu descripción; revisa precios, horarios y datos de contacto antes de publicar."
 }
 ${plan.assumptions.length ? `\n## Suposiciones\n\n${plan.assumptions.map((item) => `- ${item}`).join("\n")}\n` : ""}`;
@@ -494,6 +610,11 @@ createRoot(document.getElementById("root")!).render(
   if (plan.kind === "sitio") files["src/lib/leads.ts"] = leadsHelperSource;
   if (plan.kind === "app") {
     files["src/lib/data.ts"] = dataSource(slug);
+    files["src/lib/live.ts"] = liveSource(liveInputFromPlan(plan));
+    if (plan.live) {
+      files["src/components/LiveGate.tsx"] = liveGateSource;
+      files["lyra.app.json"] = JSON.stringify(liveManifest(plan), null, 2) + "\n";
+    }
     files["src/lib/format.ts"] = formatSource;
     files["src/data/stores.ts"] = storesSource(plan);
   }

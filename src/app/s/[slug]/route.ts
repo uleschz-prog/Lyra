@@ -1,8 +1,10 @@
 import { leadEndpointPath, leadRuntimeScript } from "@/lib/leads/runtime";
+import { liveApiPath } from "@/lib/liveapps/http";
 import { getPrisma } from "@/lib/prisma";
 import { findPublished } from "@/lib/publish/core";
 import {
   notPublishedHtml,
+  liveConfigScript,
   publishedHeaders,
   publishedPageHtml,
 } from "@/lib/publish/page";
@@ -39,6 +41,14 @@ export async function GET(
     target.kind === "sitio"
       ? `${origin}${leadEndpointPath(target.slug)}`
       : null;
+  // Apps con datos en vivo: la app recibe la dirección de su Data API y puede conectarse solo ahí.
+  const space =
+    target.kind === "app"
+      ? await getPrisma()
+          .appSpace.findUnique({ where: { projectId: target.projectId }, select: { status: true } })
+          .catch(() => null)
+      : null;
+  const liveApi = space ? `${origin}${liveApiPath(target.slug)}` : null;
   const page = publishedPageHtml(
     html,
     {
@@ -49,12 +59,15 @@ export async function GET(
       appUrl: origin,
     },
     endpoint ? leadRuntimeScript(endpoint) : "",
+    liveApi && space
+      ? liveConfigScript({ api: liveApi, slug: target.slug, status: space.status === "active" ? "active" : "paused" })
+      : "",
   );
   return new Response(page, {
     status: 200,
     headers: publishedHeaders({
       indexable: target.indexable,
-      connect: endpoint ? [endpoint] : [],
+      connect: [endpoint, liveApi].filter((item): item is string => Boolean(item)),
     }),
   });
 }

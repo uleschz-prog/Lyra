@@ -50,11 +50,21 @@ export type PlannedPage = {
   sections: PlannedSection[];
 };
 
-export type FieldType = "text" | "longtext" | "number" | "money" | "date" | "time" | "email" | "phone" | "select" | "boolean";
+export type FieldType = "text" | "longtext" | "number" | "money" | "date" | "time" | "email" | "phone" | "select" | "boolean" | "ref" | "items";
 
-export type EntityField = { key: string; label: string; type: FieldType; options?: string[]; required?: boolean };
+export type EntityField = {
+  key: string;
+  label: string;
+  type: FieldType;
+  options?: string[];
+  required?: boolean;
+  /** type "ref": llave de la entidad a la que apunta. */
+  ref?: string;
+  /** type "items": campos de cada renglón (p. ej. platillos de una comanda). */
+  fields?: EntityField[];
+};
 
-export type SeedValue = string | number | boolean;
+export type SeedValue = string | number | boolean | null | Record<string, string | number | boolean>[];
 
 export type Entity = {
   key: string;
@@ -63,6 +73,19 @@ export type Entity = {
   icon: string;
   fields: EntityField[];
   seed: Record<string, SeedValue>[];
+  /** Datos en vivo: «branch» = cada registro es de una sucursal; «shared» = catálogo común. */
+  scope?: "branch" | "shared";
+  /** Datos en vivo: «recent» = al entrar solo se bajan las últimas horas (comandas, movimientos). */
+  sync?: "all" | "recent";
+  /** Datos en vivo: roles que pueden escribir / leer (vacío = todos; admin siempre). */
+  write?: string[];
+  read?: string[];
+};
+
+/** Datos en vivo: roles del equipo y sucursales iniciales. */
+export type LivePlan = {
+  roles: { key: string; label: string }[];
+  branches: { id: string; name: string }[];
 };
 
 export type Brand = {
@@ -86,6 +109,8 @@ export type BuildPlan = {
   chrome: PlannedSection[];
   pages: PlannedPage[];
   entities: Entity[];
+  /** Presente cuando la app usa datos en vivo (equipo con PIN, sucursales, sincronización). */
+  live?: LivePlan;
   suggestions: string[];
   assumptions: string[];
 };
