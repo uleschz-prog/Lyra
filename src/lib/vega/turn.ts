@@ -15,6 +15,7 @@ import { appStatusLabel } from "@/lib/vega/app-tools";
 import { attachmentMeta, excerptsFromMeta, inlineParts, type ReadyAttachment } from "@/lib/vega/attachments";
 import { noConnections } from "@/lib/vega/apps";
 import { actionView } from "@/lib/vega/decide";
+import { createMoodFilter, stripMoodTags } from "@/lib/vega/mood-tag";
 import type { VegaEvent, VegaMood } from "@/lib/vega/events";
 import { continueNote, createTurnBudget, vegaLimits, type StopReason, type VegaLimits } from "@/lib/vega/budget";
 import { parsePersona, personaPrompt, type AgentScope } from "@/lib/vega/agent-scope";
@@ -41,7 +42,6 @@ import { capReachedMessage, costStatus, degradedModels, meterView, recordUsage, 
 import type { ModelOverride } from "@/lib/vega/model-gateway";
 
 const moodTag = /^\[\s*[aá]nimo\s*:\s*([a-záéíóú]+)\s*\]\s*/i;
-const moodTagAnywhere = /\[\s*[aá]nimo\s*:\s*[a-záéíóú]+\s*\]\s*/gi;
 const moodNames: Record<string, VegaMood> = {
   feliz: "happy",
   enojo: "angry",
@@ -59,7 +59,8 @@ function history(rows: { role: string; content: string; meta?: unknown }[]): Gem
   for (const row of rows) {
     const role = row.role === "user" ? "user" : "model";
     const notes = role === "user" ? excerptsFromMeta(row.meta) : "";
-    const text = [row.content.trim(), notes].filter(Boolean).join("\n\n") || "(mensaje vacío)";
+    const content = role === "model" ? stripMoodTags(row.content).trim() : row.content.trim();
+    const text = [content, notes].filter(Boolean).join("\n\n") || "(mensaje vacío)";
     const last = merged[merged.length - 1];
     if (last && last.role === role && last.parts.length === 1 && last.parts[0].text) {
       last.parts[0].text = `${last.parts[0].text}\n\n${text}`;
@@ -341,12 +342,54 @@ export async function runVegaTurn(turn: VegaTurn, emit: (event: VegaEvent) => vo
   let tainted = false;
   const connectCards = new Set<string>();
 
-  const say = (text: string) => {
-    const clean = text.replace(moodTagAnywhere, "");
+  /** Muestra (una vez por app y turno) la tarjeta para conectar o reconectar, y le dice al modelo qué ve el socio. */
+  const withConnectCard = async (failure: Record<string, unknown>) => {
+    const toolkit = String(failure.reconectar) as UserToolkit;
+    const expired = failure.vencida === true;
+    const missingScope = failure.permiso_extra === true;
+    if (!connectCards.has(toolkit)) {
+      connectCards.add(toolkit);
+      const reason = missingScope
+        ? `${connectDraft(toolkit, "").label} está conectado, pero sin el permiso para esta acción. Vuelve a conectarlo y acepta todos los permisos que ${toolkit.startsWith("google") || toolkit === "gmail" ? "pide Google" : "te pida"}.`
+        : expired
+          ? "La conexión venció; vuelve a conectarla para seguir."
+          : "";
+      const draft = connectDraft(toolkit, reason, expired || missingScope);
+      const action = await prisma.vegaAction.create({
+        data: {
+          userId,
+          conversationId: chatId,
+          kind: "connect_app",
+          payload: draft as unknown as Prisma.InputJsonValue,
+          status: "done",
+          result: `Conectar ${draft.label}`,
+          riskClass: "internal",
+          decidedAt: new Date(),
+          executedBy: "system",
+        },
+        select: { id: true, kind: true, payload: true, status: true, result: true },
+      });
+      actionIds.push(action.id);
+      emit({ t: "action", v: actionView(action) });
+    }
+    const label = connectDraft(toolkit, "").label;
+    return {
+      ...failure,
+      nota: missingScope
+        ? `A la conexión de ${label} le falta un permiso para esto. El socio ya ve un botón para volver a conectar: explícale en una frase que debe aceptar todos los permisos y que te escriba «listo» para intentarlo de nuevo.`
+        : `El socio ya ve un botón para ${expired ? "volver a conectar" : "conectar"} ${label}. Explícale en una frase y pídele que te escriba «listo» cuando termine.`,
+    };
+  };
+
+  const moodFilter = createMoodFilter();
+  const emitText = (clean: string) => {
     if (!clean) return;
     reply += clean;
     emit({ t: "text", v: clean });
   };
+  const say = (text: string) => emitText(moodFilter.push(text));
+  /** Fin de una respuesta del modelo: suelta lo que el filtro retenía (si no era etiqueta). */
+  const endText = () => emitText(moodFilter.end());
   const flush = () => {
     if (pending) say(pending);
     pending = "";
@@ -380,6 +423,7 @@ export async function runVegaTurn(turn: VegaTurn, emit: (event: VegaEvent) => vo
         models.add(`${current.provider}:${current.model}`);
       }
       flush();
+      endText();
       if (current.state.truncated) {
         stopReason = "time";
         break;
@@ -637,36 +681,13 @@ export async function runVegaTurn(turn: VegaTurn, emit: (event: VegaEvent) => vo
               emit({ t: "status", v: proposed.status });
             }
           }
-          response = proposed.response;
+          response =
+            typeof proposed.response.reconectar === "string" && isUserToolkit(String(proposed.response.reconectar))
+              ? await withConnectCard(proposed.response)
+              : proposed.response;
         } else if (typeof (outcome.response as Record<string, unknown>).reconectar === "string" && isUserToolkit(String((outcome.response as Record<string, unknown>).reconectar))) {
-          // La app no está conectada o su conexión venció: tarjeta para (re)conectar, sin tumbar el turno.
-          const failure = outcome.response as Record<string, unknown>;
-          const toolkit = String(failure.reconectar) as UserToolkit;
-          const expired = failure.vencida === true;
-          if (!connectCards.has(toolkit)) {
-            connectCards.add(toolkit);
-            const draft = connectDraft(toolkit, expired ? "La conexión venció; vuelve a conectarla para seguir." : "", expired);
-            const action = await prisma.vegaAction.create({
-              data: {
-                userId,
-                conversationId: chatId,
-                kind: "connect_app",
-                payload: draft as unknown as Prisma.InputJsonValue,
-                status: "done",
-                result: `Conectar ${draft.label}`,
-                riskClass: "internal",
-                decidedAt: new Date(),
-                executedBy: "system",
-              },
-              select: { id: true, kind: true, payload: true, status: true, result: true },
-            });
-            actionIds.push(action.id);
-            emit({ t: "action", v: actionView(action) });
-          }
-          response = {
-            ...outcome.response,
-            nota: `El socio ya ve un botón para ${expired ? "volver a conectar" : "conectar"} ${connectDraft(toolkit, "").label}. Explícale en una frase y pídele que te escriba «listo» cuando termine.`,
-          };
+          // La app no está conectada, su conexión venció o le falta un permiso: tarjeta para (re)conectar, sin tumbar el turno.
+          response = await withConnectCard(outcome.response as Record<string, unknown>);
         } else response = outcome.response;
 
         if (gate.delegated) response = { ...response, supuestos: "El socio te dejó decidir: dile en una o dos frases qué supusiste y que puede cambiarlo." };

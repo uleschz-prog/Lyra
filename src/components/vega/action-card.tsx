@@ -35,6 +35,7 @@ const appIcons: Record<AppOp, LucideIcon> = {
   social_post: Megaphone,
   payment_link: CreditCard,
   whatsapp_send: MessageCircle,
+  gmail_organize: Mail,
 };
 
 function when(value: string) {
@@ -166,6 +167,7 @@ function ConfirmCard({
   onChange: (action: VegaActionView, message: string) => void;
 }) {
   const [busy, setBusy] = useState(false);
+  const [followUp, setFollowUp] = useState<ConnectDraft | null>(null);
   const email = action.kind === "send_email" ? (action.payload as EmailDraft) : null;
   const event = action.kind === "create_event" ? (action.payload as EventDraft) : null;
   const app = action.kind === "app_action" ? (action.payload as AppDraft) : null;
@@ -196,13 +198,14 @@ function ConfirmCard({
     }));
     setBusy(false);
     if (result.action) onChange(result.action, result.message);
+    if ("followUp" in result && result.followUp?.kind === "connect_app") setFollowUp(result.followUp.payload as ConnectDraft);
     if (result.ok) toast.success(result.message);
     else toast.error(result.message);
   }
 
   const statusText: Record<VegaActionView["status"], string> = {
     pending: "Esperando tu confirmación",
-    running: "Enviando…",
+    running: app?.op === "gmail_organize" ? "Aplicando en tu Gmail…" : "Enviando…",
     done: action.result?.replace(/\[([^\]]+)\]\([^)]+\)/g, "$1") ?? "Hecho",
     failed: action.result ?? "No se completó",
     cancelled: "Cancelado",
@@ -225,7 +228,11 @@ function ConfirmCard({
         <div className="flex items-start gap-2 border-b border-[#F0ECE6] bg-[#FFFAEB] px-4 py-2 text-xs text-[#93370D]">
           <ShieldAlert className="mt-0.5 size-3.5 shrink-0" />
           <span>
-            {action.risk === "send" ? "Esto sale a otras personas o no se puede deshacer. Revisa destinatario y contenido antes de confirmar." : ""}
+            {action.risk === "send"
+              ? app?.op === "gmail_organize"
+                ? "Esto borra correos de tu Gmail. Revisa cuáles son antes de confirmar."
+                : "Esto sale a otras personas o no se puede deshacer. Revisa destinatario y contenido antes de confirmar."
+              : ""}
             {action.risk === "send" && action.tainted ? " " : ""}
             {action.tainted ? "Vega leyó correos, páginas u hojas de terceros en este turno: confirma solo si tú lo pediste." : ""}
           </span>
@@ -302,11 +309,16 @@ function ConfirmCard({
               className="inline-flex items-center gap-1 rounded-lg bg-[#7C3AED] px-3 py-1.5 text-xs font-medium text-white disabled:opacity-50"
             >
               <Check className="size-3.5" />
-              {busy ? "Enviando…" : confirmLabel}
+              {busy ? (app?.op === "gmail_organize" ? "Aplicando…" : "Enviando…") : confirmLabel}
             </button>
           </div>
         ) : null}
       </div>
+      {followUp ? (
+        <div className="border-t border-[#F0ECE6] px-3 pb-3">
+          <ConnectCard draft={followUp} />
+        </div>
+      ) : null}
     </div>
   );
 }

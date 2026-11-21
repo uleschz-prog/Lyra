@@ -43,3 +43,13 @@ describe("vegaSystemPrompt · conexiones", () => {
     expect(text).not.toMatch(/panel Archivos|panel Memoria/);
   });
 });
+
+describe("vegaSystemPrompt · Gmail", () => {
+  it("con Gmail conectado, Vega sabe que puede borrar, mover y organizar correos", () => {
+    const text = prompt({ ...noConnections, gmail: true });
+    expect(text).toContain("organizar_correos");
+    expect(text).toMatch(/Nunca digas que no puedes borrar, mover u organizar correos/);
+    expect(prompt()).not.toContain("organizar_correos");
+  });
+});
+

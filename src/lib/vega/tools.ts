@@ -339,7 +339,7 @@ export function vegaTools(connections: VegaConnections, webSearch: boolean): Fun
       {
         name: "leer_correos",
         description:
-          "Lee correos del Gmail del socio. Acepta la sintaxis de búsqueda de Gmail (from:, subject:, is:unread, newer_than:2d).",
+          "Lee correos del Gmail del socio. Acepta la sintaxis de búsqueda de Gmail (from:, subject:, is:unread, newer_than:2d, in:trash). Cada correo trae su messageId: úsalo en organizar_correos para borrarlo, moverlo o etiquetarlo.",
         parameters: {
           type: "object",
           properties: {
@@ -639,6 +639,8 @@ export async function runVegaTool(userId: string, name: string, args: Record<str
       max_results: count,
       include_payload: false,
       verbose: true,
+      // Sin esto, Gmail no devuelve lo que está en la papelera o en spam aunque la búsqueda lo pida.
+      ...(/\bin:(trash|spam)\b/i.test(query) ? { include_spam_trash: true } : {}),
     });
     if (!result.ok) return { kind: "invalid", response: toolFailure(result) };
     return { kind: "result", status: query ? `Revisé tu Gmail: ${query}` : "Revisé tu bandeja de Gmail", response: { correos: limited(result.data) } };

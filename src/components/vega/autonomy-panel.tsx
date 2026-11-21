@@ -11,7 +11,7 @@ import { panelClass, type PanelVariant } from "@/components/vega/sheet";
 // Correos, WhatsApp, publicaciones, cobros e invitaciones son envíos: siempre se confirman (no hay interruptor).
 const toggles: { key: "events" | "appActions"; label: string; hint: string }[] = [
   { key: "events", label: "Agendar eventos", hint: "Eventos sin invitados en tu Google Calendar (con invitados siempre te pregunta)" },
-  { key: "appActions", label: "Acciones en tus apps", hint: "Agregar filas a tus hojas, crear documentos y reuniones de Zoom" },
+  { key: "appActions", label: "Acciones en tus apps", hint: "Agregar filas a tus hojas, crear documentos y reuniones de Zoom, y organizar correos (archivar, marcar, etiquetar o mover). Borrar correos siempre te lo pregunta." },
 ];
 
 export function AutonomyPanel({ onClose, variant = "sheet" }: { onClose?: () => void; variant?: PanelVariant }) {

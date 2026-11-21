@@ -34,6 +34,7 @@ import type { TaskKind, TaskRepeat, VegaRoutineRunView } from "@/lib/vega/tasks-
 import { costStatus, meterView, type CostMeterView } from "@/lib/vega/cost-cap";
 import { actionLog, type ActionLogEntry } from "@/lib/vega/action-store";
 import { actionView, decideAction } from "@/lib/vega/decide";
+import { stripMoodTags } from "@/lib/vega/mood-tag";
 import {
   activeMetaConnection,
   connectMetaWhatsapp,
@@ -205,7 +206,8 @@ export async function openVegaChat(id: string, agentId: string): Promise<VegaCha
     return {
       id: message.id,
       role: message.role === "user" ? "user" : "assistant",
-      content: message.content,
+      // Respuestas viejas pudieron guardar la etiqueta de ánimo: nunca se muestra.
+      content: message.role === "user" ? message.content : stripMoodTags(message.content),
       ...(attachments.length ? { attachments } : {}),
       ...(meta.sources?.length ? { sources: meta.sources } : {}),
       ...(meta.statuses?.length ? { statuses: meta.statuses } : {}),
@@ -236,7 +238,10 @@ export async function myCredits() {
   return user ? currentCredits(user.id) : undefined;
 }
 
-export async function decideVegaAction(id: string, confirm: boolean): Promise<{ ok: boolean; action?: VegaActionView; message: string }> {
+export async function decideVegaAction(
+  id: string,
+  confirm: boolean,
+): Promise<{ ok: boolean; action?: VegaActionView; message: string; followUp?: VegaActionView }> {
   const user = await vegaUser();
   if (!user) return { ok: false, message: "Vega está incluida en cualquier membresía activa." };
   return decideAction(user.id, id, confirm);
