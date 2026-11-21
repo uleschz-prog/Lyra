@@ -6,9 +6,11 @@
  * - write: cambia algo en una app del socio y se puede deshacer (fila en una hoja,
  *   documento, reunión de Zoom, evento sin invitados). Respeta la autonomía del socio.
  * - send: sale a otras personas o no se puede deshacer (correos, mensajes,
- *   publicaciones, cobros, invitaciones). SIEMPRE con tarjeta de Confirmar.
+ *   publicaciones, cobros, invitaciones, borrar correos, a la papelera o para
+ *   siempre). SIEMPRE con tarjeta de Confirmar.
  */
 import type { AppDraft } from "@/lib/vega/app-tools";
+import { gmailRisk } from "@/lib/vega/gmail-tools";
 
 export type RiskClass = "read" | "internal" | "write" | "send";
 
@@ -31,6 +33,7 @@ const readTools = new Set([
   "buscar_en_x",
   "analizar_competidor",
   "tendencias_x",
+  "ver_etiquetas_gmail",
 ]);
 
 const internalTools = new Set([
@@ -63,6 +66,7 @@ const preparingTools = new Set([
   "preparar_publicacion",
   "preparar_link_pago",
   "preparar_whatsapp_negocio",
+  "organizar_correos",
 ]);
 
 /** ¿La herramienta tiene una clase explícita? (las nuevas deben agregarse aquí). */
@@ -91,6 +95,8 @@ export function classifyAction(kind: string, payload: unknown): RiskClass {
   }
   if (kind === "app_action") {
     const op = (payload as Partial<AppDraft> | null)?.op;
+    // Gmail: borrar (papelera o para siempre) siempre se confirma; lo demás es reversible.
+    if (op === "gmail_organize") return gmailRisk((payload as Partial<AppDraft>).data ?? {});
     if (op === "sheet_append" || op === "doc_create" || op === "zoom_meeting") return "write";
     return "send"; // whatsapp_send, social_post, payment_link y lo que se agregue después.
   }

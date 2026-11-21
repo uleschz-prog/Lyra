@@ -4,6 +4,7 @@
 // herramientas) y las pruebas de calidad (tests/vega/answer-style.test.ts).
 
 import type { GenerationOptions } from "@/lib/vega/gemini-stream";
+import { stripMoodTags } from "@/lib/vega/mood-tag";
 
 /** Reglas de estilo que van en el prompt de sistema de todos los agentes. */
 export const expertStylePrompt = [
@@ -47,6 +48,7 @@ export const toolLabels: Record<string, string> = {
   listar_archivos: "ver tus Archivos",
   no_molestar_whatsapp: "marcar el contacto para no molestar",
   olvidar: "olvidar el dato",
+  organizar_correos: "organizar tus correos",
   pausar_rutina: "pausar la rutina",
   pedir_conexion: "pedirte conectar la app",
   preparar_comando: "preparar el comando",
@@ -66,6 +68,7 @@ export const toolLabels: Record<string, string> = {
   trabajo_en_segundo_plano: "trabajarlo en segundo plano",
   ver_agenda: "ver tu agenda",
   ver_calendly: "ver tu Calendly",
+  ver_etiquetas_gmail: "ver tus etiquetas de Gmail",
   ver_cobros: "ver tus cobros",
   ver_comandos: "ver los comandos disponibles",
   ver_plantillas_whatsapp: "ver tus plantillas de WhatsApp",
@@ -95,7 +98,7 @@ const refusalPhrases =
  * advertencia sobre límites. Los límites honestos al final de la respuesta sí se permiten.
  */
 export function opensWithRefusal(text: string) {
-  const body = (text ?? "").replace(/^\s*\[animo:[^\]]*\]\s*/i, "").trim();
+  const body = stripMoodTags(text ?? "").trim();
   const opening = body.split(/\n\s*\n/).slice(0, 2).join("\n\n").slice(0, 480).toLocaleLowerCase("es-MX");
   return refusalPhrases.test(opening);
 }

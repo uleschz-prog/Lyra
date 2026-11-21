@@ -28,9 +28,26 @@ export function looksLikeExpiredAuth(status: number, message: string) {
   return /invalid_grant|unauthori[sz]ed|re-?auth|no autorizado|(token|credential|auth|session|grant|connection|conexi[oó]n|cuenta)[^.]{0,40}\b(expired|revoked|invalid|inactive|vencid|revocad)|\b(expired|revoked|invalid)\s+(access\s+)?(token|credentials?|grant|session)/i.test(message);
 }
 
+/**
+ * Errores que significan «la cuenta está conectada, pero sin el permiso para esto»
+ * (p. ej. el socio desmarcó un permiso en la pantalla de Google al conectar).
+ */
+export function looksLikeMissingScope(status: number, message: string) {
+  return /insufficient[_\s-]*(authentication[_\s-]*)?(scopes?|permissions?)|ACCESS_TOKEN_SCOPE_INSUFFICIENT|insufficientPermissions|metadata scope|scope[^.]{0,40}\b(not|insufficient|missing)|missing[^.]{0,20}scope/i.test(message) ||
+    (status === 403 && /\bscope/i.test(message));
+}
+
 export type UserToolResult =
   | { ok: true; data: unknown }
-  | { ok: false; error: string; /** El socio debe conectar (o volver a conectar) esta app. */ reconnect?: UserToolkit; expired?: boolean };
+  | {
+      ok: false;
+      error: string;
+      /** El socio debe conectar (o volver a conectar) esta app. */
+      reconnect?: UserToolkit;
+      expired?: boolean;
+      /** La conexión sirve, pero le falta un permiso para esta acción. */
+      scope?: boolean;
+    };
 
 /** ¿Hay una cuenta de esta app del socio que venció o quedó inactiva? */
 async function staleAccount(userId: string, toolkit: UserToolkit) {
@@ -97,13 +114,33 @@ export async function userAccount(userId: string, toolkit: UserToolkit) {
     `/connected_accounts?toolkit_slugs=${toolkit}&user_ids=${encodeURIComponent(userId)}&statuses=ACTIVE&limit=10`,
   );
   if (!listed?.ok) return null;
-  const account = items(listed.payload).find(
-    (item) =>
-      typeof item.id === "string" &&
-      item.status === "ACTIVE" &&
-      (item.user_id === undefined || item.user_id === userId),
-  );
+  // Al reconectar puede haber dos cuentas activas: la más reciente es la que trae los permisos nuevos.
+  const account = newestFirst(
+    items(listed.payload).filter(
+      (item) =>
+        typeof item.id === "string" &&
+        item.status === "ACTIVE" &&
+        (item.user_id === undefined || item.user_id === userId),
+    ),
+  )[0];
   return (account?.id as string | undefined) ?? null;
+}
+
+function stamp(item: Record<string, unknown>) {
+  for (const key of ["updated_at", "updatedAt", "created_at", "createdAt"]) {
+    const value = item[key];
+    const time = typeof value === "string" || typeof value === "number" ? new Date(value).getTime() : Number.NaN;
+    if (Number.isFinite(time)) return time;
+  }
+  return 0;
+}
+
+/** Cuentas ordenadas de la más reciente a la más antigua (sin fecha, conservan su orden). */
+export function newestFirst<T extends Record<string, unknown>>(list: T[]): T[] {
+  return list
+    .map((item, index) => ({ item, index, time: stamp(item) }))
+    .sort((a, b) => b.time - a.time || a.index - b.index)
+    .map((entry) => entry.item);
 }
 
 const connectionCache = new Map<string, { at: number; value: VegaConnections }>();
@@ -191,6 +228,15 @@ export async function runUserTool(userId: string, toolkit: UserToolkit, tool: st
   const payload = result.payload as { successful?: boolean; data?: unknown } | null;
   if (!result.ok || payload?.successful === false) {
     const message = errorText(payload, `${label} no completó la acción.`);
+    if (looksLikeMissingScope(result.status, message)) {
+      forgetConnections(userId);
+      return {
+        ok: false,
+        error: `${label} está conectado, pero sin el permiso para esta acción. El socio debe volver a conectarlo y aceptar todos los permisos que pide${toolkit === "gmail" || toolkit.startsWith("google") ? " Google" : ""}.`,
+        reconnect: toolkit,
+        scope: true,
+      };
+    }
     if (looksLikeExpiredAuth(result.status, message)) {
       forgetConnections(userId);
       return { ok: false, error: `La conexión de ${label} venció o se revocó. El socio debe volver a conectarla.`, reconnect: toolkit, expired: true };
@@ -201,9 +247,11 @@ export async function runUserTool(userId: string, toolkit: UserToolkit, tool: st
 }
 
 /** Respuesta de error para el modelo; si la app necesita conexión, lo indica para mostrar la tarjeta. */
-export function toolFailure(result: { error: string; reconnect?: UserToolkit; expired?: boolean }) {
+export function toolFailure(result: { error: string; reconnect?: UserToolkit; expired?: boolean; scope?: boolean }) {
   return {
     error: result.error,
-    ...(result.reconnect ? { reconectar: result.reconnect, ...(result.expired ? { vencida: true } : {}) } : {}),
+    ...(result.reconnect
+      ? { reconectar: result.reconnect, ...(result.expired ? { vencida: true } : {}), ...(result.scope ? { permiso_extra: true } : {}) }
+      : {}),
   };
 }

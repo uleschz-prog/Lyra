@@ -5,7 +5,10 @@ import { table } from "./fake-prisma";
 const db = vi.hoisted(() => ({ current: null as unknown }));
 const execute = vi.hoisted(() => vi.fn(async () => ({ ok: true, message: "Listo." })));
 vi.mock("@/lib/prisma", () => ({ getPrisma: () => db.current }));
-vi.mock("@/lib/vega/tools", () => ({ executeVegaAction: execute }));
+vi.mock("@/lib/vega/tools", () => ({
+  executeVegaAction: execute,
+  connectDraft: (toolkit: string, reason: string, reconnect = false) => ({ toolkit, label: "Gmail", reason, reconnect }),
+}));
 vi.mock("@/lib/vega/autonomy", () => ({ evaluateAutonomy: vi.fn(async () => ({ ok: true })) }));
 
 const { proposeAction } = await import("@/lib/vega/action-flow");
@@ -183,3 +186,52 @@ describe("límite de envíos por hora", () => {
     expect((await decideAction("u1", two.action.id, true, now)).stillPending).toBe(true);
   });
 });
+
+describe("organizar correos de Gmail", () => {
+  const trash = { op: "gmail_organize", title: "Gmail · Mover a la papelera", lines: [], confirm: "Mover a la papelera", data: { action: "papelera", mode: "trash", ids: ["18c5f5d1a2b3c4d5"], add: [], remove: [] } };
+  const archive = { op: "gmail_organize", title: "Gmail · Archivar", lines: [], confirm: "Archivar", data: { action: "archivar", mode: "modify", ids: ["18c5f5d1a2b3c4d5", "18c5f5d1a2b3c4d6"], add: [], remove: ["INBOX"] } };
+
+  it("borrar siempre espera la tarjeta, aunque haya autonomía; archivar sigue la autonomía", async () => {
+    const proposedTrash = await propose("app_action", trash);
+    if (proposedTrash.blocked) throw new Error("bloqueada");
+    expect(proposedTrash.executed).toBe(false);
+    expect(proposedTrash.action).toMatchObject({ status: "pending", risk: "send" });
+
+    const proposedArchive = await propose("app_action", archive);
+    if (proposedArchive.blocked) throw new Error("bloqueada");
+    expect(proposedArchive.executed).toBe(true);
+    expect(execute).toHaveBeenCalledTimes(1);
+  });
+
+  it("borrar correos no cuenta en el límite de envíos por hora", async () => {
+    process.env.VEGA_SENDS_PER_HOUR = "1";
+    await actions.create({ data: { userId: "u1", conversationId: "c1", kind: "send_email", payload: email, status: "done", riskClass: "send", decidedAt: now } });
+    const proposed = await propose("app_action", trash);
+    if (proposed.blocked) throw new Error("bloqueada");
+    const decided = await decideAction("u1", proposed.action.id, true, now);
+    expect(decided.ok).toBe(true);
+    expect(decided.stillPending).toBeUndefined();
+  });
+
+  it("si a Gmail le falta el permiso, deja la tarjeta Reconectar en el chat", async () => {
+    execute.mockResolvedValueOnce({ ok: false, message: "No se completó en Gmail: sin permiso", reconnect: "gmail" } as never);
+    const proposed = await propose("app_action", trash);
+    if (proposed.blocked) throw new Error("bloqueada");
+    const decided = await decideAction("u1", proposed.action.id, true, now);
+    expect(decided.ok).toBe(false);
+    expect(decided.followUp).toMatchObject({ kind: "connect_app", status: "done" });
+    expect(decided.followUp?.payload).toMatchObject({ toolkit: "gmail", reconnect: true });
+    expect(String((decided.followUp?.payload as { reason?: string }).reason)).toMatch(/acepta todos los permisos/);
+    const card = actions.rows.find((row) => row.kind === "connect_app");
+    expect(card).toBeTruthy();
+    expect(messages.rows.at(-1)?.meta).toMatchObject({ actions: [card?.id] });
+  });
+
+  it("con autonomía, si falta el permiso, avisa al modelo para mostrar Reconectar", async () => {
+    execute.mockResolvedValueOnce({ ok: false, message: "sin permiso", reconnect: "gmail" } as never);
+    const proposed = await propose("app_action", archive);
+    if (proposed.blocked) throw new Error("bloqueada");
+    expect(proposed.response).toMatchObject({ estado: "fallo", reconectar: "gmail", permiso_extra: true });
+  });
+});
+

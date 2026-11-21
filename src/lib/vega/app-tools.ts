@@ -1,12 +1,13 @@
 import { runUserTool, toolFailure } from "@/lib/ai/composio-user";
-import type { VegaConnections } from "@/lib/vega/apps";
+import type { UserToolkit, VegaConnections } from "@/lib/vega/apps";
 import type { FunctionDeclaration } from "@/lib/vega/gemini-stream";
+import { executeGmailOrganize, gmailStatusLabel, gmailToolNames, gmailTools, runGmailTool } from "@/lib/vega/gmail-tools";
 import { approvedTemplates, blockPhone, isBlocked, normalizePhone, sendBusinessWhatsapp, unblockPhone } from "@/lib/vega/whatsapp-business";
 
 const TIMEZONE = "America/Mexico_City";
 const localDateTime = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/;
 
-export type AppOp = "sheet_append" | "doc_create" | "zoom_meeting" | "social_post" | "payment_link" | "whatsapp_send";
+export type AppOp = "sheet_append" | "doc_create" | "zoom_meeting" | "social_post" | "payment_link" | "whatsapp_send" | "gmail_organize";
 
 export type AppDraft = {
   op: AppOp;
@@ -66,6 +67,8 @@ function sheetPrefix(sheet: string) {
 
 export function appTools(connections: VegaConnections): FunctionDeclaration[] {
   const tools: FunctionDeclaration[] = [];
+
+  if (connections.gmail) tools.push(...gmailTools);
 
   if (connections.googledrive) {
     tools.push(
@@ -232,6 +235,7 @@ export function appTools(connections: VegaConnections): FunctionDeclaration[] {
 }
 
 export const appToolNames = new Set([
+  ...gmailToolNames,
   "ver_plantillas_whatsapp",
   "preparar_whatsapp_negocio",
   "no_molestar_whatsapp",
@@ -247,6 +251,8 @@ export const appToolNames = new Set([
 ]);
 
 export function appStatusLabel(name: string) {
+  const gmail = gmailStatusLabel(name);
+  if (gmail) return gmail;
   const labels: Record<string, string> = {
     buscar_en_drive: "Buscando en tu Drive…",
     leer_hoja: "Leyendo tu hoja…",
@@ -265,6 +271,8 @@ export function appStatusLabel(name: string) {
 }
 
 export async function runAppTool(userId: string, name: string, args: Record<string, unknown>): Promise<AppToolOutcome> {
+  if (gmailToolNames.has(name)) return runGmailTool(userId, name, args);
+
   if (name === "buscar_en_drive") {
     const query = text(args.busqueda, 120).replace(/\\/g, "").replace(/'/g, "\\'");
     if (!query) return { kind: "invalid", response: { error: "Falta qué buscar." } };
@@ -553,10 +561,12 @@ export async function runAppTool(userId: string, name: string, args: Record<stri
   return { kind: "invalid", response: { error: "Herramienta desconocida." } };
 }
 
-type Done = { ok: true; message: string } | { ok: false; message: string };
+type Done = { ok: true; message: string } | { ok: false; message: string; /** Hay que (re)conectar la app para completar. */ reconnect?: UserToolkit };
 
 export async function executeAppAction(userId: string, draft: AppDraft): Promise<Done> {
   const data = draft.data;
+
+  if (draft.op === "gmail_organize") return executeGmailOrganize(userId, data);
 
   if (draft.op === "whatsapp_send") {
     const phone = String(data.phone ?? "");

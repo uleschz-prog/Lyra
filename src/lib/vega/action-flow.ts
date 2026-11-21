@@ -22,7 +22,7 @@ export type ProposeInput = {
 
 export type ProposeDeps = {
   autonomy: (userId: string, kind: string, now: Date) => Promise<AutonomyDecision>;
-  execute: (userId: string, kind: ActionKind, payload: ActionPayload) => Promise<{ ok: boolean; message: string }>;
+  execute: (userId: string, kind: ActionKind, payload: ActionPayload) => Promise<{ ok: boolean; message: string; reconnect?: string }>;
 };
 
 const defaultDeps: ProposeDeps = { autonomy: evaluateAutonomy, execute: executeVegaAction };
@@ -80,7 +80,7 @@ export async function proposeAction(input: ProposeInput, deps: ProposeDeps = def
       data: { status: "running", decidedAt: now, executedBy: "autonomy" },
     });
     if (claimed.count === 1) {
-      const result = await deps.execute(input.userId, input.kind, input.payload).catch(() => ({
+      const result: { ok: boolean; message: string; reconnect?: string } = await deps.execute(input.userId, input.kind, input.payload).catch(() => ({
         ok: false,
         message: "El servicio no respondió. No se completó la acción.",
       }));
@@ -100,6 +100,7 @@ export async function proposeAction(input: ProposeInput, deps: ProposeDeps = def
           nota: result.ok
             ? "La acción ya se ejecutó por la autonomía del socio: puedes decírselo con naturalidad."
             : "No se completó; avisa al socio y ofrece el siguiente paso.",
+          ...(!result.ok && result.reconnect ? { reconectar: result.reconnect, permiso_extra: true } : {}),
         },
       };
     }
