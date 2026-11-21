@@ -1318,6 +1318,8 @@ model ProjectBuild {
   kind           String
   /// new | edit (edit llega en el PR D)
   mode           String    @default("new")
+  /// App con datos en vivo (equipo con PIN, sucursales, sincronización)
+  live           Boolean   @default(false)
   brief          String    @db.Text
   /// queued | running | done | failed
   status         String    @default("queued")

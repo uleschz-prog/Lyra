@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 
 import { advanceBuild, briefFromDelivery, resumeBuilds, startProjectBuild, type BuilderDb, type RunnerDeps } from "@/lib/builder/runner";
 import type { ArtifactStore } from "@/lib/builder/storage";
+import { LIVE_APP_BUILD_PRICE } from "@/lib/liveapps/config";
 import { buildProject } from "@/lib/vega/build-project";
 import { table } from "../vega/fake-prisma";
 import { banks, fixtureModel } from "./fixtures";
@@ -98,6 +99,28 @@ describe("Runner del generador v2", () => {
     expect(charge).toHaveBeenCalledTimes(1);
     expect(tables.projectBuild.rows).toHaveLength(1);
   });
+
+  it("una app con datos en vivo cobra su precio y sale con manifiesto y entrada con PIN", async () => {
+    const { deps: base, tables, charge, blobs } = setup({ BLOB_READ_WRITE_TOKEN: "test" });
+    const deps = { ...base, model: fixtureModel(banks.find((item) => item.kind === "app")!) };
+    const a = await action(tables);
+    const started = await startProjectBuild({ user, conversationId: "c1", actionId: a.id as string, kind: "app", brief: "Inventario para dos sucursales", live: true }, deps);
+    if (!started.ok) throw new Error("no arrancó");
+    expect(charge).toHaveBeenCalledWith("u1", LIVE_APP_BUILD_PRICE, expect.stringContaining("datos en vivo"), `builder:${a.id}`);
+    expect(tables.projectBuild.rows[0]).toMatchObject({ live: true, credits: LIVE_APP_BUILD_PRICE });
+    expect(await advanceBuild(started.build.id, deps)).toMatchObject({ status: "done" });
+    const version = tables.projectVersion.rows[0];
+    const files = JSON.parse(blobs.get(String(version.filesUrl))!) as { path: string; content: string }[];
+    const manifest = files.find((file) => file.path === "lyra.app.json");
+    expect(manifest).toBeTruthy();
+    expect(JSON.parse(manifest!.content).branches).toEqual([{ id: "principal", name: "Principal" }]);
+    expect(files.find((file) => file.path === "src/App.tsx")?.content).toContain("<LiveGate>");
+    // Sin la marca, una app sigue con su precio normal y sin manifiesto.
+    const b = await action(tables);
+    await startProjectBuild({ user, conversationId: "c1", actionId: b.id as string, kind: "app", brief: "x" }, deps);
+    expect(charge).toHaveBeenLastCalledWith("u1", 10, expect.any(String), `builder:${b.id}`);
+    expect(tables.projectBuild.rows[1]).toMatchObject({ live: false });
+  }, 30_000);
 
   it("respeta el límite diario, los créditos y el interruptor", async () => {
     const limited = setup({ VEGA_BUILDER_DAILY_DEFAULT: "1" });

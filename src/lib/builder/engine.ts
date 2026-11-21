@@ -26,7 +26,7 @@ export type EngineState = {
   error: string | null;
 };
 
-export type EngineInput = { brief: string; kind: BuildKind; title: string };
+export type EngineInput = { brief: string; kind: BuildKind; title: string; live?: boolean };
 
 export type EngineDeps = {
   model: BuilderModel;
@@ -93,7 +93,7 @@ async function planStep(state: EngineState, input: EngineInput, deps: EngineDeps
   const call = await deps.model({
     purpose: "plan",
     json: true,
-    system: planSystemPrompt(input.kind),
+    system: planSystemPrompt(input.kind, { live: input.live }),
     user: planUserPrompt({ brief: input.brief, kind: input.kind, composition, icons: allowedIcons }),
   });
   if (call.usage) usage.push(call.usage);
@@ -103,7 +103,7 @@ async function planStep(state: EngineState, input: EngineInput, deps: EngineDeps
     if (failures >= 2) return fail({ ...state, failures }, call.ok ? "El plan del modelo no fue válido." : call.error);
     return { ...state, failures };
   }
-  const plan = normalizePlan(raw, { brief: input.brief, kind: input.kind, composition, fallbackTitle: input.title });
+  const plan = normalizePlan(raw, { brief: input.brief, kind: input.kind, composition, fallbackTitle: input.title, live: input.live });
   return { ...state, status: "running", step: "generate", plan, files: scaffoldFiles(plan), tasks: fileTasks(plan), failures: 0 };
 }
 
@@ -111,7 +111,7 @@ async function writeTask(plan: BuildPlan, task: FileTask, deps: EngineDeps, usag
   const section = sectionForTask(plan, task);
   const call = await deps.model({
     purpose: repair ? "repair" : "file",
-    system: fileSystemPrompt(plan.kind),
+    system: fileSystemPrompt(plan.kind, { live: Boolean(plan.live) }),
     user: repair ? repairPrompt(plan, task, repair.code, repair.errors) : filePrompt(plan, task),
   });
   if (call.usage) usage.push(call.usage);
