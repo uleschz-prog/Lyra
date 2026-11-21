@@ -155,6 +155,15 @@ suite("SDK de datos en vivo contra la Data API (Postgres)", () => {
     expect(admin.stores.comandas.get("cmd-centro-1")).toBeUndefined();
   });
 
+  it("administración puede crear en otra sucursal; una sucursal no", async () => {
+    admin.live.setBranch(null);
+    admin.stores.existencias.create({ id: "norte_queso", branchId: "norte", insumo: "queso", cantidad: 3 });
+    centro.stores.existencias.create({ id: "centro_queso_x", branchId: "norte", insumo: "queso", cantidad: 1 });
+    await settle([admin, centro, norte]);
+    expect(norte.stores.existencias.get("norte_queso")).toMatchObject({ branchId: "norte", cantidad: 3 });
+    expect(admin.stores.existencias.get("centro_queso_x")?.branchId).toBe("centro");
+  });
+
   it("administración puede ver todas las sucursales o una sola", () => {
     admin.live.setBranch(null);
     expect(admin.live.getLive().branch).toBeNull();

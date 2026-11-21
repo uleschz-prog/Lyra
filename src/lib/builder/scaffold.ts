@@ -139,7 +139,7 @@ const dataSource = (slug: string) => `// Capa de datos de la app. Las pantallas 
 //   dispositivos y sucursales (ver ./live.ts). Las pantallas no cambian.
 import { useMemo, useSyncExternalStore } from "react";
 
-import { isLive, liveRows, liveWrite, newId, subscribeRows, useLive, writeBranch } from "./live";
+import { getLive, isLive, liveRows, liveWrite, newId, subscribeRows, useLive, writeBranch } from "./live";
 
 export { transact, useLive } from "./live";
 
@@ -153,7 +153,7 @@ export interface DataStore {
   readonly scope: "branch" | "shared";
   list(): Row[];
   get(id: string): Row | undefined;
-  /** Crea un registro. Puedes pasar id propio (letras, números, - y _). */
+  /** Crea un registro. Puedes pasar id propio (letras, números, - y _) y, si eres administración, branchId. */
   create(values: Record<string, unknown>): Row;
   update(id: string, values: Record<string, unknown>): Row | undefined;
   /** Suma (o resta) a un campo numérico sin pisar lo que otros dispositivos sumaron. */
@@ -182,6 +182,13 @@ function save(key: string, value: string) {
 }
 
 const idPattern = /^[A-Za-z0-9_-]{2,64}$/;
+
+/** Sucursal de un registro nuevo: administración (o la vista previa) puede indicar branchId. */
+function branchFor(values: Record<string, unknown>) {
+  const live = getLive();
+  const chosen = typeof values.branchId === "string" && live.branches.some((item) => item.id === values.branchId) ? values.branchId : null;
+  return chosen && (live.member?.role === "admin" || live.status === "local") ? chosen : writeBranch();
+}
 
 function rowId(values: Record<string, unknown>) {
   return typeof values.id === "string" && idPattern.test(values.id) ? values.id : newId();
@@ -234,7 +241,7 @@ export function createLocalStore(collection: string, seed: Record<string, unknow
     get: (id) => read().find((row) => row.id === id),
     create(values) {
       const now = new Date().toISOString();
-      const row: Row = { ...withoutMeta(values), id: rowId(values), branchId: scope === "branch" ? writeBranch() : null, createdAt: now, updatedAt: now };
+      const row: Row = { ...withoutMeta(values), id: rowId(values), branchId: scope === "branch" ? branchFor(values) : null, createdAt: now, updatedAt: now };
       write([row, ...read()]);
       return row;
     },
@@ -269,7 +276,7 @@ export function createRemoteStore(collection: string, scope: "branch" | "shared"
     get: (id) => liveRows(collection).find((row) => row.id === id) as Row | undefined,
     create(values) {
       const id = rowId(values);
-      const branch = scope === "branch" ? writeBranch() : null;
+      const branch = scope === "branch" ? branchFor(values) : null;
       liveWrite({ op: "create", c: collection, id, data: withoutMeta(values), branch });
       return (store.get(id) ?? { ...values, id, branchId: branch, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() }) as Row;
     },
