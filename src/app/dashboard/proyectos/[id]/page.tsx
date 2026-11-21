@@ -4,13 +4,17 @@ import { headers } from "next/headers";
 import { notFound, redirect } from "next/navigation";
 import { ArrowLeft, Download, ExternalLink, FileCode2, Inbox, Sparkles, Store } from "lucide-react";
 
+import { LiveDataPanel } from "@/components/projects/live-data-panel";
 import { ProjectActions } from "@/components/projects/project-actions";
 import { PublishPanel } from "@/components/projects/publish-panel";
 import { RestoreVersionButton } from "@/components/projects/restore-version-button";
 import { brand } from "@/config/brand";
 import { getCurrentUser } from "@/lib/auth/profile";
 import { hasReadySite } from "@/lib/projects/handoff";
-import { getProject, parseVersionParam } from "@/lib/projects/queries";
+import { LIVE_APP_MONTHLY_FEE, liveAppsAvailable } from "@/lib/liveapps/config";
+import { spaceOverview } from "@/lib/liveapps/core";
+import { manifestFromFiles } from "@/lib/liveapps/project";
+import { getProject, getProjectVersionFiles, parseVersionParam } from "@/lib/projects/queries";
 import { getPrisma } from "@/lib/prisma";
 import { getPublishState } from "@/lib/publish/core";
 import { countUnreadLeads } from "@/lib/leads/queries";
@@ -37,6 +41,10 @@ export default async function ProjectPage({
 
   const publish = hasReadySite(project.kind) ? await getPublishState(getPrisma(), user.id, project.id).catch(() => null) : null;
   const unreadLeads = project.kind === "sitio" ? await countUnreadLeads(user.id, project.id).catch(() => 0) : 0;
+  // Datos en vivo (apps): el panel aparece si ya hay espacio o si la cuenta puede activarlo.
+  const liveOverview = project.kind === "app" ? await spaceOverview(getPrisma(), user.id, project.id).catch(() => null) : null;
+  const liveVersion = project.kind === "app" && !liveOverview && liveAppsAvailable(user) ? await getProjectVersionFiles(user.id, project.id, publish?.versionNumber ?? undefined).catch(() => null) : null;
+  const showLive = project.kind === "app" && (Boolean(liveOverview) || liveAppsAvailable(user));
   const head = await headers();
   const host = head.get("host");
   const origin = process.env.NEXT_PUBLIC_APP_URL?.trim().replace(/\/$/, "") || (host ? `${head.get("x-forwarded-proto") ?? "https"}://${host}` : "");
@@ -127,6 +135,15 @@ export default async function ProjectPage({
         <div className="space-y-4">
           {hasReadySite(project.kind) ? (
             <PublishPanel projectId={project.id} title={project.title} versions={project.versions.map((version) => version.number)} initial={publish} origin={origin} />
+          ) : null}
+          {showLive ? (
+            <LiveDataPanel
+              projectId={project.id}
+              hasManifest={Boolean(manifestFromFiles(liveVersion?.files))}
+              overview={liveOverview}
+              appUrl={publish?.status === "published" ? `${origin}/s/${publish.slug}` : null}
+              monthlyFee={LIVE_APP_MONTHLY_FEE}
+            />
           ) : null}
           <aside aria-label="Versiones" className="rounded-2xl border border-[#E7E2DA] bg-white p-4 dark:border-white/12 dark:bg-[#181625]">
             <h2 className="text-sm font-semibold text-[#1E1E24] dark:text-[#F2F0F7]">Versiones</h2>

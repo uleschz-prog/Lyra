@@ -37,7 +37,14 @@ export async function handleDispatch(request: Request, options: { horizonMs?: nu
   const run = async () => {
     const dispatched = await dispatchRoutines({ budgetMs: DISPATCH_BUDGET_MS - (Date.now() - started), horizonMs: options.horizonMs });
     const routines = options.releaseEarnings
-      ? { ...dispatched, marketplace: await releaseMarketplaceEarnings().catch((error: unknown) => ({ error: error instanceof Error ? error.message : "earnings failed" })) }
+      ? {
+          ...dispatched,
+          marketplace: await releaseMarketplaceEarnings().catch((error: unknown) => ({ error: error instanceof Error ? error.message : "earnings failed" })),
+          // Cuota de datos en vivo: no hace nada mientras LIVE_APP_MONTHLY_FEE sea 0.
+          liveApps: await import("@/lib/liveapps/billing")
+            .then(({ chargeLiveAppFees }) => chargeLiveAppFees())
+            .catch((error: unknown) => ({ error: error instanceof Error ? error.message : "live fees failed" })),
+        }
       : dispatched;
     // PR C: con el tiempo que sobre, retoma construcciones del generador v2 que nadie está sondeando.
     const left = DISPATCH_BUDGET_MS - (Date.now() - started);

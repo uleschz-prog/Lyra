@@ -546,3 +546,62 @@ export async function setSpaceStatus(db: LiveDb, input: { userId: string; projec
   if (!input.active) await db.appSession.deleteMany({ where: { spaceId: space.id } });
   return { ok: true };
 }
+
+/* ----------------------------- Panel del dueño ----------------------------- */
+
+export type SpaceOverview = {
+  status: "active" | "paused";
+  recordCount: number;
+  branches: LiveBranch[];
+  roles: LiveRole[];
+  collections: { key: string; label: string; scope: "branch" | "shared"; count: number }[];
+  today: { writes: number; logins: number };
+  members: MemberView[];
+};
+
+export async function spaceOverview(db: LiveDb, userId: string, projectId: string, now: Date = new Date()): Promise<SpaceOverview | null> {
+  const space = await ownedSpace(db, userId, projectId);
+  if (!space) return null;
+  const schema = spaceSchema(space);
+  const [counts, usage, members] = await Promise.all([
+    db.appRecord.groupBy({ by: ["collection"], where: { spaceId: space.id, deleted: false }, _count: { _all: true } }),
+    db.appUsage.findUnique({ where: { spaceId_day: { spaceId: space.id, day: usageDay(now) } }, select: { writes: true, logins: true } }),
+    listMembers(db, userId, projectId),
+  ]);
+  const byKey = new Map(counts.map((row) => [row.collection, row._count._all]));
+  return {
+    status: space.status === "paused" ? "paused" : "active",
+    recordCount: space.recordCount,
+    branches: spaceBranches(space),
+    roles: schema.roles,
+    collections: schema.collections.map((collection) => ({ key: collection.key, label: collection.label, scope: collection.scope, count: byKey.get(collection.key) ?? 0 })),
+    today: { writes: usage?.writes ?? 0, logins: usage?.logins ?? 0 },
+    members: members ?? [],
+  };
+}
+
+/** Registros activos de una colección para exportar (solo el dueño). */
+export async function exportCollection(db: LiveDb, userId: string, projectId: string, collectionKey: string) {
+  const space = await ownedSpace(db, userId, projectId);
+  if (!space) return null;
+  const collection = spaceSchema(space).collections.find((entry) => entry.key === collectionKey);
+  if (!collection) return null;
+  const rows = await db.appRecord.findMany({ where: { spaceId: space.id, collection: collection.key, deleted: false }, orderBy: { createdAt: "asc" }, take: liveAppLimits.maxRecords });
+  return { collection, branches: spaceBranches(space), rows: rows.map(serializeRecord) };
+}
+
+function csvCell(value: unknown) {
+  const text = value === null || value === undefined ? "" : typeof value === "object" ? JSON.stringify(value) : String(value);
+  // Evita fórmulas al abrir en Excel/Sheets.
+  const safe = /^[=+\-@\t\r]/.test(text) ? `'${text}` : text;
+  return /[",\n\r;]/.test(safe) ? `"${safe.replace(/"/g, '""')}"` : safe;
+}
+
+export function toCsv(input: { collection: LiveCollection; branches: LiveBranch[]; rows: LiveRow[] }) {
+  const header = ["id", ...(input.collection.scope === "branch" ? ["sucursal"] : []), ...input.collection.fields.map((field) => field.label), "creado", "actualizado"];
+  const branchName = new Map(input.branches.map((branch) => [branch.id, branch.name]));
+  const lines = input.rows.map((row) =>
+    [row.id, ...(input.collection.scope === "branch" ? [branchName.get(row.b ?? "") ?? row.b ?? ""] : []), ...input.collection.fields.map((field) => row.d[field.key]), row.ca, row.ua].map(csvCell).join(","),
+  );
+  return `\uFEFF${[header.map(csvCell).join(","), ...lines].join("\r\n")}\r\n`;
+}
