@@ -53,9 +53,18 @@ export function madeWithBadge(appUrl: string) {
   return `<a href="${escapeAttr(href)}" target="_blank" rel="noopener" aria-label="Hecho con LYRA" style="position:fixed;right:12px;bottom:12px;z-index:2147483647;display:inline-flex;align-items:center;gap:6px;padding:6px 10px;border-radius:999px;background:rgba(17,16,24,.82);color:#fff;font:600 11px/1 system-ui,-apple-system,'Segoe UI',sans-serif;text-decoration:none;box-shadow:0 6px 20px rgba(0,0,0,.18);backdrop-filter:blur(6px)">✦ Hecho con LYRA</a>`;
 }
 
-/** Inserta metadatos al inicio de <head> y el sello antes de </body>. */
-export function publishedPageHtml(html: string, meta: PublishedMeta, extraBody = "") {
-  const head = headExtras(html, meta);
+/**
+ * Configuración de datos en vivo para la app (va en <head>, antes del código de la app). Solo
+ * datos públicos: la dirección de la Data API y el estado; la sesión la obtiene la app con PIN.
+ */
+export function liveConfigScript(config: { api: string; slug: string; status: "active" | "paused" }) {
+  const json = JSON.stringify(config).replace(/</g, "\\u003c").replace(/\u2028|\u2029/g, "");
+  return `<script>window.__LYRA_DATA__=${json};</script>`;
+}
+
+/** Inserta metadatos (y `extraHead`) al inicio de <head> y el sello antes de </body>. */
+export function publishedPageHtml(html: string, meta: PublishedMeta, extraBody = "", extraHead = "") {
+  const head = extraHead ? `${extraHead}\n    ${headExtras(html, meta)}` : headExtras(html, meta);
   const body = `${madeWithBadge(meta.appUrl)}${extraBody}`;
   let out = /<head(?:\s[^>]*)?>/i.test(html) ? html.replace(/<head(?:\s[^>]*)?>/i, (tag) => `${tag}\n    ${head}`) : `<!doctype html><html lang="es-MX"><head>${head}</head><body>${html}</body></html>`;
   out = /<\/body>/i.test(out) ? out.replace(/<\/body>(?![\s\S]*<\/body>)/i, `${body}\n</body>`) : `${out}${body}`;

@@ -48,3 +48,6 @@ next-env.d.ts
 
 # Espacio de trabajo privado por socio (herramientas de asistente de Vega)
 /.vega-workspace/
+
+# pruebas de datos en vivo (archivos generados temporales)
+/.lyra-test-tmp/
