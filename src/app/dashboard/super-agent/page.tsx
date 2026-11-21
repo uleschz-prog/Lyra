@@ -10,6 +10,7 @@ import { brand } from "@/config/brand";
 import { getPackage, isPackageId } from "@/config/compensation-plan";
 import { getCurrentUser } from "@/lib/auth/profile";
 import { canUseVega } from "@/lib/vega/access";
+import { isVegaAgentId, sanitizeVegaDraft } from "@/lib/dashboard/home-logic";
 import { isUserToolkit } from "@/lib/vega/apps";
 
 export const metadata: Metadata = {
@@ -23,12 +24,12 @@ const powers = [
   { title: "Coordina", text: "Dirige a tus agentes para que cada cliente reciba seguimiento." },
 ];
 
-export default async function SuperAgentPage({ searchParams }: { searchParams: Promise<{ conexion?: string; editar?: string }> }) {
+export default async function SuperAgentPage({ searchParams }: { searchParams: Promise<{ conexion?: string; editar?: string; mensaje?: string; agente?: string }> }) {
   const user = await getCurrentUser();
   if (!user) redirect(brand.links.login);
 
   if (canUseVega(user)) {
-    const [agents, { conexion, editar }] = await Promise.all([listVegaAgents(), searchParams]);
+    const [agents, { conexion, editar, mensaje, agente }] = await Promise.all([listVegaAgents(), searchParams]);
     // Entrega 4: «Editar con Vega» desde Proyectos deja el mensaje empezado con el proyecto.
     const editing =
       editar && /^[a-z0-9]{10,40}$/i.test(editar)
@@ -36,8 +37,9 @@ export default async function SuperAgentPage({ searchParams }: { searchParams: P
             .project.findFirst({ where: { id: editar, userId: user.id, deletedAt: null, kind: { in: ["sitio", "app"] } }, select: { id: true, title: true } })
             .catch(() => null)
         : null;
-    const selectedAgent = agents[0];
+    const selectedAgent = (isVegaAgentId(agente) && agents.find((agent) => agent.id === agente)) || agents[0];
     const chats = selectedAgent ? await listVegaChats(selectedAgent.id) : [];
+    const draft = editing ? `Quiero cambiar mi proyecto «${editing.title}» (id ${editing.id}): ` : sanitizeVegaDraft(mensaje);
     return (
       <VegaChat
         firstName={user.name.split(" ")[0] || user.name}
@@ -46,7 +48,7 @@ export default async function SuperAgentPage({ searchParams }: { searchParams: P
         initialChats={chats}
         justConnected={conexion && isUserToolkit(conexion) ? conexion : null}
         creditAllowance={isPackageId(user.package) ? Math.max(getPackage(user.package).credits, 1) : Math.max(user.credits, 1)}
-        initialDraft={editing ? `Quiero cambiar mi proyecto «${editing.title}» (id ${editing.id}): ` : ""}
+        initialDraft={draft}
       />
     );
   }

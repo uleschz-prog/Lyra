@@ -3,10 +3,14 @@ import { describe, expect, it } from "vitest";
 import {
   accumulateTrend,
   buildDailyTrend,
+  buildHomeSteps,
   greetingFor,
   groupActivityByDay,
   hasTrend,
+  publishStatusLabel,
+  sanitizeVegaDraft,
   todayLabel,
+  vegaHref,
   type HomeActivity,
 } from "@/lib/dashboard/home-logic";
 import { monotoneCurve } from "@/lib/dashboard/sparkline-path";
@@ -140,5 +144,54 @@ describe("monotoneCurve", () => {
     expect(d.startsWith("M 0.00 10.00")).toBe(true);
     expect(d).toContain(" C ");
     expect(d.endsWith("100.00 30.00")).toBe(true);
+  });
+});
+
+describe("sanitizeVegaDraft y vegaHref", () => {
+  it("recorta y limpia el borrador", () => {
+    expect(sanitizeVegaDraft("  Hola   Vega  ")).toBe("Hola Vega");
+    expect(sanitizeVegaDraft(123)).toBe("");
+    expect(sanitizeVegaDraft("x".repeat(3000)).length).toBe(2000);
+  });
+
+  it("arma la URL de Vega sin inventar parámetros", () => {
+    expect(vegaHref()).toBe("/dashboard/super-agent");
+    expect(vegaHref({ mensaje: "Crea un sitio" })).toBe("/dashboard/super-agent?mensaje=Crea+un+sitio");
+    expect(vegaHref({ agente: "abc" })).toBe("/dashboard/super-agent");
+    expect(vegaHref({ agente: "clk1234567890" })).toContain("agente=clk1234567890");
+  });
+});
+
+describe("buildHomeSteps", () => {
+  const base = {
+    canUseVega: true,
+    talkedToVega: true,
+    projectCount: 1,
+    publishedCount: 0,
+    customAgentCount: 0,
+    connectedApps: 0,
+    showConnections: false,
+    directs: 7,
+  };
+
+  it("pide publicar si ya hay proyecto y no muestra conexiones si no hay Composio", () => {
+    const steps = buildHomeSteps(base);
+    expect(steps.find((step) => step.id === "publish")?.done).toBe(false);
+    expect(steps.find((step) => step.id === "connect")).toBeUndefined();
+    expect(steps.find((step) => step.id === "invite")?.done).toBe(true);
+    expect(steps.find((step) => step.id === "agent")?.done).toBe(false);
+  });
+
+  it("sugiere activar la membresía si no puede usar Vega", () => {
+    const steps = buildHomeSteps({ ...base, canUseVega: false, talkedToVega: false });
+    expect(steps[0]).toMatchObject({ id: "plan", href: "/dashboard/upgrade", done: false });
+    expect(steps.find((step) => step.id === "vega")).toBeUndefined();
+  });
+});
+
+describe("publishStatusLabel", () => {
+  it("nombra estados reales y no inventa publicados", () => {
+    expect(publishStatusLabel("published")).toEqual({ label: "Publicado", tone: "live" });
+    expect(publishStatusLabel(null)).toEqual({ label: "Sin publicar", tone: "draft" });
   });
 });
