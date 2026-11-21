@@ -289,8 +289,24 @@ export async function pull(reset = false) {
 
 let timer: ReturnType<typeof setTimeout> | null = null;
 
+let listening = false;
+
+/** Al volver a la pestaña o recuperar internet se sincroniza al momento. */
+function listenForWakeUps() {
+  if (listening || typeof document === "undefined" || typeof window.addEventListener !== "function") return;
+  listening = true;
+  const wake = () => {
+    if (!sessionKey || document.visibilityState === "hidden") return;
+    void flush();
+    void pull();
+  };
+  document.addEventListener("visibilitychange", wake);
+  window.addEventListener("online", wake);
+}
+
 function startPolling() {
   stopPolling();
+  listenForWakeUps();
   const tick = async () => {
     await pull();
     if (queue.length) await flush();
