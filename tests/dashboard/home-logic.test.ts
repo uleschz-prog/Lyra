@@ -1,12 +1,15 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  accumulateTrend,
   buildDailyTrend,
   greetingFor,
   groupActivityByDay,
+  hasTrend,
   todayLabel,
   type HomeActivity,
 } from "@/lib/dashboard/home-logic";
+import { monotoneCurve } from "@/lib/dashboard/sparkline-path";
 
 const tz = "America/Mexico_City";
 // 21 nov 2026, 16:00 en Ciudad de México (UTC-6).
@@ -99,5 +102,43 @@ describe("buildDailyTrend", () => {
     expect(points).toHaveLength(14);
     expect(points.at(-1)).toMatchObject({ day: "2026-11-21", value: 20 });
     expect(points.at(-2)?.value).toBe(0);
+  });
+});
+
+describe("accumulateTrend", () => {
+  it("suma en orden y no inventa días", () => {
+    expect(
+      accumulateTrend([
+        { day: "2026-11-19", value: 0 },
+        { day: "2026-11-20", value: -2 },
+        { day: "2026-11-21", value: -1 },
+      ]),
+    ).toEqual([
+      { day: "2026-11-19", value: 0 },
+      { day: "2026-11-20", value: -2 },
+      { day: "2026-11-21", value: -3 },
+    ]);
+  });
+
+  it("hasTrend es falso si no hay movimiento", () => {
+    expect(hasTrend([])).toBe(false);
+    expect(hasTrend([{ day: "2026-11-21", value: 0 }])).toBe(false);
+    expect(hasTrend([
+      { day: "2026-11-20", value: 0 },
+      { day: "2026-11-21", value: -1 },
+    ])).toBe(true);
+  });
+});
+
+describe("monotoneCurve", () => {
+  it("emite una curva cúbica a lo ancho", () => {
+    const d = monotoneCurve([
+      { x: 0, y: 10 },
+      { x: 50, y: 10 },
+      { x: 100, y: 30 },
+    ]);
+    expect(d.startsWith("M 0.00 10.00")).toBe(true);
+    expect(d).toContain(" C ");
+    expect(d.endsWith("100.00 30.00")).toBe(true);
   });
 });

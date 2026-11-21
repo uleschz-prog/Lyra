@@ -1,45 +1,98 @@
+import { accumulateTrend, hasTrend, type TrendPoint } from "@/lib/dashboard/home-logic";
+import { monotoneCurve } from "@/lib/dashboard/sparkline-path";
 import { cn } from "@/lib/utils";
-import type { TrendPoint } from "@/lib/dashboard/home-logic";
 
 const tones = {
-  emerald: { stroke: "#059669", fill: "rgba(16,185,129,0.18)" },
-  violet: { stroke: "#7C3AED", fill: "rgba(124,58,237,0.18)" },
-  cyan: { stroke: "#0891B2", fill: "rgba(6,182,212,0.18)" },
+  emerald: { stroke: "#059669", from: "rgba(16,185,129,0.38)", to: "rgba(16,185,129,0)" },
+  violet: { stroke: "#7C3AED", from: "rgba(124,58,237,0.38)", to: "rgba(124,58,237,0)" },
+  cyan: { stroke: "#0891B2", from: "rgba(6,182,212,0.38)", to: "rgba(6,182,212,0)" },
 };
 
-/** Mini gráfica de una serie real. No se renderiza si no hay movimiento. */
+const WIDTH = 320;
+const HEIGHT = 56;
+const PAD_X = 0;
+const PAD_Y = 10;
+const RIBBON = 22;
+
+/** Mini gráfica de una serie real, a lo ancho de la tarjeta. Si no hay movimiento, deja una línea base del mismo alto. */
 export function Sparkline({
   points,
   tone = "violet",
   className,
   label,
+  cumulative = true,
 }: {
   points: TrendPoint[];
   tone?: keyof typeof tones;
   className?: string;
   label: string;
+  cumulative?: boolean;
 }) {
-  if (points.length < 2 || points.every((point) => point.value === 0)) return null;
+  const series = cumulative ? accumulateTrend(points) : points;
+  if (!hasTrend(points) || series.length < 2) {
+    return <SparklineBaseline className={className} />;
+  }
 
-  const width = 120;
-  const height = 40;
-  const pad = 5;
-  const values = points.map((point) => point.value);
-  const min = Math.min(0, ...values);
-  const max = Math.max(0, ...values);
-  const span = max - min || 1;
-  const step = (width - pad * 2) / (points.length - 1);
-  const y = (value: number) => height - pad - ((value - min) / span) * (height - pad * 2);
-  const d = points
-    .map((point, index) => `${index === 0 ? "M" : "L"} ${(pad + index * step).toFixed(2)} ${y(point.value).toFixed(2)}`)
-    .join(" ");
-  const area = `${d} L ${(width - pad).toFixed(2)} ${y(0).toFixed(2)} L ${pad} ${y(0).toFixed(2)} Z`;
+  const values = series.map((point) => point.value);
+  const min = Math.min(...values);
+  const max = Math.max(...values);
+  const innerW = WIDTH - PAD_X * 2;
+  const zeroY = 28;
+  const step = innerW / (series.length - 1);
+  const yOf = (value: number) => {
+    if (value >= 0) {
+      const span = Math.max(max, 0) || 1;
+      return zeroY - (value / span) * (zeroY - PAD_Y);
+    }
+    const span = Math.abs(Math.min(min, 0)) || 1;
+    return zeroY + (Math.abs(value) / span) * (HEIGHT - PAD_Y - zeroY);
+  };
+  const coords = series.map((point, index) => ({
+    x: PAD_X + index * step,
+    y: yOf(point.value),
+  }));
+  const lower = coords.map((point) => ({ x: point.x, y: Math.min(HEIGHT - 1, point.y + RIBBON) }));
+  const line = monotoneCurve(coords);
+  const underside = monotoneCurve([...lower].reverse()).replace(/^M /u, "L ");
+  const lastLower = lower[lower.length - 1];
+  const area = `${line} L ${lastLower.x.toFixed(2)} ${lastLower.y.toFixed(2)} ${underside} Z`;
   const color = tones[tone];
+  const gradId = `spark-fill-${tone}-${label.replace(/[^a-z0-9]+/gi, "").slice(0, 24) || "k"}`;
 
   return (
-    <svg viewBox={`0 0 ${width} ${height}`} className={cn("h-10 w-full overflow-visible", className)} role="img" aria-label={label}>
-      <path d={area} fill={color.fill} />
-      <path d={d} fill="none" stroke={color.stroke} strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" />
+    <svg
+      viewBox={`0 0 ${WIDTH} ${HEIGHT}`}
+      preserveAspectRatio="none"
+      className={cn("h-14 w-full", className)}
+      role="img"
+      aria-label={label}
+    >
+      <defs>
+        <linearGradient id={gradId} x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%" stopColor={color.from} />
+          <stop offset="100%" stopColor={color.to} />
+        </linearGradient>
+      </defs>
+      <path d={area} fill={`url(#${gradId})`} />
+      <path d={line} fill="none" stroke={color.stroke} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" vectorEffect="non-scaling-stroke" />
+    </svg>
+  );
+}
+
+export function SparklineBaseline({ className }: { className?: string }) {
+  const y = 28;
+  return (
+    <svg viewBox={`0 0 ${WIDTH} ${HEIGHT}`} preserveAspectRatio="none" className={cn("h-14 w-full", className)} aria-hidden>
+      <rect x="0" y={y} width={WIDTH} height="16" className="fill-[#1E1E24]/[0.04] dark:fill-white/5" />
+      <line
+        x1={0}
+        x2={WIDTH}
+        y1={y}
+        y2={y}
+        className="stroke-[#E0DCD4] dark:stroke-white/12"
+        strokeWidth="1"
+        strokeLinecap="round"
+      />
     </svg>
   );
 }

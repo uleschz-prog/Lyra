@@ -55,7 +55,7 @@ export function ReferralCard({
   return (
     <section
       id="invitar"
-      className="relative w-full min-w-0 scroll-mt-24 overflow-hidden rounded-[24px] border border-[#DDD6FE]/90 bg-gradient-to-br from-[#F5F3FF] via-white to-[#ECFEFF] p-5 shadow-[0_18px_44px_-28px_rgba(76,29,149,0.45)] sm:p-6 dark:border-[#7C3AED]/25 dark:from-[#221A38] dark:via-[#1B1924] dark:to-[#152026]"
+      className="relative flex h-full w-full min-w-0 scroll-mt-24 flex-col overflow-hidden rounded-[24px] border border-[#DDD6FE]/90 bg-gradient-to-br from-[#F5F3FF] via-white to-[#ECFEFF] p-5 shadow-[inset_0_1px_0_0_rgba(255,255,255,0.75),0_10px_28px_-16px_rgba(76,29,149,0.28),0_28px_56px_-32px_rgba(16,12,32,0.16)] sm:p-6 dark:border-[#7C3AED]/25 dark:from-[#221A38] dark:via-[#1B1924] dark:to-[#152026] dark:shadow-[inset_0_1px_0_0_rgba(255,255,255,0.06),0_18px_50px_-32px_rgba(0,0,0,0.85)]"
     >
       <div className="pointer-events-none absolute -top-20 right-0 h-56 w-56 rounded-full bg-[#7C3AED]/15 blur-3xl dark:bg-[#7C3AED]/25" aria-hidden />
       <div className="relative min-w-0">
@@ -130,11 +130,13 @@ export function ReferralCard({
         </button>
       </div>
 
-      <div className="relative mt-3 flex min-w-0 items-center gap-3 rounded-2xl border border-[#DDD6FE]/80 bg-white/60 p-3 sm:p-4 dark:border-white/10 dark:bg-white/5">
-        <VegaMascot className="h-14 w-14 shrink-0 sm:h-16 sm:w-16" />
-        <p className="min-w-0 text-sm leading-6 text-[#5C5854] dark:text-[#A9A3B8]">
-          {`Recarga desde ${minimumCreditRecharge} créditos al mes para mantener la actividad. Compra 50 y recibe 60. Un crédito cuesta 1 USD.`}
-        </p>
+      <div className="relative mt-auto flex min-w-0 items-center gap-2.5 pt-4">
+        <div className="flex min-w-0 flex-1 items-center gap-2.5 rounded-xl border border-[#DDD6FE]/70 bg-white/55 px-3 py-2 dark:border-white/10 dark:bg-white/5">
+          <VegaMascot className="size-9 shrink-0" />
+          <p className="min-w-0 text-xs leading-5 text-[#5C5854] dark:text-[#A9A3B8]">
+            {`Recarga desde ${minimumCreditRecharge} cr al mes para mantener la actividad. Compra 50 y recibe 60 · 1 cr = 1 USD.`}
+          </p>
+        </div>
       </div>
     </section>
   );

@@ -165,3 +165,17 @@ export function startOfTrendWindow(now = new Date(), days = 14, timeZone = HOME_
   const first = lastDays(days, now, timeZone)[0];
   return new Date(`${first}T00:00:00-06:00`);
 }
+
+/** Acumulado de una serie diaria. No inventa valores: solo suma lo que ya vino en la tendencia. */
+export function accumulateTrend(points: TrendPoint[]): TrendPoint[] {
+  let sum = 0;
+  return points.map((point) => {
+    sum += point.value;
+    return { day: point.day, value: Math.round((sum + Number.EPSILON) * 100) / 100 };
+  });
+}
+
+export function hasTrend(points: TrendPoint[]): boolean {
+  return points.length >= 2 && points.some((point) => point.value !== 0);
+}
+

@@ -54,16 +54,28 @@ export function DashboardShell({
     return () => window.removeEventListener("keydown", onKey);
   }, [open]);
 
+  const isVega = pathname.startsWith("/dashboard/super-agent");
+
   return (
-    <div className="lyra-office min-h-screen overflow-x-hidden bg-[#F6F4F1] dark:bg-[#14121C]" style={{ backgroundImage: "none" }}>
+    <div
+      className={cn(
+        "lyra-office min-h-dvh overflow-x-hidden bg-[#F6F4F1] dark:bg-[#14121C]",
+        !isVega && "md:grid md:grid-cols-[248px_minmax(0,1fr)]",
+      )}
+      style={{ backgroundImage: "none" }}
+    >
       <aside
         className={cn(
-          "lyra-shell-aside fixed inset-y-0 left-0 z-[60] w-[min(85vw,260px)] border-r border-[#E7E2DA] bg-white transition-transform dark:border-white/12 dark:bg-[#181625] md:w-[248px] md:translate-x-0",
+          "lyra-shell-aside border-r border-[#E7E2DA] bg-white transition-transform dark:border-white/12 dark:bg-[#181625]",
+          "fixed inset-y-0 left-0 z-[60] w-[min(85vw,260px)]",
           open ? "translate-x-0" : "-translate-x-full",
+          isVega ? "md:w-[248px]" : "md:static md:inset-auto md:z-auto md:h-auto md:min-h-full md:w-auto md:translate-x-0",
         )}
         data-open={open || undefined}
       >
-        <Sidebar user={user} onClose={() => setMenuPath(null)} />
+        <div className={cn("h-full", !isVega && "md:sticky md:top-0 md:h-dvh md:overflow-y-auto")}>
+          <Sidebar user={user} onClose={() => setMenuPath(null)} />
+        </div>
       </aside>
 
       {open ? (
@@ -75,7 +87,7 @@ export function DashboardShell({
         />
       ) : null}
 
-      <div className="lyra-shell-content md:pl-[248px]">
+      <div className="lyra-shell-content min-w-0">
         <header className="lyra-shell-header sticky top-0 z-20 flex items-center justify-between gap-2 bg-[#F6F4F1] px-4 py-3 pt-[max(0.75rem,env(safe-area-inset-top))] backdrop-blur dark:bg-[#14121C]/95 md:hidden">
           <button
             type="button"

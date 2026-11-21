@@ -32,7 +32,7 @@ export function Sidebar({
   const mode = officeModes[0];
 
   return (
-    <div className="flex h-full flex-col bg-white/90 backdrop-blur-sm dark:bg-[#181625]/95">
+    <div className="flex h-full min-h-full flex-col bg-white dark:bg-[#181625]">
       <div className="flex items-center justify-between px-4 pt-5 pb-1">
         <Link
           href={brand.links.dashboard}

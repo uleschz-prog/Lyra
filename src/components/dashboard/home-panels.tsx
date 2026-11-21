@@ -25,6 +25,7 @@ import {
 import { CountUp } from "@/components/dashboard/count-up";
 import { useCredits } from "@/components/dashboard/credit-provider";
 import { Sparkline } from "@/components/dashboard/sparkline";
+import { VegaMascot } from "@/components/vega/vega-mark";
 import { brand } from "@/config/brand";
 import { greetingFor, groupActivityByDay, todayLabel, type ActivityGroup } from "@/lib/dashboard/home-logic";
 import type { HomeActivity, HomeStep, HomeSummary } from "@/lib/dashboard/home";
@@ -32,7 +33,7 @@ import { formatCredits, formatUsd } from "@/lib/format";
 import { cn } from "@/lib/utils";
 
 const card =
-  "rounded-[24px] border border-[#E8E4DC]/90 bg-white/85 shadow-[0_1px_2px_rgba(16,12,32,0.04),0_18px_44px_-28px_rgba(76,29,149,0.45)] backdrop-blur-sm dark:border-white/8 dark:bg-[#1B1924]/80 dark:shadow-[0_18px_50px_-32px_rgba(0,0,0,0.85)]";
+  "rounded-[24px] border border-[#E8E4DC]/80 bg-white/80 shadow-[inset_0_1px_0_0_rgba(255,255,255,0.78),0_1px_2px_rgba(16,12,32,0.04),0_10px_28px_-16px_rgba(76,29,149,0.28),0_28px_56px_-32px_rgba(16,12,32,0.18)] backdrop-blur-sm dark:border-white/10 dark:bg-[#1B1924]/85 dark:shadow-[inset_0_1px_0_0_rgba(255,255,255,0.06),0_18px_50px_-32px_rgba(0,0,0,0.85)]";
 
 export function HomeHero({
   firstName,
@@ -49,18 +50,50 @@ export function HomeHero({
   const date = todayLabel();
 
   return (
-    <section className={cn(card, "relative overflow-hidden px-5 py-6 sm:px-7 sm:py-7")}>
+    <section className={cn(card, "relative overflow-hidden px-5 py-7 sm:px-8 sm:py-8")}>
       <div
-        className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_at_0%_0%,rgba(124,58,237,0.14),transparent_55%),radial-gradient(ellipse_at_100%_0%,rgba(6,182,212,0.10),transparent_50%)] dark:bg-[radial-gradient(ellipse_at_0%_0%,rgba(124,58,237,0.28),transparent_55%),radial-gradient(ellipse_at_100%_0%,rgba(6,182,212,0.12),transparent_50%)]"
+        className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_at_0%_0%,rgba(124,58,237,0.16),transparent_55%),radial-gradient(ellipse_at_100%_0%,rgba(6,182,212,0.12),transparent_48%)] dark:bg-[radial-gradient(ellipse_at_0%_0%,rgba(124,58,237,0.32),transparent_55%),radial-gradient(ellipse_at_100%_0%,rgba(6,182,212,0.16),transparent_48%)]"
         aria-hidden
       />
-      <header className="relative">
-        <p className="text-[11px] font-medium tracking-[0.18em] text-[#8A8680] uppercase">{date}</p>
-        <h1 className="mt-1 text-[1.85rem] font-semibold tracking-tight text-[#1E1E24] sm:text-[2.35rem] dark:text-white">{greeting}</h1>
-        <p className="mt-1.5 text-sm text-[#5C5854] dark:text-[#A9A3B8]">Plan {planLabel}</p>
+      <div
+        className="pointer-events-none absolute -top-16 -right-8 h-56 w-56 rounded-full bg-[radial-gradient(circle,rgba(167,139,250,0.45),rgba(124,58,237,0.12)_45%,transparent_70%)] blur-2xl dark:bg-[radial-gradient(circle,rgba(124,58,237,0.55),rgba(76,29,149,0.18)_50%,transparent_70%)]"
+        aria-hidden
+      />
+
+      <header className="relative flex items-start justify-between gap-4 sm:gap-8">
+        <div className="min-w-0 flex-1">
+          <p className="text-[11px] font-medium tracking-[0.18em] text-[#8A8680] uppercase">{date}</p>
+          <h1 className="mt-2 text-[2rem] leading-[1.1] font-bold tracking-tight text-[#1E1E24] sm:text-[2.7rem] dark:text-white">
+            {greeting}
+          </h1>
+          <p className="mt-2 text-sm text-[#5C5854] dark:text-[#A9A3B8]">Plan {planLabel}</p>
+          <div className="mt-5 flex flex-wrap items-center gap-2.5">
+            <Link
+              href="/dashboard/super-agent"
+              className="inline-flex items-center gap-2 rounded-2xl bg-[#7C3AED] px-4 py-2.5 text-sm font-semibold text-white shadow-[0_10px_24px_-12px_rgba(124,58,237,0.9)] transition hover:-translate-y-0.5 hover:bg-[#6D28D9]"
+            >
+              <VegaMascot className="size-6" mood="happy" />
+              Hablar con Vega
+            </Link>
+            <Link
+              href="/dashboard/proyectos"
+              className="inline-flex items-center gap-2 rounded-2xl border border-[#E7E2DA] bg-white/80 px-4 py-2.5 text-sm font-medium text-[#1E1E24] transition hover:-translate-y-0.5 hover:border-[#C4B5FD] dark:border-white/12 dark:bg-white/5 dark:text-white dark:hover:border-[#7C3AED]/50"
+            >
+              Crear proyecto
+              <ArrowRight className="size-4" aria-hidden />
+            </Link>
+          </div>
+        </div>
+        <div className="relative shrink-0">
+          <div
+            className="absolute -inset-6 rounded-full bg-[conic-gradient(from_180deg_at_50%_50%,rgba(124,58,237,0.28),rgba(6,182,212,0.18),rgba(167,139,250,0.3),rgba(124,58,237,0.12))] blur-2xl"
+            aria-hidden
+          />
+          <VegaMascot className="relative size-14 sm:size-[5.5rem] lg:size-28" mood="happy" />
+        </div>
       </header>
 
-      <div className="relative mt-6 grid grid-cols-1 gap-3 sm:grid-cols-3">
+      <div className="relative mt-7 grid grid-cols-1 items-stretch gap-3 sm:grid-cols-3">
         <Kpi
           href={brand.links.wallet}
           label="Comisiones del mes"
@@ -68,9 +101,8 @@ export function HomeHero({
           hint={`Acumulado ${formatUsd(summary.commissionsTotal)}`}
           icon={Wallet}
           tone="emerald"
-        >
-          <Sparkline points={summary.commissionsTrend} tone="emerald" label="Comisiones de los últimos 14 días" />
-        </Kpi>
+          chart={<Sparkline points={summary.commissionsTrend} tone="emerald" label="Comisiones acumuladas de los últimos 14 días" />}
+        />
         <Kpi
           href={brand.links.wallet}
           label="Créditos de IA"
@@ -79,9 +111,8 @@ export function HomeHero({
           hintTone={low ? "warn" : "muted"}
           icon={Sparkles}
           tone="cyan"
-        >
-          <Sparkline points={summary.creditsTrend} tone="cyan" label="Movimiento de créditos de los últimos 14 días" />
-        </Kpi>
+          chart={<Sparkline points={summary.creditsTrend} tone="cyan" label="Movimiento acumulado de créditos de los últimos 14 días" />}
+        />
         <Kpi
           href={brand.links.network}
           label="Tu red"
@@ -99,6 +130,7 @@ export function HomeHero({
           }
           icon={Users}
           tone="violet"
+          chart={<Sparkline points={[]} tone="violet" label="Actividad de tu red" />}
         />
       </div>
     </section>
@@ -113,7 +145,7 @@ function Kpi({
   hintTone = "muted",
   icon: Icon,
   tone,
-  children,
+  chart,
 }: {
   href: string;
   label: string;
@@ -122,7 +154,7 @@ function Kpi({
   hintTone?: "muted" | "warn";
   icon: LucideIcon;
   tone: "emerald" | "cyan" | "violet";
-  children?: ReactNode;
+  chart: ReactNode;
 }) {
   const icons = {
     emerald: "bg-[#D1FAE5] text-[#059669] dark:bg-[#059669]/20 dark:text-[#6EE7B7]",
@@ -133,18 +165,20 @@ function Kpi({
   return (
     <Link
       href={href}
-      className="group flex min-w-0 flex-col rounded-[20px] border border-[#F0ECE6] bg-white/80 p-4 transition duration-200 hover:-translate-y-0.5 hover:border-[#C4B5FD] hover:shadow-[0_16px_32px_-24px_rgba(124,58,237,0.55)] dark:border-white/8 dark:bg-[#16141F]/80 dark:hover:border-[#7C3AED]/50"
+      className="group flex min-h-0 min-w-0 flex-col overflow-hidden rounded-[20px] border border-[#F0ECE6] bg-white/85 shadow-[inset_0_1px_0_0_rgba(255,255,255,0.8)] transition duration-200 hover:-translate-y-0.5 hover:border-[#C4B5FD] hover:shadow-[0_16px_32px_-24px_rgba(124,58,237,0.55)] dark:border-white/8 dark:bg-[#16141F]/85 dark:shadow-[inset_0_1px_0_0_rgba(255,255,255,0.05)] dark:hover:border-[#7C3AED]/50"
     >
-      <div className="flex items-center justify-between gap-2">
-        <span className={cn("grid size-9 place-items-center rounded-2xl", icons[tone])}>
-          <Icon className="size-4" aria-hidden />
-        </span>
-        <ArrowRight className="size-4 text-[#D4CFC8] transition group-hover:translate-x-0.5 group-hover:text-[#7C3AED] dark:text-white/25 dark:group-hover:text-[#C4B5FD]" aria-hidden />
+      <div className="flex flex-1 flex-col px-4 pt-4 pb-2">
+        <div className="flex items-center justify-between gap-2">
+          <span className={cn("grid size-9 place-items-center rounded-2xl", icons[tone])}>
+            <Icon className="size-4" aria-hidden />
+          </span>
+          <ArrowRight className="size-4 text-[#D4CFC8] transition group-hover:translate-x-0.5 group-hover:text-[#7C3AED] dark:text-white/25 dark:group-hover:text-[#C4B5FD]" aria-hidden />
+        </div>
+        <p className="mt-4 text-[11px] font-medium tracking-[0.16em] text-[#8A8680] uppercase">{label}</p>
+        <p className="mt-1 text-[1.65rem] leading-none font-semibold tracking-tight text-[#1E1E24] dark:text-white">{value}</p>
+        <p className={cn("mt-1.5 text-xs", hintTone === "warn" ? "font-medium text-[#B45309] dark:text-[#FBBF24]" : "text-[#5C5854] dark:text-[#A9A3B8]")}>{hint}</p>
       </div>
-      <p className="mt-4 text-[11px] font-medium tracking-[0.16em] text-[#8A8680] uppercase">{label}</p>
-      <p className="mt-1 text-[1.65rem] leading-none font-semibold tracking-tight text-[#1E1E24] dark:text-white">{value}</p>
-      <p className={cn("mt-1.5 text-xs", hintTone === "warn" ? "font-medium text-[#B45309] dark:text-[#FBBF24]" : "text-[#5C5854] dark:text-[#A9A3B8]")}>{hint}</p>
-      {children ? <div className="mt-3">{children}</div> : null}
+      <div className="mt-auto">{chart}</div>
     </Link>
   );
 }
@@ -255,15 +289,10 @@ export function RecentActivity({ items }: { items: HomeActivity[] }) {
   const days = groupActivityByDay(items);
 
   return (
-    <section className={cn(card, "flex h-full min-h-[28rem] w-full min-w-0 flex-col p-4 sm:p-6")}>
-      <div className="flex items-end justify-between gap-3">
-        <div>
-          <p className="text-[11px] font-medium tracking-[0.18em] text-[#8A8680] uppercase">Movimientos</p>
-          <h2 className="mt-1 text-lg font-semibold tracking-tight text-[#1E1E24] dark:text-white">Actividad reciente</h2>
-        </div>
-        <Link href={brand.links.wallet} className="text-xs font-medium text-[#7C3AED] hover:underline dark:text-[#C4B5FD]">
-          Ver billetera
-        </Link>
+    <section className={cn(card, "flex h-full w-full min-w-0 flex-col p-4 sm:p-6")}>
+      <div>
+        <p className="text-[11px] font-medium tracking-[0.18em] text-[#8A8680] uppercase">Movimientos</p>
+        <h2 className="mt-1 text-lg font-semibold tracking-tight text-[#1E1E24] dark:text-white">Actividad reciente</h2>
       </div>
       {days.length === 0 ? (
         <p className="mt-6 flex-1 rounded-2xl bg-[#FAF8F5] px-4 py-8 text-center text-sm text-[#5C5854] dark:bg-white/4 dark:text-[#A9A3B8]">
@@ -322,6 +351,15 @@ export function RecentActivity({ items }: { items: HomeActivity[] }) {
           ))}
         </div>
       )}
+      <div className="mt-auto border-t border-[#F1EEE9] pt-4 dark:border-white/8">
+        <Link
+          href={brand.links.wallet}
+          className="inline-flex items-center gap-1.5 text-sm font-medium text-[#7C3AED] transition hover:gap-2 dark:text-[#C4B5FD]"
+        >
+          Ver todo el movimiento
+          <ArrowRight className="size-4" aria-hidden />
+        </Link>
+      </div>
     </section>
   );
 }
@@ -330,30 +368,34 @@ const shortcuts = [
   { href: "/dashboard/super-agent", label: "Vega", hint: "Redacta, investiga y da seguimiento desde el chat.", icon: Crown },
   { href: "/dashboard/proyectos", label: "Proyectos", hint: "Sitios, apps y agentes que ya creaste o publicaste.", icon: FolderKanban },
   { href: "/dashboard/marketplace", label: "Marketplace", hint: "Plantillas listas para adaptar a tu negocio.", icon: Store },
+  { href: "/dashboard/wallet", label: "Billetera", hint: "Comisiones, recargas y el historial de tu saldo.", icon: Wallet },
 ] as const;
 
 export function Shortcuts() {
   return (
     <section>
-      <div className="mb-3 flex items-end justify-between gap-3">
+      <div className="mb-4 flex items-end justify-between gap-3">
         <div>
           <p className="text-[11px] font-medium tracking-[0.18em] text-[#8A8680] uppercase">Accesos</p>
           <h2 className="mt-1 text-lg font-semibold tracking-tight text-[#1E1E24] dark:text-white">Herramientas</h2>
         </div>
       </div>
-      <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
         {shortcuts.map(({ href, label, hint, icon: Icon }) => (
           <Link
             key={href}
             href={href}
             className={cn(
               card,
-              "group p-5 transition duration-200 hover:-translate-y-0.5 hover:border-[#C4B5FD] dark:hover:border-[#7C3AED]/50",
+              "group p-5 transition duration-200 hover:-translate-y-1 hover:border-[#C4B5FD] hover:shadow-[0_18px_36px_-20px_rgba(124,58,237,0.45)] dark:hover:border-[#7C3AED]/50",
             )}
           >
-            <span className="grid size-11 place-items-center rounded-2xl bg-[#F5F3FF] text-[#7C3AED] transition duration-200 group-hover:bg-[#7C3AED] group-hover:text-white dark:bg-[#7C3AED]/20 dark:text-[#C4B5FD] dark:group-hover:bg-[#7C3AED] dark:group-hover:text-white">
-              <Icon className="size-5" aria-hidden />
-            </span>
+            <div className="flex items-start justify-between gap-3">
+              <span className="grid size-11 place-items-center rounded-2xl bg-[#F5F3FF] text-[#7C3AED] transition duration-200 group-hover:bg-[#7C3AED] group-hover:text-white dark:bg-[#7C3AED]/20 dark:text-[#C4B5FD] dark:group-hover:bg-[#7C3AED] dark:group-hover:text-white">
+                <Icon className="size-5" aria-hidden />
+              </span>
+              <ArrowRight className="size-4 text-[#D4CFC8] transition duration-200 group-hover:translate-x-0.5 group-hover:text-[#7C3AED] dark:text-white/25 dark:group-hover:text-[#C4B5FD]" aria-hidden />
+            </div>
             <p className="mt-4 text-base font-semibold tracking-tight text-[#1E1E24] dark:text-white">{label}</p>
             <p className="mt-1 text-sm leading-6 text-[#5C5854] dark:text-[#A9A3B8]">{hint}</p>
           </Link>

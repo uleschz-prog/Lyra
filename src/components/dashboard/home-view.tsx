@@ -14,10 +14,10 @@ export function HomeView({
   summary: HomeSummary;
 }) {
   return (
-    <div className="space-y-5 sm:space-y-6">
+    <div className="space-y-6 sm:space-y-8">
       <HomeHero firstName={firstName} planLabel={planLabel} summary={summary} />
 
-      <div className="grid w-full min-w-0 grid-cols-1 items-start gap-4 lg:grid-cols-5 lg:gap-6">
+      <div className="grid w-full min-w-0 grid-cols-1 items-stretch gap-4 lg:grid-cols-5 lg:gap-6">
         <div className="min-w-0 lg:col-span-3">
           <ReferralCard
             link={referralLink}
@@ -26,7 +26,7 @@ export function HomeView({
             activeDirects={summary.activeDirects}
           />
         </div>
-        <div className="min-w-0 lg:col-span-2">
+        <div className="flex min-w-0 lg:col-span-2">
           <RecentActivity items={summary.activity} />
         </div>
       </div>
