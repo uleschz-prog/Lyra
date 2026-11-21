@@ -265,7 +265,7 @@ function shell(input: { title: string; color: string; body: string; script?: str
 <main>
 ${input.body}
 </main>
-<footer>Prototipo creado con Vega · LYRA. ${input.storesLocally ? "Los datos se guardan sólo en este navegador; no se envían a un servidor." : input.script ? "La demostración es local y no conecta con un modelo de IA." : "Diseñado para explicar tu propuesta con claridad."}</footer>
+<footer>Prototipo creado con Vega · LYRA. ${input.storesLocally ? "Versión de prueba: los datos se guardan en este dispositivo y pueden reiniciarse." : input.script ? "La demostración es local y no conecta con un modelo de IA." : "Diseñado para explicar tu propuesta con claridad."}</footer>
 ${input.script ? `<script>${input.script}</script>` : ""}
 </body>
 </html>
@@ -554,15 +554,15 @@ ${project.summary}
 
 Cómo usarlo
 1. Abre index.html en Chrome, Edge, Safari o Firefox.
-2. Las citas, registros y mensajes de prueba se guardan sólo en ese navegador.
+2. Las citas, registros y mensajes de prueba se guardan en ese navegador (localStorage).
 3. Para publicarlo, sube esta carpeta a un hosting de archivos estáticos.
 
-Alcance del prototipo
-- Este ${kindLabel} no trae base de datos, cuentas de usuario, pagos ni sincronización entre dispositivos.
-- Los formularios no envían datos a un negocio ni a un servidor: sólo guardan una copia local en el navegador.
-- La demostración del agente responde usando ejemplos predeterminados; no está conectada a un modelo de IA.
+Qué incluye esta versión
+- Este ${kindLabel} funciona en un solo dispositivo: los datos viven en el navegador de quien lo usa y no se comparten entre personas.
+- Si lo abres desde la dirección pública de LYRA (/s/…), la página corre aislada por seguridad y los datos duran mientras la pestaña esté abierta.
+- La demostración del agente responde con ejemplos predeterminados; para conversaciones en vivo hay que conectarlo a un modelo.
 
-Para operar con clientes reales necesitarás backend, almacenamiento seguro, controles de privacidad y las integraciones que correspondan. Pídele a Vega dentro de LYRA que te ayude a planear esa siguiente versión.
+Siguiente paso: pídele a Vega en LYRA la versión con datos compartidos, usuarios y las integraciones que necesites.
 `;
 }
 

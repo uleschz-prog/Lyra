@@ -403,7 +403,7 @@ npm run build   # genera dist/ para cualquier hosting estático
 
 ${
   app
-    ? "- Las pantallas guardan los datos en el navegador de quien usa la app (localStorage). No hay servidor ni datos compartidos todavía.\n- Toda la lectura y escritura pasa por `src/lib/data.ts` (interfaz `DataStore`). Para conectar una base de datos real basta con reemplazar `createLocalStore`.\n- Los registros iniciales son de ejemplo."
+    ? "- Las pantallas guardan los datos en el navegador de quien usa la app (localStorage); cada dispositivo tiene su propia copia. En la dirección pública de LYRA (/s/…) la página corre aislada y los datos duran mientras la pestaña esté abierta.\n- Toda la lectura y escritura pasa por `src/lib/data.ts` (interfaz `DataStore`). Para conectar una base de datos real basta con reemplazar `createLocalStore`.\n- Los registros iniciales son de ejemplo."
     : "- Si publicas el sitio desde LYRA (dirección /s/…), lo que la gente escribe en los formularios llega a la bandeja de Contactos del proyecto. En la vista previa o en otro hosting, los formularios solo muestran una confirmación y, si diste WhatsApp, abren el mensaje listo; no envían correos.\n- Textos e información salen de tu descripción; revisa precios, horarios y datos de contacto antes de publicar."
 }
 ${plan.assumptions.length ? `\n## Suposiciones\n\n${plan.assumptions.map((item) => `- ${item}`).join("\n")}\n` : ""}`;

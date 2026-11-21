@@ -52,7 +52,7 @@ Para usar tu propio dominio (por ejemplo \`www.tunegocio.com\`), agrégalo en el
 - Las tipografías se cargan de Google Fonts; si hay imágenes, vienen de images.unsplash.com.
 ${
   app
-    ? "- Los datos que captura la app se guardan **en el navegador de cada persona** (localStorage). No hay servidor ni datos compartidos entre usuarios, y no hay inicio de sesión.\n"
+    ? "- Los datos que captura la app se guardan **en el navegador de cada persona** (localStorage). Cada dispositivo tiene su propia copia; no hay inicio de sesión. En la dirección pública de LYRA (/s/…) la página corre aislada y los datos duran mientras la pestaña esté abierta.\n"
     : "- Los formularios de este archivo **no envían correos ni guardan datos en un servidor**: muestran una confirmación y, si el sitio tiene WhatsApp, abren el mensaje listo para enviar. Si lo publicas desde LYRA (dirección /s/…), los formularios sí llegan a la bandeja de Contactos del proyecto.\n"
 }- No incluye cobros en línea ni analítica.
 - Revisa precios, horarios, teléfonos y textos antes de publicarlo: salen de lo que se le dio a Vega.

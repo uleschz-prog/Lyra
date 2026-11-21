@@ -88,14 +88,14 @@ export function humanizeToolNames(text: string) {
 }
 
 const refusalPhrases =
-  /(lo siento|lamentablemente|desafortunadamente|no puedo|no me es posible|no es posible (construir|hacer|crear)|no tengo la capacidad|debo (aclarar|aclararte|advertir|advertirte)|tengo que (aclarar|aclararte|advertir|advertirte)|es importante (aclarar|aclararte)|cabe aclarar|como (vega|asistente|ia|inteligencia artificial),? no|mis limitaciones|solo puedo generar)/;
+  /(lo siento|lamentablemente|desafortunadamente|no puedo|no me es posible|no es posible (construir|hacer|crear)|no tengo la capacidad|debo (aclarar|aclararte|advertir|advertirte)|tengo que (aclarar|aclararte|advertir|advertirte)|es importante (aclarar|aclararte)|cabe aclarar|como (vega|asistente|ia|inteligencia artificial),? no|mis limitaciones|solo puedo generar|es importante que sepas|(sin embargo|pero),? (es importante|debes saber)|no puedo crear|no podr[ií]a (crear|hacer)|solo (genera|crea) prototipos|genera prototipos)/;
 
 /**
- * true si la respuesta abre (primer párrafo, hasta ~280 caracteres) con una negativa o una
+ * true si la respuesta abre (dos primeros párrafos, hasta ~480 caracteres) con una negativa o una
  * advertencia sobre límites. Los límites honestos al final de la respuesta sí se permiten.
  */
 export function opensWithRefusal(text: string) {
   const body = (text ?? "").replace(/^\s*\[animo:[^\]]*\]\s*/i, "").trim();
-  const opening = (body.split(/\n\s*\n/)[0] ?? "").slice(0, 280).toLocaleLowerCase("es-MX");
+  const opening = body.split(/\n\s*\n/).slice(0, 2).join("\n\n").slice(0, 480).toLocaleLowerCase("es-MX");
   return refusalPhrases.test(opening);
 }

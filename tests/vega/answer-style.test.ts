@@ -8,7 +8,7 @@ import { vegaSystemPrompt } from "@/lib/vega/prompt";
 import { vegaTools } from "@/lib/vega/tools";
 import { xTools } from "@/lib/vega/x/tools";
 
-import { badRestaurantAnswer, goodRestaurantAnswer, restaurantPrompt } from "./fixtures/restaurante-3-huastecas";
+import { badRestaurantAnswer, goodRestaurantAnswer, productionRefusalAnswer, proposeAndBuildAnswer, restaurantPrompt, restaurantSystemPrompt } from "./fixtures/restaurante-3-huastecas";
 
 const user = { name: "Ule", package: "STARTED" } as const;
 const profile = { business: null, goals: null, tone: null, markets: null, services: null, hours: null, team: null, notes: null };
@@ -34,7 +34,7 @@ describe("estilo de respuesta experto (caso Las 3 Huastecas)", () => {
     expect(opensWithRefusal(badRestaurantAnswer)).toBe(true);
     expect(opensWithRefusal(goodRestaurantAnswer)).toBe(false);
     expect(opensWithRefusal("Lo siento, no tengo acceso a eso.")).toBe(true);
-    expect(opensWithRefusal("¡Claro! Así lo armamos.\n\nNo puedo conectarme a tu POS, pero te dejo el formato.")).toBe(false);
+    expect(opensWithRefusal("¡Claro! Así lo armamos.\n\nPrimero las recetas.\n\nNo puedo conectarme a tu POS, pero te dejo el formato.")).toBe(false);
   });
 
   it("la buena respuesta cubre lo que importa del caso", () => {
@@ -68,5 +68,24 @@ describe("estilo de respuesta experto (caso Las 3 Huastecas)", () => {
   it("deja espacio para respuestas largas y estructuradas", () => {
     expect(chatGeneration.maxOutputTokens).toBeGreaterThan(4096);
     expect(chatGeneration.temperature).toBeLessThanOrEqual(0.7);
+  });
+
+  it("caso real de producción: detecta la lista de «no puedo» y acepta proponer y construir", () => {
+    expect(restaurantSystemPrompt).toMatch(/2 sucursales/);
+    expect(opensWithRefusal(productionRefusalAnswer)).toBe(true);
+    expect(opensWithRefusal(proposeAndBuildAnswer)).toBe(false);
+    expect(findToolNameLeaks(proposeAndBuildAnswer)).toEqual([]);
+  });
+
+  it("el prompt y la herramienta de entregas ya no empujan a listar lo que la app no hace", () => {
+    const prompt = vegaSystemPrompt(user, allConnections, true, [], profile, new Date("2026-11-21T13:00:00Z"));
+    const deliver = vegaTools(allConnections, true).find((tool) => tool.name === "entregar_proyecto");
+    const text = `${prompt}\n${deliver?.description ?? ""}`;
+    expect(deliver).toBeDefined();
+    for (const pushy of [/No las describas como sistemas con servidor/, /nunca la presentes como sistema listo/, /aún sin base de datos propia/, /No digas que el archivo trae base de datos/]) {
+      expect(text).not.toMatch(pushy);
+    }
+    expect(prompt).toMatch(/propón la solución completa/);
+    expect(prompt).toMatch(/construye la primera fase/);
   });
 });
