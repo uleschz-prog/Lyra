@@ -3,7 +3,7 @@
 import { designSystems, getDesignSystem, rankDesignSystems, stableHash, type DesignSystem } from "@/lib/builder/design-systems";
 import { iconOr } from "@/lib/builder/icons";
 import { getSectionDef, sectionLibrary, sectionsFor, type SectionDef } from "@/lib/builder/sections";
-import type { BuildKind, BuildPlan, Entity, EntityField, FieldType, PlannedPage, PlannedSection, SectionContent, SectionItem, SeedValue } from "@/lib/builder/types";
+import type { BuildKind, BuildPlan, Entity, EntityField, FieldType, LivePlan, PlannedPage, PlannedSection, SectionContent, SectionItem, SeedValue } from "@/lib/builder/types";
 
 /* ------------------------------ Utilidades ------------------------------ */
 
@@ -160,7 +160,8 @@ export function composeSkeleton(brief: string, kind: BuildKind): Composition {
 
 /* ------------------------------- Prompts ------------------------------- */
 
-export function planSystemPrompt(kind: BuildKind) {
+export function planSystemPrompt(kind: BuildKind, options: { live?: boolean } = {}) {
+  const live = kind === "app" && options.live;
   return [
     "Eres director de arte y arquitecto full stack de LYRA. Planeas un proyecto web premium en React + Tailwind a partir de un brief en español de México.",
     "Respondes SOLO un objeto JSON válido (sin comentarios ni texto extra) con esta forma:",
@@ -172,6 +173,7 @@ export function planSystemPrompt(kind: BuildKind) {
     kind === "app"
       ? "App: 4 a 7 pantallas (páginas) con una tarea principal completa. Define 1 a 3 entidades con 3 a 7 campos (tipos: text, longtext, number, money, date, time, email, phone, select con options, boolean) y 4 a 8 registros de ejemplo realistas por entidad. Las pantallas usan content.entity con la key de la entidad. Una página de alta debe ir en /<entidad>/nuevo y su lista en /<entidad>."
       : "Sitio: 2 a 5 páginas (la primera es \"/\"); la portada lleva 6 a 9 secciones con ritmo variado; cada página tiene un propósito claro. Usa anchors cortos en minúsculas.",
+    ...(live ? liveRules : []),
     "Usa solo ids de sección del catálogo dado y solo íconos de la lista dada.",
   ].join("\n");
 }
@@ -193,9 +195,113 @@ export function planUserPrompt(input: { brief: string; kind: BuildKind; composit
   ].join("\n\n");
 }
 
+/** Reglas extra del plan cuando la app usa datos en vivo (equipo, sucursales, sincronización). */
+const liveRules = [
+  "DATOS EN VIVO: esta app la usa un equipo al mismo tiempo (cada persona entra con PIN) y los datos se comparten entre dispositivos y sucursales. Agrega al JSON la llave \"live\": {\"roles\":[{\"key\":\"mesero\",\"label\":\"Mesero\"}],\"branches\":[{\"id\":\"centro\",\"name\":\"Centro\"}]} con 1 a 6 roles (sin \"admin\": ya existe) y las sucursales que mencione el brief (si no hay, una llamada \"principal\").",
+  "En cada entidad agrega: \"scope\": \"branch\" (cada registro es de una sucursal: pedidos, existencias, cortes) o \"shared\" (catálogo común: productos, menú, clientes); \"sync\": \"recent\" para lo que crece cada día (pedidos, movimientos) o \"all\"; \"write\": roles que pueden modificarla (vacío = todos). Puedes usar hasta 6 entidades.",
+  "Tipos extra de campo: \"ref\" con \"ref\": <key de otra entidad> (guarda el id del registro) e \"items\" con \"fields\" (renglones, p. ej. platillos de una comanda con nombre, cantidad y precio). Los registros de ejemplo pueden traer \"id\" (letras, números, - y _) para referenciarlos y, en entidades por sucursal, \"branchId\".",
+  "Diseña una pantalla por rol (p. ej. tomar pedido, cocina, caja, inventario, resumen) además de las de catálogo.",
+];
+
 /* ----------------------------- Normalización ----------------------------- */
 
 const fieldTypes = new Set<FieldType>(["text", "longtext", "number", "money", "date", "time", "email", "phone", "select", "boolean"]);
+const liveFieldTypes = new Set<FieldType>([...fieldTypes, "ref", "items"]);
+const roleKeyPattern = /^[a-z][a-z0-9]{1,19}$/;
+const branchIdPattern = /^[a-z0-9][a-z0-9-]{0,23}$/;
+const seedIdPattern = /^[A-Za-z0-9_-]{2,64}$/;
+
+function slugId(text: string, max: number) {
+  return fold(text).replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "").slice(0, max);
+}
+
+/** Roles y sucursales de una app con datos en vivo (siempre al menos una sucursal). */
+export function normalizeLive(value: unknown): LivePlan {
+  const raw = record(value) ?? {};
+  const roles: LivePlan["roles"] = [];
+  for (const item of Array.isArray(raw.roles) ? raw.roles.slice(0, 8) : []) {
+    const role = record(item);
+    const label = clip(role?.label, 30);
+    const key = fold(clip(role?.key, 20) || label).replace(/[^a-z0-9]/g, "").slice(0, 20);
+    if (!roleKeyPattern.test(key) || key === "admin" || roles.some((entry) => entry.key === key)) continue;
+    roles.push({ key, label: label || key });
+    if (roles.length >= 6) break;
+  }
+  const branches: LivePlan["branches"] = [];
+  for (const item of Array.isArray(raw.branches) ? raw.branches.slice(0, 12) : []) {
+    const branch = record(item);
+    const name = clip(branch?.name, 40);
+    const id = slugId(clip(branch?.id, 24) || name, 24);
+    if (!name || !branchIdPattern.test(id) || branches.some((entry) => entry.id === id)) continue;
+    branches.push({ id, name });
+  }
+  if (!branches.length) branches.push({ id: "principal", name: "Principal" });
+  return { roles, branches };
+}
+
+function seedCell(field: EntityField, cell: unknown): SeedValue | undefined {
+  if (field.type === "number" || field.type === "money") {
+    const number = Number(cell);
+    return Number.isFinite(number) ? number : undefined;
+  }
+  if (field.type === "boolean") return typeof cell === "boolean" ? cell : undefined;
+  if (field.type === "select") return typeof cell === "string" && field.options?.includes(cell) ? cell : undefined;
+  if (field.type === "ref") return typeof cell === "string" && seedIdPattern.test(cell) ? cell : undefined;
+  if (field.type === "items") {
+    if (!Array.isArray(cell)) return undefined;
+    const rows = cell
+      .map(record)
+      .filter((row): row is Record<string, unknown> => Boolean(row))
+      .slice(0, 20)
+      .map((row) => {
+        const clean: Record<string, string | number | boolean> = {};
+        for (const sub of field.fields ?? []) {
+          const value = seedCell(sub, row[sub.key]);
+          if (value !== undefined && value !== null && !Array.isArray(value)) clean[sub.key] = value;
+        }
+        return clean;
+      })
+      .filter((row) => Object.keys(row).length > 0);
+    return rows;
+  }
+  return typeof cell === "string" && cell.trim() ? clipMultiline(cell, 400) : undefined;
+}
+
+function normalizeField(field: Record<string, unknown>, live: boolean, nested: boolean): EntityField | null {
+  const fieldKey = identifier(clip(field.key, 30) || clip(field.label, 30), "");
+  if (!fieldKey || ["id", "createdAt", "updatedAt", "branchId"].includes(fieldKey)) return null;
+  // Renglones dentro de renglones no: se descartan en vez de volverse texto.
+  if (nested && field.type === "items") return null;
+  const allowed = live && !nested ? liveFieldTypes : live ? new Set<FieldType>([...fieldTypes, "ref"]) : fieldTypes;
+  const type = allowed.has(field.type as FieldType) ? (field.type as FieldType) : "text";
+  const options = type === "select" && Array.isArray(field.options) ? field.options.map((option) => clip(option, 40)).filter(Boolean).slice(0, 8) : undefined;
+  if (type === "select" && !options?.length) return null;
+  const ref = type === "ref" ? identifier(clip(field.ref, 30), "") : "";
+  if (type === "ref" && !ref) return null;
+  let fields: EntityField[] | undefined;
+  if (type === "items") {
+    fields = [];
+    for (const raw of Array.isArray(field.fields) ? field.fields.slice(0, 8) : []) {
+      const sub = record(raw);
+      const normalized = sub ? normalizeField(sub, live, true) : null;
+      if (normalized && !fields.some((entry) => entry.key === normalized.key)) fields.push(normalized);
+    }
+    if (!fields.length) return null;
+  }
+  return {
+    key: fieldKey,
+    label: clip(field.label, 40) || fieldKey,
+    type,
+    ...(options ? { options } : {}),
+    ...(field.required === true ? { required: true } : {}),
+    ...(ref ? { ref } : {}),
+    ...(fields ? { fields } : {}),
+  };
+}
+
+function roleList(value: unknown, roles: Set<string>) {
+  return (Array.isArray(value) ? value : []).map((item) => clip(item, 20)).filter((item) => item === "admin" || roles.has(item)).slice(0, 8);
+}
 
 function normalizeItems(value: unknown): SectionItem[] {
   if (!Array.isArray(value)) return [];
@@ -245,27 +351,25 @@ function normalizeContent(value: unknown, paths: Set<string>, entities: Set<stri
   return content;
 }
 
-function normalizeEntities(value: unknown): Entity[] {
+function normalizeEntities(value: unknown, live: LivePlan | null = null): Entity[] {
   if (!Array.isArray(value)) return [];
   const seen = new Set<string>();
   const entities: Entity[] = [];
-  for (const rawEntity of value.slice(0, 4)) {
+  const roles = new Set(live?.roles.map((role) => role.key) ?? []);
+  const branches = new Set(live?.branches.map((branch) => branch.id) ?? []);
+  for (const rawEntity of value.slice(0, live ? 8 : 4)) {
     const raw = record(rawEntity);
     if (!raw) continue;
     const key = identifier(clip(raw.key, 30) || clip(raw.label, 30), "");
     if (!key || seen.has(key) || ["schema", "stores", "row"].includes(key.toLowerCase())) continue;
     const fieldKeys = new Set<string>();
     const fields: EntityField[] = [];
-    for (const rawField of Array.isArray(raw.fields) ? raw.fields.slice(0, 10) : []) {
+    for (const rawField of Array.isArray(raw.fields) ? raw.fields.slice(0, live ? 14 : 10) : []) {
       const field = record(rawField);
-      if (!field) continue;
-      const fieldKey = identifier(clip(field.key, 30) || clip(field.label, 30), "");
-      if (!fieldKey || fieldKeys.has(fieldKey) || ["id", "createdAt", "updatedAt"].includes(fieldKey)) continue;
-      const type = fieldTypes.has(field.type as FieldType) ? (field.type as FieldType) : "text";
-      const options = type === "select" && Array.isArray(field.options) ? field.options.map((option) => clip(option, 40)).filter(Boolean).slice(0, 8) : undefined;
-      if (type === "select" && !options?.length) continue;
-      fieldKeys.add(fieldKey);
-      fields.push({ key: fieldKey, label: clip(field.label, 40) || fieldKey, type, ...(options ? { options } : {}), ...(field.required === true ? { required: true } : {}) });
+      const normalized = field ? normalizeField(field, Boolean(live), false) : null;
+      if (!normalized || fieldKeys.has(normalized.key)) continue;
+      fieldKeys.add(normalized.key);
+      fields.push(normalized);
     }
     if (!fields.length) continue;
     if (!fields.some((field) => field.type === "text")) fields.unshift({ key: "nombre", label: "Nombre", type: "text", required: true });
@@ -276,17 +380,12 @@ function normalizeEntities(value: unknown): Entity[] {
       .map((row) => {
         const clean: Record<string, SeedValue> = {};
         for (const field of fields) {
-          const cell = row[field.key];
-          if (field.type === "number" || field.type === "money") {
-            const number = Number(cell);
-            if (Number.isFinite(number)) clean[field.key] = number;
-          } else if (field.type === "boolean") {
-            if (typeof cell === "boolean") clean[field.key] = cell;
-          } else if (field.type === "select") {
-            if (typeof cell === "string" && field.options?.includes(cell)) clean[field.key] = cell;
-          } else if (typeof cell === "string" && cell.trim()) {
-            clean[field.key] = clipMultiline(cell, 400);
-          }
+          const cell = seedCell(field, row[field.key]);
+          if (cell !== undefined) clean[field.key] = cell;
+        }
+        if (live && Object.keys(clean).length) {
+          if (typeof row.id === "string" && seedIdPattern.test(row.id)) clean.id = row.id;
+          if (typeof row.branchId === "string" && branches.has(row.branchId)) clean.branchId = row.branchId;
         }
         return clean;
       })
@@ -299,7 +398,23 @@ function normalizeEntities(value: unknown): Entity[] {
       icon: iconOr(raw.icon, "Layers"),
       fields,
       seed,
+      ...(live
+        ? {
+            scope: raw.scope === "branch" ? ("branch" as const) : ("shared" as const),
+            sync: raw.sync === "recent" ? ("recent" as const) : ("all" as const),
+            write: roleList(raw.write, roles),
+            read: roleList(raw.read, roles),
+          }
+        : {}),
     });
+  }
+  if (live) {
+    // Las referencias deben apuntar a una entidad del plan.
+    const keys = new Set(entities.map((entity) => entity.key));
+    for (const entity of entities) {
+      entity.fields = entity.fields.filter((field) => field.type !== "ref" || keys.has(field.ref ?? ""));
+      for (const field of entity.fields) if (field.fields) field.fields = field.fields.filter((sub) => sub.type !== "ref" || keys.has(sub.ref ?? ""));
+    }
   }
   return entities;
 }
@@ -321,7 +436,7 @@ function genericEntity(): Entity {
   };
 }
 
-export type NormalizeInput = { brief: string; kind: BuildKind; composition: Composition; fallbackTitle: string };
+export type NormalizeInput = { brief: string; kind: BuildKind; composition: Composition; fallbackTitle: string; live?: boolean };
 
 /**
  * Convierte la propuesta del modelo (o null) en un plan válido: ids de sección y de sistema
@@ -345,7 +460,8 @@ export function normalizePlan(raw: unknown, input: NormalizeInput): BuildPlan {
   const requested = getDesignSystem(clip(data.designSystem, 30));
   const system = requested ?? input.composition.system;
 
-  let entities = kind === "app" ? normalizeEntities(data.entities) : [];
+  const live = kind === "app" && input.live ? normalizeLive(data.live) : null;
+  let entities = kind === "app" ? normalizeEntities(data.entities, live) : [];
   if (kind === "app" && !entities.length) entities = [genericEntity()];
   const entityKeys = new Set(entities.map((entity) => entity.key));
 
@@ -434,6 +550,7 @@ export function normalizePlan(raw: unknown, input: NormalizeInput): BuildPlan {
     chrome,
     pages,
     entities,
+    ...(live ? { live } : {}),
     suggestions,
     assumptions,
   };

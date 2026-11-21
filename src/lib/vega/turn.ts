@@ -31,6 +31,7 @@ import { xStatusLabels } from "@/lib/vega/x/tools";
 import { saveDeliveredProject } from "@/lib/projects/store";
 import { briefGate } from "@/lib/vega/briefing";
 import { builderEnabled, builderPrice } from "@/lib/builder/config";
+import { liveAppsAvailable } from "@/lib/liveapps/config";
 import { briefFromDelivery, startProjectBuild, startProjectEdit, type BuildView } from "@/lib/builder/runner";
 import { isUserToolkit, type UserToolkit } from "@/lib/vega/apps";
 import { HISTORY, SUMMARY_SLACK, scheduleSummary, summaryContext } from "@/lib/vega/summary";
@@ -265,7 +266,7 @@ export async function prepareVegaTurn(
   await expireStaleActions(user.id).catch(() => 0);
   const declined = await recentlyDeclined(user.id).catch(() => [] as string[]);
   const system = [
-    vegaSystemPrompt(user, connections, webSearch, memories, profile, new Date(), agent, { memoryOmitted: slice.omitted }),
+    vegaSystemPrompt(user, connections, webSearch, memories, profile, new Date(), agent, { memoryOmitted: slice.omitted, liveApps: liveAppsAvailable(user) }),
     personaPrompt(parsePersona(agent.persona)),
     teammates.length
       ? `Otros agentes del socio (puedes pasarles tareas con ${delegateTool}): ${teammates.map((mate) => (mate.specialty ? `${mate.name} — ${mate.specialty}` : mate.name)).join("; ")}. Tu memoria y tus rutinas son solo tuyas; los datos de perfil del socio se comparten.`
@@ -560,6 +561,7 @@ export async function runVegaTurn(turn: VegaTurn, emit: (event: VegaEvent) => vo
                 actionId: action.id,
                 kind: String(draft.kind ?? ""),
                 brief: briefFromDelivery(call.args ?? {}, draft),
+                live: draft.kind === "app" && call.args?.datos_en_vivo === true && liveAppsAvailable(turn.capUser ?? null),
               },
               { db: prisma },
             ).catch((error: unknown) => {

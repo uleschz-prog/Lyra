@@ -259,6 +259,10 @@ export function vegaTools(connections: VegaConnections, webSearch: boolean): Fun
               "Sitios y apps: encargo completo para el generador premium (negocio, ciudad, público, oferta, tono/estilo visual, páginas o pantallas, datos de contacto, entidades y campos de la app). Todo lo que dijo el socio, sin inventar.",
           },
           briefing: briefingSchema(["sitio", "app", "agente"]),
+          datos_en_vivo: {
+            type: "boolean",
+            description: "Solo apps y solo si tus instrucciones mencionan «Datos en vivo»: true cuando un equipo la usa a la vez (roles, sucursales, inventario, comandas). Guarda los datos en LYRA con PIN por persona.",
+          },
           supuestos: {
             type: "string",
             description: "Solo si el socio dijo explícitamente «tú decide» o similar: lista corta de lo que elegiste por él. Díselas en tu respuesta.",

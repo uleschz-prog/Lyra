@@ -5,7 +5,7 @@ import { getSectionDef, sectionTemplates } from "@/lib/builder/sections";
 import { sectionForTask } from "@/lib/builder/scaffold";
 import type { BuildPlan, FileTask, PlannedSection } from "@/lib/builder/types";
 
-export function fileSystemPrompt(kind: BuildPlan["kind"]) {
+export function fileSystemPrompt(kind: BuildPlan["kind"], options: { live?: boolean } = {}) {
   return [
     "Eres ingeniero front-end senior y diseñador de producto. Escribes UN archivo TSX de React 19 con Tailwind CSS v4 para un proyecto premium generado por LYRA.",
     "Devuelve SOLO el código dentro de un bloque ```tsx, sin explicaciones.",
@@ -13,12 +13,18 @@ export function fileSystemPrompt(kind: BuildPlan["kind"]) {
     "- Exporta por defecto una función componente con el nombre indicado. Sin props (salvo el marco Shell, que recibe { children }).",
     "- Imports permitidos: \"react\", \"lucide-react\" (solo íconos de la lista), \"../lib/router\" ({ Link, useRoute, navigate }; Link recibe to=\"/ruta\" o to=\"#ancla\" y opcional onNavigate)" +
       (kind === "app"
-        ? ", \"../lib/data\" ({ useCollection, readSettings, writeSettings }), \"../data/stores\" ({ schema, stores, type Row }) y \"../lib/format\" ({ formatValue, formatMoney, inputType, primaryField })."
+        ? `, "../lib/data" ({ useCollection, readSettings, writeSettings${options.live ? ", useLive, transact" : ""} }), "../data/stores" ({ schema, stores, type Row })${options.live ? ', "../components/LiveGate" ({ BranchSwitcher })' : ""} y "../lib/format" ({ formatValue, formatMoney, inputType, primaryField }).`
         : " y \"../lib/leads\" ({ sendLead } — opcional en formularios de contacto: sendLead({ Nombre: nombre, Teléfono: tel, Mensaje: msg }) antes de mostrar la confirmación)."),
     "- Prohibido: fetch, XMLHttpRequest, WebSocket, eval, new Function, dangerouslySetInnerHTML, localStorage/sessionStorage directos, import(), require, process.env, <script>, <iframe>, window.top/parent.",
     "- No escribas URLs externas salvo wa.me para WhatsApp e images.unsplash.com si el contenido ya trae la imagen. Nada de imágenes inventadas: usa degradados, formas, íconos y tipografía.",
     "- Usa SOLO las clases de color del sistema (bg-bg, bg-surface, bg-surface-2, text-ink, text-muted, border-line, bg-primary, text-primary, text-primary-ink, bg-accent, text-accent, text-accent-ink, con opacidades /10 /20…) y rounded-card, rounded-btn, rounded-input, shadow-card, font-display, font-body. Nada de colores fijos como bg-blue-500.",
     "- TypeScript válido y autocontenido: declara el contenido como const dentro del archivo. Accesible: alt, aria-label, labels en formularios, foco visible.",
+    ...(options.live
+      ? [
+          "- Datos en vivo: varias personas usan la app a la vez. Lee con useCollection (ya filtra por la sucursal en pantalla) y escribe con stores[key].create/update/remove; para existencias o contadores usa stores[key].inc(id, campo, cantidad), nunca update con un total calculado. Si un cambio toca varios registros (p. ej. mandar comanda y descontar inventario), envuélvelo en transact(() => { ... }).",
+          "- useLive() devuelve { member: { name, role, branchId }, branch, branches, roles, status }: muestra a cada rol sus acciones (role === \"admin\" ve todo) y pon <BranchSwitcher /> en la cabecera de pantallas con datos por sucursal.",
+        ]
+      : []),
     "Calidad: diseño premium y específico de este negocio, mobile-first, jerarquía tipográfica clara, ritmo de espacios generoso (py-20 sm:py-28 en secciones), estados hover/focus, microinteracciones sutiles con transition. Copia final en español de México; usa exactamente el contenido dado y mejóralo solo en estilo.",
   ].join("\n");
 }
@@ -43,6 +49,13 @@ function appContext(plan: BuildPlan) {
     "- stores[key]: DataStore con list(), get(id), create(values), update(id, values), remove(id), subscribe(fn).",
     "- useCollection(stores[key]) devuelve Row[] reactivo (Row = { id, createdAt, updatedAt, [campo]: unknown }).",
     "- schema[key] = { key, label, singular, icon, fields: [{ key, label, type, options?, required? }] }.",
+    ...(plan.live
+      ? [
+          "- Datos en vivo: stores[key].inc(id, campo, cantidad) suma sin pisar a otros; transact(() => {...}) guarda varios cambios juntos; useLive() da la persona, su rol y la sucursal; Row.branchId es la sucursal del registro.",
+          "- Campos «ref» guardan el id de otro registro (stores[ref].get(id)); campos «items» son arreglos de renglones con sus propios fields.",
+          `Roles: ${JSON.stringify(plan.live.roles)}. Sucursales: ${JSON.stringify(plan.live.branches)}.`,
+        ]
+      : []),
     `Entidades: ${JSON.stringify(entities)}`,
   ].join("\n");
 }

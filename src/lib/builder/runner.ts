@@ -9,6 +9,7 @@ import { gatewayBuilderModel, type BuilderModel } from "@/lib/builder/model";
 import { leadsHelperSource } from "@/lib/builder/scaffold";
 import { storeArtifacts, type ArtifactStore } from "@/lib/builder/storage";
 import type { BuildKind, BuildPlan, FileTask, ProjectFiles } from "@/lib/builder/types";
+import { LIVE_APP_BUILD_PRICE } from "@/lib/liveapps/config";
 import { appendProjectVersion, saveDeliveredProject, saveProjectVersion } from "@/lib/projects/store";
 import { findSecret } from "@/lib/vega/secret-filter";
 import type { ProjectFile } from "@/lib/vega/build-project";
@@ -108,6 +109,7 @@ const buildSelect = {
   actionId: true,
   kind: true,
   mode: true,
+  live: true,
   brief: true,
   status: true,
   step: true,
@@ -185,6 +187,8 @@ export async function startProjectBuild(
     actionId: string;
     kind: string;
     brief: string;
+    /** App con datos en vivo (precio LIVE_APP_BUILD_PRICE). */
+    live?: boolean;
   },
   deps: RunnerDeps,
 ): Promise<StartResult> {
@@ -203,8 +207,9 @@ export async function startProjectBuild(
     }
   }
 
-  const price = builderPrice(input.kind, deps.env);
-  const charge = await (deps.charge ?? defaultCharge)(input.user.id, price, `Vega · ${input.kind === "app" ? "app" : "sitio web"} (generador v2)`, `builder:${input.actionId}`);
+  const live = input.kind === "app" && input.live === true;
+  const price = live ? LIVE_APP_BUILD_PRICE : builderPrice(input.kind, deps.env);
+  const charge = await (deps.charge ?? defaultCharge)(input.user.id, price, `Vega · ${live ? "app con datos en vivo" : input.kind === "app" ? "app" : "sitio web"} (generador v2)`, `builder:${input.actionId}`);
   if (!charge.ok) return { ok: false, reason: "credits", message: charge.error };
 
   try {
@@ -214,6 +219,7 @@ export async function startProjectBuild(
         conversationId: input.conversationId,
         actionId: input.actionId,
         kind: input.kind,
+        live,
         brief: input.brief.slice(0, 12_000),
         credits: price,
         chargeId: charge.chargeId,
@@ -513,7 +519,7 @@ export async function advanceBuild(id: string, deps: RunnerDeps, budgetMs: numbe
     };
     const { state } = editing
       ? await advanceEdit(stateOf(current), engineDeps, budgetMs)
-      : await advanceEngine(stateOf(current), { brief: current.brief, kind: asKind(current.kind), title: plan?.title ?? "" }, engineDeps, budgetMs);
+      : await advanceEngine(stateOf(current), { brief: current.brief, kind: asKind(current.kind), title: plan?.title ?? "", live: current.live }, engineDeps, budgetMs);
     if (state.status === "failed") await failBuild(current, state.error ?? "El generador no pudo terminar.", deps);
     else if (state.step === "save") await (editing ? saveEditBuild : saveBuild)(current, state, deps);
     else await db.projectBuild.update({ where: { id }, data: { lockedUntil: null }, select: { id: true } });
