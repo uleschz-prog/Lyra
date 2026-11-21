@@ -169,7 +169,7 @@ export default function Layout({ children }: { children: ReactNode }) {
           <Link to="/" className="font-display text-lg font-bold text-ink">
             {appTitle}
           </Link>
-          <nav className="flex flex-1 gap-1 overflow-x-auto" aria-label="Pantallas">
+          <nav className="order-last -mx-1 flex w-full gap-1 overflow-x-auto px-1 sm:order-none sm:mx-0 sm:w-auto sm:flex-1 sm:px-0" aria-label="Pantallas">
             {pantallasDe(role).map((item) => (
               <Link
                 key={item.path}
@@ -180,7 +180,7 @@ export default function Layout({ children }: { children: ReactNode }) {
               </Link>
             ))}
           </nav>
-          <BranchSwitcher />
+          <BranchSwitcher className="ml-auto sm:ml-0" />
           <span className="text-xs text-muted">
             {live.member?.name} · {roleLabel}
           </span>
@@ -285,7 +285,7 @@ export default function Mesero() {
   }
 
   return (
-    <div className="grid gap-6 lg:grid-cols-[1fr_380px]">
+    <div className="grid gap-6 pb-24 lg:grid-cols-[1fr_380px] lg:pb-0">
       <section aria-label="Menú">
         <div className="mb-3 flex flex-wrap gap-2">
           {["Todas", ...categorias].map((item) => (
@@ -379,6 +379,17 @@ export default function Mesero() {
           </ul>
         </div>
       </aside>
+
+      {draft.length ? (
+        <div className="fixed inset-x-3 bottom-14 z-30 flex items-center gap-3 rounded-card border border-line bg-surface p-3 shadow-card lg:hidden">
+          <span className="flex-1 text-sm">
+            Mesa {mesa} · {draft.reduce((sum, item) => sum + item.cantidad, 0)} platillos · <strong>{money(total)}</strong>
+          </span>
+          <button type="button" className={primary} onClick={enviar}>
+            <Send size={16} /> Enviar
+          </button>
+        </div>
+      ) : null}
     </div>
   );
 }
