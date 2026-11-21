@@ -52,6 +52,15 @@ export function LiveDataPanel({
   const roles = overview?.roles ?? [];
   const [role, setRole] = useState(roles.find((item) => item.key !== "admin")?.key ?? "admin");
   const [branchId, setBranchId] = useState(overview?.branches[0]?.id ?? "");
+  // Al activar (o si cambian en el servidor) el panel toma las sucursales nuevas.
+  const serverBranches = JSON.stringify(overview?.branches ?? []);
+  const [seenBranches, setSeenBranches] = useState(serverBranches);
+  if (seenBranches !== serverBranches) {
+    const next = JSON.parse(serverBranches) as { id: string; name: string }[];
+    setSeenBranches(serverBranches);
+    setBranches(next);
+    if (!next.some((item) => item.id === branchId)) setBranchId(next[0]?.id ?? "");
+  }
 
   const roleLabel = new Map(roles.map((item) => [item.key, item.label]));
   const branchLabel = new Map((overview?.branches ?? []).map((item) => [item.id, item.name]));
