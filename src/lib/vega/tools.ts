@@ -87,7 +87,7 @@ export const freeTools = new Set(["recordar", "olvidar", "buscar_memoria", "prog
 const taskTools: FunctionDeclaration[] = [
   {
     name: "programar_rutina",
-    description: `Crea una rutina: un recordatorio único a una hora exacta o un horario recurrente (diario, lunes a viernes, semanal, mensual o cron personalizado) en la zona horaria del socio. Cuando se cumple, Vega la ejecuta en segundo plano: un recordatorio llega como aviso; una tarea corre un turno completo de Vega con la instrucción guardada. Llega al chat «Recordatorios de Vega», por correo si conectó Gmail y por WhatsApp si lo activó en el panel Rutinas. Los envíos a terceros nunca salen solos: quedan como tarjetas para que el socio confirme. Mínimo ${MIN_INTERVAL_MINUTES} minutos entre ejecuciones; máximo ${maxRoutines()} rutinas.`,
+    description: `Crea una rutina: un recordatorio único a una hora exacta o un horario recurrente (diario, lunes a viernes, semanal, mensual o cron personalizado) en la zona horaria del socio. Cuando se cumple, Vega la ejecuta en segundo plano: un recordatorio llega como aviso; una tarea corre un turno completo de Vega con la instrucción guardada. Llega al chat «Recordatorios de Vega», por correo si conectó Gmail y por WhatsApp si lo activó en Ajustes → Rutinas. Los envíos a terceros nunca salen solos: quedan como tarjetas para que el socio confirme. Mínimo ${MIN_INTERVAL_MINUTES} minutos entre ejecuciones; máximo ${maxRoutines()} rutinas.`,
     parameters: {
       type: "object",
       properties: {
@@ -405,7 +405,7 @@ export function vegaTools(connections: VegaConnections, webSearch: boolean): Fun
     tools.push({
       name: "pedir_conexion",
       description:
-        "Muestra al socio una tarjeta con el botón para conectar una app que todavía no conecta (o que hay que reconectar) cuando su pedido la necesita. Úsala en lugar de solo decirle que vaya a Conexiones.",
+        "Muestra al socio una tarjeta con el botón para conectar una app que todavía no conecta (o que hay que reconectar) cuando su pedido la necesita. Úsala en lugar de decirle que vaya a un panel o a Ajustes. Nunca te limites a indicarle el camino: muéstrale la tarjeta.",
       parameters: {
         type: "object",
         properties: {
