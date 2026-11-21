@@ -179,3 +179,133 @@ export function hasTrend(points: TrendPoint[]): boolean {
   return points.length >= 2 && points.some((point) => point.value !== 0);
 }
 
+export const VEGA_DRAFT_MAX = 2000;
+
+/** Limpia un borrador que se manda a Vega por la URL. */
+export function sanitizeVegaDraft(raw: unknown): string {
+  if (typeof raw !== "string") return "";
+  return raw.replace(/\s+/g, " ").trim().slice(0, VEGA_DRAFT_MAX);
+}
+
+export function isVegaAgentId(value: unknown): value is string {
+  return typeof value === "string" && /^[a-z0-9]{10,40}$/i.test(value);
+}
+
+/** Abre Vega, opcionalmente con un borrador o un agente concreto. */
+export function vegaHref(input: { mensaje?: string; agente?: string } = {}) {
+  const params = new URLSearchParams();
+  const mensaje = sanitizeVegaDraft(input.mensaje ?? "");
+  if (mensaje) params.set("mensaje", mensaje);
+  if (isVegaAgentId(input.agente)) params.set("agente", input.agente);
+  const query = params.toString();
+  return query ? `/dashboard/super-agent?${query}` : "/dashboard/super-agent";
+}
+
+export const homeQuickActions = [
+  {
+    id: "sitio",
+    label: "Crear un sitio",
+    mensaje: "Crea un sitio web para mi negocio: estructura, textos y un formulario de contacto.",
+  },
+  {
+    id: "agente",
+    label: "Agente de atención",
+    mensaje: "Arma un agente de atención a clientes con el tono de mi marca. Si no sabe algo, que me pase el caso.",
+  },
+  {
+    id: "seguimiento",
+    label: "Mensaje a un prospecto",
+    mensaje: "Redacta un mensaje corto de seguimiento para un prospecto. Lo reviso yo antes de enviarlo.",
+  },
+] as const;
+
+export type HomeStep = {
+  id: string;
+  title: string;
+  hint: string;
+  href: string;
+  done: boolean;
+};
+
+export type HomeStepInput = {
+  canUseVega: boolean;
+  talkedToVega: boolean;
+  projectCount: number;
+  publishedCount: number;
+  customAgentCount: number;
+  connectedApps: number;
+  showConnections: boolean;
+  directs: number;
+};
+
+/** Checklist honesta a partir del estado real del socio. */
+export function buildHomeSteps(input: HomeStepInput): HomeStep[] {
+  const steps: HomeStep[] = [];
+  if (!input.canUseVega) {
+    steps.push({
+      id: "plan",
+      title: "Activa tu membresía para usar Vega",
+      hint: "Vega está incluido en los planes de LYRA.",
+      href: "/dashboard/upgrade",
+      done: false,
+    });
+  } else {
+    steps.push({
+      id: "vega",
+      title: "Habla con Vega",
+      hint: "Pídele un sitio, un texto o un agente desde el chat.",
+      href: "/dashboard/super-agent",
+      done: input.talkedToVega,
+    });
+  }
+  steps.push({
+    id: "project",
+    title: "Crea tu primer proyecto",
+    hint: "Un sitio, una app o un agente que Vega construye contigo.",
+    href: input.canUseVega ? vegaHref({ mensaje: homeQuickActions[0].mensaje }) : "/dashboard/proyectos",
+    done: input.projectCount > 0,
+  });
+  if (input.projectCount > 0) {
+    steps.push({
+      id: "publish",
+      title: "Publica tu primer sitio o app",
+      hint: "Cuando esté listo, queda en línea con tu enlace de LYRA.",
+      href: "/dashboard/proyectos",
+      done: input.publishedCount > 0,
+    });
+  }
+  if (input.canUseVega) {
+    steps.push({
+      id: "agent",
+      title: "Crea un agente para tu negocio",
+      hint: "Atención, ventas o seguimiento, con su propia voz.",
+      href: vegaHref({ mensaje: homeQuickActions[1].mensaje }),
+      done: input.customAgentCount > 0,
+    });
+  }
+  if (input.showConnections) {
+    steps.push({
+      id: "connect",
+      title: "Conecta una de tus apps",
+      hint: "Correo, calendario u otras herramientas, desde el chat de Vega.",
+      href: "/dashboard/super-agent",
+      done: input.connectedApps > 0,
+    });
+  }
+  steps.push({
+    id: "invite",
+    title: "Invita a tu primer socio",
+    hint: "Comparte tu enlace cuando quieras; está en Invitar, arriba.",
+    href: "#invitar",
+    done: input.directs > 0,
+  });
+  return steps;
+}
+
+export function publishStatusLabel(status: string | null): { label: string; tone: "live" | "draft" | "off" } {
+  if (status === "published") return { label: "Publicado", tone: "live" };
+  if (status === "unpublished") return { label: "Fuera de línea", tone: "off" };
+  if (status === "draft") return { label: "Borrador", tone: "draft" };
+  return { label: "Sin publicar", tone: "draft" };
+}
+

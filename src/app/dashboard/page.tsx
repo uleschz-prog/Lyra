@@ -6,7 +6,7 @@ import { HomeView } from "@/components/dashboard/home-view";
 import { brand } from "@/config/brand";
 import { getCurrentUser } from "@/lib/auth/profile";
 import { homeSummary } from "@/lib/dashboard/home";
-import { packageLabel } from "@/lib/format";
+import { packageLabel, rankLabel } from "@/lib/format";
 
 export const metadata: Metadata = {
   title: "Inicio",
@@ -24,5 +24,14 @@ export default async function DashboardPage() {
   const summary = await homeSummary(user);
   const firstName = user.name.split(/\s+/).filter(Boolean)[0] || user.name;
 
-  return <HomeView firstName={firstName} planLabel={packageLabel[user.package]} referralLink={referralLink} summary={summary} />;
+  return (
+    <HomeView
+      firstName={firstName}
+      planLabel={packageLabel[user.package]}
+      rankLabel={rankLabel[user.rank]}
+      referralLink={referralLink}
+      walletBalance={user.walletBalance}
+      summary={summary}
+    />
+  );
 }
