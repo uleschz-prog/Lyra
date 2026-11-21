@@ -401,23 +401,23 @@ model PromoCodeUse {
 }
 
 model VegaAgent {
-  id           String   @id @default(cuid())
-  userId       String
-  defaultKey   String?  @unique
-  name         String
-  specialty    String   @default("") @db.Text
-  instructions String   @default("") @db.Text
-  avatar       String   @default("✦")
-  isDefault    Boolean  @default(false)
+  id              String   @id @default(cuid())
+  userId          String
+  defaultKey      String?  @unique
+  name            String
+  specialty       String   @default("") @db.Text
+  instructions    String   @default("") @db.Text
+  avatar          String   @default("✦")
+  isDefault       Boolean  @default(false)
   /// Vega v2: personalidad (tono, trato, emojis, extensión, reglas). null = la de siempre.
-  persona      Json?
+  persona         Json?
   /// Reservado para el panel de administración (plantillas de agente con versión).
   templateId      String?
   templateVersion Int?
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
 
-  user          User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user          User               @relation(fields: [userId], references: [id], onDelete: Cascade)
   conversations VegaConversation[]
   jobs          VegaJob[]
   memories      VegaMemory[]
@@ -428,16 +428,16 @@ model VegaAgent {
 }
 
 model VegaConversation {
-  id        String   @id @default(cuid())
-  userId    String
-  agentId   String
-  title     String   @default("Nueva conversación")
+  id             String    @id @default(cuid())
+  userId         String
+  agentId        String
+  title          String    @default("Nueva conversación")
   /// Resumen de los mensajes viejos que ya no entran en el historial.
   summary        String?   @db.Text
   /// Fecha del último mensaje incluido en el resumen.
   summaryThrough DateTime?
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
 
   user     User          @relation(fields: [userId], references: [id], onDelete: Cascade)
   agent    VegaAgent     @relation(fields: [agentId], references: [id], onDelete: Cascade)
@@ -639,26 +639,26 @@ model VegaWhatsappBlock {
 }
 
 model VegaAction {
-  id             String   @id @default(cuid())
+  id             String    @id @default(cuid())
   userId         String
   conversationId String
   kind           String
   payload        Json
-  status         String   @default("pending")
-  result         String?  @db.Text
+  status         String    @default("pending")
+  result         String?   @db.Text
   /// read | internal | write | send (política de confirmación)
   riskClass      String?
   /// Huella (tipo + contenido) para reconocer una acción rechazada que se repite.
   fingerprint    String?
   /// En el turno que la preparó, Vega había leído contenido externo.
-  tainted        Boolean  @default(false)
+  tainted        Boolean   @default(false)
   /// Una acción pendiente vence a esta hora.
   expiresAt      DateTime?
   decidedAt      DateTime?
   /// user | autonomy | system
   executedBy     String?
-  createdAt      DateTime @default(now())
-  updatedAt      DateTime @updatedAt
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
 
   user         User             @relation(fields: [userId], references: [id], onDelete: Cascade)
   conversation VegaConversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
@@ -1083,31 +1083,31 @@ model LessonComment {
 
 /// DEPRECATED (P1): la Academia se retiró; la app ya no usa este modelo. La tabla se conserva (sin migración).
 model AcademyTransaction {
-  id                     String               @id @default(cuid())
+  id                     String                     @id @default(cuid())
   courseId               String
   buyerId                String
   creatorId              String
   creatorAccountId       String?
-  externalReference      String               @unique
-  gatewayPreferenceId    String?              @unique
-  gatewayPaymentId       String?              @unique
-  totalAmount            Decimal              @db.Decimal(12, 2)
-  lyraFee7Percent        Decimal              @db.Decimal(12, 2)
-  creatorPayout93Percent Decimal              @db.Decimal(12, 2)
-  gatewayFee             Decimal?             @db.Decimal(12, 2)
+  externalReference      String                     @unique
+  gatewayPreferenceId    String?                    @unique
+  gatewayPaymentId       String?                    @unique
+  totalAmount            Decimal                    @db.Decimal(12, 2)
+  lyraFee7Percent        Decimal                    @db.Decimal(12, 2)
+  creatorPayout93Percent Decimal                    @db.Decimal(12, 2)
+  gatewayFee             Decimal?                   @db.Decimal(12, 2)
   currency               String
-  feeRate                Decimal              @default(0.07) @db.Decimal(5, 4)
-  paymentGateway         String               @default("mercadopago")
-  paymentGatewayStatus   AcademyPaymentStatus @default(CREATED)
+  feeRate                Decimal                    @default(0.07) @db.Decimal(5, 4)
+  paymentGateway         String                     @default("mercadopago")
+  paymentGatewayStatus   AcademyPaymentStatus       @default(CREATED)
   creatorPayoutStatus    AcademyCreatorPayoutStatus @default(PENDING)
   creatorPaidAt          DateTime?
   creatorPayoutReference String?
   gatewayStatusDetail    String?
-  checkoutUrl            String?              @db.Text
+  checkoutUrl            String?                    @db.Text
   paidAt                 DateTime?
   refundedAt             DateTime?
-  createdAt              DateTime             @default(now())
-  updatedAt              DateTime             @updatedAt
+  createdAt              DateTime                   @default(now())
+  updatedAt              DateTime                   @updatedAt
 
   course         Course            @relation(fields: [courseId], references: [id], onDelete: Restrict)
   buyer          User              @relation("AcademyBuyer", fields: [buyerId], references: [id], onDelete: Restrict)
@@ -1228,6 +1228,7 @@ model Project {
   versions ProjectVersion[]
   publish  ProjectPublish?
   leads    ProjectLead[]
+  appSpace AppSpace?
 
   @@index([userId, deletedAt, updatedAt])
   @@index([userId, groupKey])
@@ -1466,4 +1467,116 @@ model AuthAttempt {
 
   @@index([keyHash, createdAt])
   @@index([createdAt])
+}
+
+// Datos en vivo de apps publicadas (PR 2): base compartida por proyecto. Cada app tiene su espacio,
+// su equipo con PIN, sesiones y registros JSON por colección. Todo se filtra por espacio en el
+// servidor; el navegador nunca elige a qué espacio escribe.
+model AppSpace {
+  id          String    @id @default(cuid())
+  projectId   String    @unique
+  /// Dueño (socio de LYRA); se copia del proyecto para consultas rápidas.
+  userId      String
+  /// active | paused
+  status      String    @default("active")
+  /// Manifiesto vigente: { version, title, roles, collections } sin semillas.
+  schema      Json
+  /// [{ id, name }]
+  branches    Json
+  /// Contador de cambios: cada escritura toma el siguiente número (sirve para sincronizar).
+  seq         Int       @default(0)
+  /// Registros activos (sin borrar), para la cuota.
+  recordCount Int       @default(0)
+  /// Cuota mensual (desactivada mientras LIVE_APP_MONTHLY_FEE sea 0): pagado hasta.
+  paidUntil   DateTime?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  project  Project      @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  members  AppMember[]
+  sessions AppSession[]
+  records  AppRecord[]
+  usage    AppUsage[]
+
+  @@index([userId])
+}
+
+model AppMember {
+  id         String    @id @default(cuid())
+  spaceId    String
+  name       String
+  /// admin o un rol del manifiesto (mesero, cocina, caja…)
+  role       String
+  /// Sucursal fija (null = todas; solo tiene sentido para admin)
+  branchId   String?
+  /// HMAC del PIN con el secreto del servidor; único por espacio (el PIN identifica a la persona).
+  pinDigest  String
+  active     Boolean   @default(true)
+  lastSeenAt DateTime?
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+
+  space    AppSpace     @relation(fields: [spaceId], references: [id], onDelete: Cascade)
+  sessions AppSession[]
+
+  @@unique([spaceId, pinDigest])
+  @@index([spaceId, active])
+}
+
+model AppSession {
+  id          String   @id @default(cuid())
+  spaceId     String
+  memberId    String
+  /// sha256 del token (el token solo vive en la memoria de la pestaña)
+  tokenHash   String   @unique
+  expiresAt   DateTime
+  /// Ventana de límite de peticiones por sesión
+  windowStart DateTime @default(now())
+  windowCount Int      @default(0)
+  lastUsedAt  DateTime @default(now())
+  createdAt   DateTime @default(now())
+
+  space  AppSpace  @relation(fields: [spaceId], references: [id], onDelete: Cascade)
+  member AppMember @relation(fields: [memberId], references: [id], onDelete: Cascade)
+
+  @@index([memberId])
+  @@index([spaceId, expiresAt])
+}
+
+model AppRecord {
+  id          String   @id @default(cuid())
+  spaceId     String
+  /// Id que usa la app (lo genera el navegador para escribir sin esperar)
+  rid         String
+  collection  String
+  /// Sucursal del registro (null = compartido entre sucursales)
+  branchId    String?
+  data        Json
+  version     Int      @default(1)
+  /// Número de cambio del espacio en la última escritura
+  seq         Int
+  deleted     Boolean  @default(false)
+  createdById String?
+  updatedById String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  space AppSpace @relation(fields: [spaceId], references: [id], onDelete: Cascade)
+
+  @@unique([spaceId, rid])
+  @@index([spaceId, seq])
+  @@index([spaceId, collection, deleted])
+}
+
+model AppUsage {
+  id      String @id @default(cuid())
+  spaceId String
+  /// Día en CDMX (YYYY-MM-DD)
+  day     String
+  writes  Int    @default(0)
+  logins  Int    @default(0)
+
+  space AppSpace @relation(fields: [spaceId], references: [id], onDelete: Cascade)
+
+  @@unique([spaceId, day])
 }
