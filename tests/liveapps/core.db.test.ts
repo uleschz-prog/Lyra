@@ -4,7 +4,7 @@ import { PrismaPg } from "@prisma/adapter-pg";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import { PrismaClient } from "@/generated/prisma/client";
-import { addMember, applyBatch, authenticate, enableLiveSpace, listChanges, loginWithPin, resetMemberPin, saveBranches, setMemberActive, setSpaceStatus } from "@/lib/liveapps/core";
+import { addMember, applyBatch, authenticate, enableLiveSpace, exportCollection, listChanges, loginWithPin, resetMemberPin, saveBranches, setMemberActive, setSpaceStatus, spaceOverview } from "@/lib/liveapps/core";
 
 import { testManifest } from "./fixtures";
 
@@ -187,5 +187,16 @@ suite("Data API de apps (Postgres)", () => {
     for (let index = 0; index < 10; index += 1) await loginWithPin(db, { slug, pin: "000000", ip: "10.9.9.9" });
     expect(await loginWithPin(db, { slug, pin: adminPin, ip: "10.9.9.9" })).toMatchObject({ ok: false, status: 429 });
     expect((await loginWithPin(db, { slug, pin: adminPin, ip: "10.9.9.10" })).ok).toBe(true);
+  });
+
+  it("panel del dueño: conteos, equipo y exportación (nadie más los ve)", async () => {
+    const overview = await spaceOverview(db, userId, projectId);
+    expect(overview?.collections.find((collection) => collection.key === "comandas")!.count).toBeGreaterThanOrEqual(21);
+    expect(overview?.members.length).toBe(5);
+    expect(overview?.today.writes).toBeGreaterThan(0);
+    expect(await spaceOverview(db, "intruso", projectId)).toBeNull();
+    const exported = await exportCollection(db, userId, projectId, "existencias");
+    expect(exported?.rows.map((row) => row.id).sort()).toEqual(["centro_cecina", "norte_cecina"]);
+    expect(await exportCollection(db, userId, projectId, "noexiste")).toBeNull();
   });
 });
