@@ -5,6 +5,7 @@ import { fileTasks, scaffoldFiles, scaffoldPaths } from "@/lib/builder/scaffold"
 import { templateSource } from "@/lib/builder/generate";
 import type { BuildPlan } from "@/lib/builder/types";
 import { normalizeManifest } from "@/lib/liveapps/manifest";
+import { findSecret } from "@/lib/vega/secret-filter";
 import { liveConfigScript, publishedCsp, publishedPageHtml } from "@/lib/publish/page";
 
 import { banks, fixturePlan } from "../builder/fixtures";
@@ -40,6 +41,8 @@ describe("andamiaje con datos en vivo", () => {
     expect(manifest?.roles.map((role) => role.key)).toEqual(["admin", "mesero"]);
     expect(manifest?.collections[0]).toMatchObject({ scope: "branch", sync: "recent", write: ["mesero"] });
     for (const path of ["src/lib/live.ts", "src/components/LiveGate.tsx", "lyra.app.json"]) expect(scaffoldPaths.has(path)).toBe(true);
+    // La última barrera del guardado no debe confundir el motor con una llave o contraseña.
+    for (const [path, content] of Object.entries(files)) expect([path, findSecret(content)]).toEqual([path, null]);
   }, 30_000);
 
   it("una app normal sigue local: sin PIN ni manifiesto", async () => {

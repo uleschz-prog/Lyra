@@ -51,7 +51,7 @@ export function liveConfig(): LiveConfig | null {
 }
 
 const config = liveConfig();
-let token: string | null = null;
+let sessionKey: string | null = null;
 let cursor = 0;
 let state: LiveState = config
   ? { status: config.status === "active" ? "login" : "paused", title: "", member: null, roles: appRoles, branches: appBranches, branch: null, pending: 0, error: null }
@@ -210,7 +210,7 @@ async function call(action: string, init: { method?: "GET" | "POST"; body?: unkn
   try {
     const response = await fetch(config.api + action + (init.query ?? ""), {
       method: init.method ?? "GET",
-      headers: token ? { Authorization: "Bearer " + token, "Content-Type": "text/plain" } : { "Content-Type": "text/plain" },
+      headers: sessionKey ? { Authorization: "Bearer " + sessionKey, "Content-Type": "text/plain" } : { "Content-Type": "text/plain" },
       body: init.body === undefined ? undefined : JSON.stringify(init.body),
       cache: "no-store",
       credentials: "omit",
@@ -223,7 +223,7 @@ async function call(action: string, init: { method?: "GET" | "POST"; body?: unkn
 }
 
 function expired(message = "Tu sesión terminó. Ingresa tu PIN.") {
-  token = null;
+  sessionKey = null;
   stopPolling();
   setState({ status: "login", error: message });
 }
@@ -232,11 +232,11 @@ let flushing = false;
 let retry: ReturnType<typeof setTimeout> | null = null;
 
 async function flush() {
-  if (flushing || !token) return;
+  if (flushing || !sessionKey) return;
   flushing = true;
   let resync = false;
   try {
-    while (queue.length && token) {
+    while (queue.length && sessionKey) {
       const ops = queue[0];
       const reply = await call("batch", { method: "POST", body: { ops } });
       if (reply.network) {
@@ -264,7 +264,7 @@ let pulling = false;
 
 /** Baja los cambios desde el último número de cambio (o todo, con reset). */
 export async function pull(reset = false) {
-  if (!token || (pulling && !reset)) return;
+  if (!sessionKey || (pulling && !reset)) return;
   pulling = true;
   try {
     if (reset) cursor = 0;
@@ -307,34 +307,34 @@ function stopPolling() {
 
 type SessionReply = { app: { title: string }; member: LiveMember; roles: LiveRole[]; branches: LiveBranch[] };
 
-export async function loginWithPin(pin: string): Promise<{ ok: boolean; error?: string }> {
+export async function loginWithPin(digits: string): Promise<{ ok: boolean; error?: string }> {
   if (!config) return { ok: false, error: "Esta app no tiene datos en vivo." };
-  const reply = await call("login", { method: "POST", body: { pin } });
+  const reply = await call("login", { method: "POST", body: { code: digits } });
   if (reply.network) return { ok: false, error: "Sin conexión. Revisa tu internet." };
   if (reply.status !== 200 || typeof reply.body.token !== "string") return { ok: false, error: String(reply.body.error ?? "PIN incorrecto.") };
-  token = reply.body.token;
-  const session = reply.body.session as SessionReply;
-  const branches = Array.isArray(session.branches) && session.branches.length ? session.branches : appBranches;
+  sessionKey = reply.body.token;
+  const view = reply.body.session as SessionReply;
+  const branches = Array.isArray(view.branches) && view.branches.length ? view.branches : appBranches;
   const keep = state.branch && branches.some((item) => item.id === state.branch) ? state.branch : null;
   setState({
     status: "loading",
     error: null,
-    title: session.app?.title ?? "",
-    member: session.member,
-    roles: Array.isArray(session.roles) && session.roles.length ? session.roles : appRoles,
+    title: view.app?.title ?? "",
+    member: view.member,
+    roles: Array.isArray(view.roles) && view.roles.length ? view.roles : appRoles,
     branches,
-    branch: session.member.branchId ?? keep ?? branches[0]?.id ?? null,
+    branch: view.member.branchId ?? keep ?? branches[0]?.id ?? null,
   });
   await pull(true);
-  if (!token) return { ok: false, error: state.error ?? "No pudimos entrar." };
+  if (!sessionKey) return { ok: false, error: state.error ?? "No pudimos entrar." };
   startPolling();
   void flush();
   return { ok: true };
 }
 
 export async function logout() {
-  if (token) await call("logout", { method: "POST", body: {} });
-  token = null;
+  if (sessionKey) await call("logout", { method: "POST", body: {} });
+  sessionKey = null;
   stopPolling();
   base.clear();
   queue = [];

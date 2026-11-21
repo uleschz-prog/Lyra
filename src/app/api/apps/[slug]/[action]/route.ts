@@ -39,7 +39,7 @@ export async function POST(request: Request, context: Context) {
     if (action === "login") {
       const parsed = await readJsonBody(request);
       if (!parsed.ok) return liveJson(parsed.status, parsed);
-      const result = await loginWithPin(getPrisma(), { slug, pin: parsed.body.pin, ip: clientIp(request) });
+      const result = await loginWithPin(getPrisma(), { slug, pin: parsed.body.code ?? parsed.body.pin, ip: clientIp(request) });
       return liveJson(result.ok ? 200 : result.status, result);
     }
     if (action !== "batch" && action !== "logout") return liveJson(404, { ok: false, error: "No existe." });
