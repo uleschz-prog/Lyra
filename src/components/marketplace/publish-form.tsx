@@ -9,7 +9,7 @@ import { publishTemplateAction } from "@/app/dashboard/marketplace/actions";
 
 type ProjectOption = { id: string; title: string; kind: string; versionCount: number; summary: string };
 
-const kindLabels: Record<string, string> = { sitio: "Sitio web", app: "App", agente: "Agente" };
+const kindLabels: Record<string, string> = { sitio: "Sitio web", app: "App", agente: "Agente", juego: "Juego" };
 const field =
   "w-full rounded-xl border border-[#E7E2DA] bg-white px-3 py-2.5 text-sm text-[#1E1E24] outline-none focus:border-[#A78BFA] dark:border-white/12 dark:bg-[#181625] dark:text-[#F2F0F7]";
 

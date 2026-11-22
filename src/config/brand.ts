@@ -58,7 +58,7 @@ export const officeModes = [
       {
         href: "/dashboard/marketplace",
         label: "Marketplace",
-        description: "Plantillas de sitios, apps y agentes",
+        description: "Plantillas de sitios, apps, agentes y juegos",
         icon: Store,
       },
       {

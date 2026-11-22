@@ -47,6 +47,7 @@ const full: Record<BriefKind, Record<string, string>> = {
   sitio: { negocio: "Sonríe Pachuca, clínica dental", objetivo: "Agendar citas", publico: "Familias de Pachuca", contacto: "WhatsApp 771 000 0000, español" },
   app: { proposito: "Tomar pedidos de pasteles", usuarios: "Mi equipo", datos: "Pedidos con cliente, fecha y total" },
   agente: { rol: "Atención a clientes de mi clínica", canal: "WhatsApp", tono: "Cálido y cercano", conocimiento: "Limpieza $600, lunes a sábado 9 a 19" },
+  juego: { idea: "Un taco que esquiva chiles y junta limones", genero: "Arcade", ranking: "Sí, con ranking en línea" },
 };
 
 describe("briefing: preguntas por tipo", () => {

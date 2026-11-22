@@ -119,7 +119,7 @@ function mentions(brief: string, words: string[]) {
 
 /** Composición determinista: el punto de partida del plan y el respaldo si el modelo falla. */
 export function composeSkeleton(brief: string, kind: BuildKind): Composition {
-  const candidates = rankDesignSystems(brief, kind).slice(0, 4);
+  const candidates = rankDesignSystems(brief, kind === "app" ? "app" : "sitio").slice(0, 4);
   const system = candidates[0];
   const choose = (category: string, salt = category) => pick(byCategory(kind, category), brief, system, salt)?.id;
 

@@ -1,6 +1,6 @@
 import { zipStore } from "@/lib/vega/zip-store";
 
-export type ProjectKind = "app" | "sitio" | "agente";
+export type ProjectKind = "app" | "sitio" | "agente" | "juego";
 
 export type ProjectFile = { path: string; content: string };
 
@@ -26,7 +26,7 @@ type Section =
   | { tipo: "texto"; titulo: string; parrafos: string[] }
   | { tipo: "agente"; nombre: string; mision: string; reglas: string[]; ejemplos: Example[] };
 
-const kinds = new Set<ProjectKind>(["app", "sitio", "agente"]);
+const kinds = new Set<ProjectKind>(["app", "sitio", "agente", "juego"]);
 
 function clip(value: unknown, max: number) {
   return typeof value === "string" ? value.replace(/\s+/g, " ").trim().slice(0, max) : "";
@@ -66,7 +66,7 @@ function colorOf(value: unknown, kind: ProjectKind) {
   return /^#[0-9a-fA-F]{6}$/.test(color) ? color : fallback;
 }
 
-function suggestionsFor(kind: ProjectKind, title: string, given: unknown) {
+export function suggestionsFor(kind: ProjectKind, title: string, given: unknown) {
   const fromModel = Array.isArray(given)
     ? given.map((item) => clip(item, 140)).filter((item) => item.length >= 8 && !/[<>]/.test(item)).slice(0, 3)
     : [];
@@ -76,6 +76,13 @@ function suggestionsFor(kind: ProjectKind, title: string, given: unknown) {
       `Hazme una imagen de presentación para ${title}`,
       `Crea un video corto presentando a ${title}`,
       "Escríbeme el mensaje de WhatsApp con el que este agente saluda",
+    ];
+  }
+  if (kind === "juego") {
+    return [
+      `Hazme una imagen de portada para ${title}`,
+      `Crea un video corto para anunciar ${title}`,
+      "Agrega un nivel más difícil",
     ];
   }
   if (kind === "sitio") {
@@ -598,11 +605,13 @@ export function buildProject(raw: unknown): { ok: true; project: ProjectDraft } 
   const input = record(raw);
   if (!input) return { ok: false, error: "El proyecto tiene que ser un objeto." };
   const kind = clip(input.tipo, 20);
-  if (!kinds.has(kind as ProjectKind)) return { ok: false, error: "El tipo debe ser app, sitio o agente." };
+  if (!kinds.has(kind as ProjectKind)) return { ok: false, error: "El tipo debe ser app, sitio, agente o juego." };
   const projectKind = kind as ProjectKind;
   const title = clip(input.titulo, 80);
   const summary = clip(input.resumen, 280);
   if (title.length < 3 || summary.length < 8) return { ok: false, error: "Faltan el título o el resumen." };
+  // Juego: la versión básica la arma el modo juego (src/lib/games/basic.ts) para no cargar el motor en el cliente.
+  if (projectKind === "juego") return { ok: false, error: "Los juegos se arman con el modo juego." };
   const parsed = parseSections(input.secciones);
   if (typeof parsed === "string") return { ok: false, error: parsed };
   if (projectKind === "agente" && !parsed.some((section) => section.tipo === "agente")) {

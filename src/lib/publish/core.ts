@@ -42,7 +42,7 @@ export async function publishProject(
 ): Promise<Result<{ publish: PublishView }>> {
   const project = await ownedProject(db, input.userId, input.projectId);
   if (!project) return { ok: false, error: "No encontramos ese proyecto." };
-  if (!isProjectKind(project.kind) || !hasReadySite(project.kind)) return { ok: false, error: "Solo se pueden publicar sitios y apps." };
+  if (!isProjectKind(project.kind) || !hasReadySite(project.kind)) return { ok: false, error: "Solo se pueden publicar sitios, apps y juegos." };
   const slug = checkSlug(input.slug);
   if (!slug.ok) return { ok: false, error: slug.error };
   const number = typeof input.versionNumber === "number" && Number.isInteger(input.versionNumber) ? input.versionNumber : project.versionCount;
@@ -78,7 +78,7 @@ export async function unpublishProject(db: PublishDb, input: { userId: string; p
 
 export type PublishedTarget = {
   projectId: string;
-  kind: "sitio" | "app";
+  kind: "sitio" | "app" | "juego";
   slug: string;
   title: string;
   summary: string;
@@ -101,7 +101,7 @@ export async function findPublished(db: PublishDb, rawSlug: string): Promise<Pub
   if (!version || version.projectId !== project.id) return null;
   return {
     projectId: project.id,
-    kind: project.kind === "app" ? "app" : "sitio",
+    kind: project.kind === "app" ? "app" : project.kind === "juego" ? "juego" : "sitio",
     slug: row.slug,
     title: project.title,
     summary: version.summary || project.summary,

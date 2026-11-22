@@ -27,12 +27,17 @@ export function builderModels(env: Env = process.env) {
   return { gemini, openrouter };
 }
 
-export type BuildPriceKind = "sitio" | "app" | "edit" | "agente";
+export type BuildPriceKind = "sitio" | "app" | "edit" | "agente" | "juego" | "juego_ranking";
 
-/** Créditos por trabajo (decisión de Ule): sitio/app 10, edición 2, agente 5. Fuera del tope del 5 %. */
+/**
+ * Créditos por trabajo (decisión de Ule): sitio/app 10, edición 2, agente 5. Modo juego: 10, o 20
+ * con ranking en línea (igual que una app con datos en vivo). Fuera del tope del 5 %.
+ */
 export function builderPrice(kind: BuildPriceKind, env: Env = process.env) {
   if (kind === "sitio") return readInt(env.VEGA_BUILDER_PRICE_SITE, 10, 0, 1000);
   if (kind === "app") return readInt(env.VEGA_BUILDER_PRICE_APP, 10, 0, 1000);
+  if (kind === "juego") return readInt(env.VEGA_BUILDER_PRICE_GAME, 10, 0, 1000);
+  if (kind === "juego_ranking") return readInt(env.VEGA_BUILDER_PRICE_GAME_RANKING, 20, 0, 1000);
   if (kind === "edit") return readInt(env.VEGA_BUILDER_PRICE_EDIT, 2, 0, 1000);
   return readInt(env.VEGA_BUILDER_PRICE_AGENT, 5, 0, 1000);
 }

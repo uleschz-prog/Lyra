@@ -18,6 +18,7 @@ const kinds = [
   { value: "sitio", label: "Sitios web" },
   { value: "app", label: "Apps" },
   { value: "agente", label: "Agentes" },
+  { value: "juego", label: "Juegos" },
 ];
 const prices = [
   { value: "", label: "Cualquier precio" },
@@ -52,7 +53,7 @@ export default async function MarketplacePage({ searchParams }: { searchParams: 
       <PageHeader
         eyebrow="Crear"
         title="Marketplace"
-        description="Plantillas de sitios web, apps y agentes listas para usar. Elige una, cópiala a tus Proyectos y personalízala con Vega. También puedes publicar las tuyas."
+        description="Plantillas de sitios web, apps, agentes y juegos listas para usar. Elige una, cópiala a tus Proyectos y personalízala con Vega. También puedes publicar las tuyas."
       />
 
       <div className="mb-6 flex flex-wrap items-center gap-2">

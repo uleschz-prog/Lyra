@@ -1,10 +1,10 @@
 import Link from "next/link";
-import { AppWindow, Bot, Globe, Users } from "lucide-react";
+import { AppWindow, Bot, Gamepad2, Globe, Users } from "lucide-react";
 
 import type { TemplateCard as Card } from "@/lib/marketplace/core";
 
-const icons = { sitio: Globe, app: AppWindow, agente: Bot } as const;
-const labels = { sitio: "Sitio web", app: "App", agente: "Agente" } as const;
+const icons = { sitio: Globe, app: AppWindow, agente: Bot, juego: Gamepad2 } as const;
+const labels = { sitio: "Sitio web", app: "App", agente: "Agente", juego: "Juego" } as const;
 
 export function PriceTag({ price }: { price: number }) {
   return price > 0 ? (

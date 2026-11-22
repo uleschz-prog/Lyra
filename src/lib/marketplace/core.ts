@@ -318,7 +318,9 @@ export async function cloneTemplate(db: MarketDb, input: { user: Viewer; templat
       files: cleaned.files as unknown as Prisma.InputJsonValue,
       suggestions: (template.kind === "agente"
         ? ["Descarga los archivos desde Proyectos", "Pídele a Vega uno nuevo con los datos de tu negocio"]
-        : template.generator === "vega-v2"
+        : template.kind === "juego"
+          ? ["Cámbiale colores, velocidad, textos o poderes con «Editar con Vega» en Proyectos", "Publícalo en LYRA para activar el ranking en línea"]
+          : template.generator === "vega-v2"
           ? ["Cámbiale textos, precios y colores con «Editar con Vega» en Proyectos", "Publícalo con tu dirección o descarga el sitio listo"]
           : ["Descarga el sitio listo o el código desde Proyectos", "Pídele a Vega uno nuevo con los datos de tu negocio"]) as unknown as Prisma.InputJsonValue,
       sizeBytes: cleaned.bytes,

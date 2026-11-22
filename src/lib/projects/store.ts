@@ -5,8 +5,8 @@ import type { ProjectDraft, ProjectFile, ProjectKind } from "@/lib/vega/build-pr
 
 export type ProjectDb = Pick<PrismaClient, "project" | "projectVersion">;
 
-export const projectKinds: readonly ProjectKind[] = ["sitio", "app", "agente"];
-export const projectKindLabels: Record<ProjectKind, string> = { sitio: "Sitio web", app: "App", agente: "Agente" };
+export const projectKinds: readonly ProjectKind[] = ["sitio", "app", "agente", "juego"];
+export const projectKindLabels: Record<ProjectKind, string> = { sitio: "Sitio web", app: "App", agente: "Agente", juego: "Juego" };
 
 /** Tope por versión. PR C: el generador v2 produce proyectos de varios archivos (Blob o base). */
 export const maxProjectVersionBytes = 3_000_000;
