@@ -69,3 +69,12 @@ describe("revisión del código de juego", () => {
     expect(extractGameCode("hola\n```js\nvar a=1;\n```\n```javascript\nvar bb = 22;\n```")).toBe("var bb = 22;\n");
   });
 });
+
+describe("textos de fin de juego", () => {
+  it("el rompebloques usa un motivo real y el motor no inventa subtítulo sin motivo", () => {
+    const source = neonBlocksSource({ title: "Bloques Neón", colors: {}, leaderboard: true });
+    expect(source).toContain('g.over("Se acabaron las vidas.")');
+    expect(gameRuntimeSource).toContain('(overReason ? \'<p class="lg-sub">\'');
+    for (const text of [source, gameRuntimeSource]) expect(text).not.toMatch(/fin de la prueba|lorem|ipsum/i);
+  });
+});
