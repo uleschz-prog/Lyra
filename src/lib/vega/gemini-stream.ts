@@ -1,4 +1,4 @@
-import { geminiCredentials } from "@/lib/ai/generate";
+import { gatewayMode, geminiCredentials } from "@/lib/ai/models";
 import { providerError, readJson } from "@/lib/ai/providers";
 import type { ModelUsage } from "@/lib/vega/usage";
 
@@ -19,8 +19,9 @@ export type FunctionDeclaration = {
   parameters: Record<string, unknown>;
 };
 
+/** Vega puede responder con AI Gateway activo o con la clave de Gemini (ruta anterior). */
 export function vegaConfigured() {
-  return Boolean(geminiCredentials().apiKey);
+  return gatewayMode().enabled || Boolean(geminiCredentials().apiKey);
 }
 
 /** Ajustes de generación (el generador v2 pide respuestas más largas o JSON). */

@@ -1,12 +1,14 @@
 /** Uso de tokens y costo en USD de las llamadas al modelo de Vega. */
 import { callCostUsd, turnCostUsd, type CostSource } from "@/lib/vega/cost";
 
+export type ModelProvider = "gemini" | "openrouter" | "gateway";
+
 export type ModelUsage = {
-  provider: "gemini" | "openrouter";
+  provider: ModelProvider;
   model: string;
   inputTokens: number;
   outputTokens: number;
-  /** Costo real si el proveedor lo informa (OpenRouter); si no, null y se calcula con la tabla. */
+  /** Costo real si el proveedor lo informa (OpenRouter, AI Gateway); si no, null y se calcula con la tabla. */
   reportedCostUsd: number | null;
 };
 
