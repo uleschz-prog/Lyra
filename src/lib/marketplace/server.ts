@@ -30,7 +30,7 @@ export const ledgerCredits: Credits = {
 
 let seeded = false;
 
-/** Siembra perezosa e idempotente de las 6 plantillas oficiales (una vez por instancia). */
+/** Siembra perezosa e idempotente de las plantillas oficiales (una vez por instancia). */
 export async function ensureOfficialTemplates() {
   if (seeded) return;
   try {

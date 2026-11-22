@@ -9,6 +9,8 @@ import { gatewayBuilderModel, type BuilderModel } from "@/lib/builder/model";
 import { leadsHelperSource } from "@/lib/builder/scaffold";
 import { storeArtifacts, type ArtifactStore } from "@/lib/builder/storage";
 import type { BuildKind, BuildPlan, FileTask, ProjectFiles } from "@/lib/builder/types";
+import { advanceGameEdit, advanceGameEngine, gameStepLabels, initialGameEditState } from "@/lib/games/engine";
+import { isGameProject } from "@/lib/games/spec";
 import { LIVE_APP_BUILD_PRICE } from "@/lib/liveapps/config";
 import { appendProjectVersion, saveDeliveredProject, saveProjectVersion } from "@/lib/projects/store";
 import { findSecret } from "@/lib/vega/secret-filter";
@@ -128,14 +130,30 @@ const buildSelect = {
   updatedAt: true,
 } as const;
 
-const kindLabel: Record<BuildKind, string> = { sitio: "Sitio", app: "App" };
+const kindLabel: Record<BuildKind, string> = { sitio: "Sitio", app: "App", juego: "Juego" };
 
 function json(value: unknown) {
   return value as Prisma.InputJsonValue;
 }
 
 function asKind(value: string): BuildKind {
-  return value === "app" ? "app" : "sitio";
+  return value === "app" ? "app" : value === "juego" ? "juego" : "sitio";
+}
+
+/** Precio y concepto del cobro de una construcción nueva. `live`: datos en vivo (app) o ranking en línea (juego). */
+export function buildCharge(kind: BuildKind, live: boolean, env?: Record<string, string | undefined>) {
+  if (kind === "juego") return { price: builderPrice(live ? "juego_ranking" : "juego", env), label: live ? "juego con ranking en línea" : "juego" };
+  if (kind === "app" && live) return { price: LIVE_APP_BUILD_PRICE, label: "app con datos en vivo" };
+  return { price: builderPrice(kind, env), label: kind === "app" ? "app" : "sitio web" };
+}
+
+/** Vista previa final: un juego ya es un HTML único; sitios y apps se compilan con esbuild. */
+async function finalPreview(kind: BuildKind, files: ProjectFiles, compile: () => ReturnType<typeof buildPreviewHtml>) {
+  if (kind === "juego") {
+    const html = files["index.html"];
+    return html ? { ok: true as const, html } : { ok: false as const, html: undefined };
+  }
+  return compile();
 }
 
 function stateOf(row: BuildRow): EngineState {
@@ -163,7 +181,7 @@ export function buildView(row: Pick<BuildRow, "id" | "kind" | "status" | "step" 
     kind: asKind(row.kind),
     status,
     step,
-    label: status === "failed" ? "No se pudo terminar" : status === "queued" ? "En cola" : stepLabels[step],
+    label: status === "failed" ? "No se pudo terminar" : status === "queued" ? "En cola" : (asKind(row.kind) === "juego" ? gameStepLabels : stepLabels)[step],
     progress: status === "failed" ? 100 : progressOf({ status, step, tasks }),
     title: plan?.title ?? null,
     designSystem: plan?.designSystem ?? null,
@@ -193,7 +211,7 @@ export async function startProjectBuild(
   deps: RunnerDeps,
 ): Promise<StartResult> {
   if (!builderEnabled(deps.env)) return { ok: false, reason: "off", message: "El generador v2 está apagado." };
-  if (input.kind !== "sitio" && input.kind !== "app") return { ok: false, reason: "kind", message: "El generador v2 hace sitios y apps." };
+  if (input.kind !== "sitio" && input.kind !== "app" && input.kind !== "juego") return { ok: false, reason: "kind", message: "El generador v2 hace sitios, apps y juegos." };
   const db = deps.db;
   const existing = await db.projectBuild.findUnique({ where: { actionId: input.actionId }, select: buildSelect });
   if (existing) return { ok: true, build: buildView(existing), duplicate: true };
@@ -207,9 +225,9 @@ export async function startProjectBuild(
     }
   }
 
-  const live = input.kind === "app" && input.live === true;
-  const price = live ? LIVE_APP_BUILD_PRICE : builderPrice(input.kind, deps.env);
-  const charge = await (deps.charge ?? defaultCharge)(input.user.id, price, `Vega · ${live ? "app con datos en vivo" : input.kind === "app" ? "app" : "sitio web"} (generador v2)`, `builder:${input.actionId}`);
+  const live = (input.kind === "app" || input.kind === "juego") && input.live === true;
+  const { price, label } = buildCharge(input.kind, live, deps.env);
+  const charge = await (deps.charge ?? defaultCharge)(input.user.id, price, `Vega · ${label} (generador v2)`, `builder:${input.actionId}`);
   if (!charge.ok) return { ok: false, reason: "credits", message: charge.error };
 
   try {
@@ -303,7 +321,7 @@ async function saveBuild(row: BuildRow, state: EngineState, deps: RunnerDeps) {
   const db = deps.db;
   const plan = state.plan;
   if (!plan) throw new Error("La construcción no tiene plan.");
-  const preview = await buildPreviewHtml(plan, state.files, { root: deps.root });
+  const preview = await finalPreview(plan.kind, state.files, () => buildPreviewHtml(plan, state.files, { root: deps.root }));
   if (!preview.ok || !preview.html) throw new Error("No se pudo compilar la vista previa final.");
   const files = filesArray(state.files);
   // Última barrera: ningún archivo (tampoco el andamiaje con datos del plan) sale con algo con forma de llave.
@@ -359,7 +377,7 @@ async function saveBuild(row: BuildRow, state: EngineState, deps: RunnerDeps) {
 async function saveEditBuild(row: BuildRow, state: EngineState, deps: RunnerDeps) {
   const db = deps.db;
   const plan = editPlanOf(state);
-  const preview = await previewHtmlWithHead(headFromIndexHtml(state.files["index.html"]), state.files, { root: deps.root });
+  const preview = await finalPreview(plan.kind, state.files, () => previewHtmlWithHead(headFromIndexHtml(state.files["index.html"]), state.files, { root: deps.root }));
   if (!preview.ok || !preview.html) throw new Error("No se pudo compilar la vista previa final.");
   const files = filesArray(state.files);
   const leaked = files.find((file) => findSecret(file.content));
@@ -422,9 +440,13 @@ export async function startProjectEdit(
 
   const base = await (deps.load ?? defaultLoad)(input.user.id, input.projectId, input.versionNumber);
   if (!base) return { ok: false, reason: "project", message: "No encontré ese proyecto o esa versión en tus Proyectos." };
-  if (base.kind !== "sitio" && base.kind !== "app") return { ok: false, reason: "kind", message: "Solo se pueden editar sitios y apps." };
+  if (base.kind !== "sitio" && base.kind !== "app" && base.kind !== "juego") return { ok: false, reason: "kind", message: "Solo se pueden editar sitios, apps y juegos." };
   const files: ProjectFiles = Object.fromEntries(base.files.map((file) => [file.path, file.content]));
-  if (!isEditableProject(files)) {
+  const game = base.kind === "juego";
+  if (game && !isGameProject(files)) {
+    return { ok: false, reason: "legacy", message: "Este juego se hizo con la versión básica y no se puede editar por partes; pídele a Vega uno nuevo." };
+  }
+  if (!game && !isEditableProject(files)) {
     return { ok: false, reason: "legacy", message: "Este proyecto se hizo con la versión básica y no se puede editar por partes; pídele a Vega uno nuevo con el generador premium." };
   }
   // Sitios hechos antes de Contactos: se agrega el ayudante para que la edición pueda usar sendLead.
@@ -441,7 +463,9 @@ export async function startProjectEdit(
   const charge = await (deps.charge ?? defaultCharge)(input.user.id, price, `Vega · cambios a «${base.title.slice(0, 60)}»`, `builder:${input.actionId}`);
   if (!charge.ok) return { ok: false, reason: "credits", message: charge.error };
 
-  const state = initialEditState({ kind: asKind(base.kind), title: base.title, summary: base.summary, request, projectId: base.projectId, baseVersion: base.number, files });
+  const state = game
+    ? initialGameEditState({ title: base.title, summary: base.summary, request, projectId: base.projectId, baseVersion: base.number, files })
+    : initialEditState({ kind: asKind(base.kind), title: base.title, summary: base.summary, request, projectId: base.projectId, baseVersion: base.number, files });
   try {
     const row = await db.projectBuild.create({
       data: {
@@ -517,9 +541,16 @@ export async function advanceBuild(id: string, deps: RunnerDeps, budgetMs: numbe
         });
       },
     };
-    const { state } = editing
-      ? await advanceEdit(stateOf(current), engineDeps, budgetMs)
-      : await advanceEngine(stateOf(current), { brief: current.brief, kind: asKind(current.kind), title: plan?.title ?? "", live: current.live }, engineDeps, budgetMs);
+    const kind = asKind(current.kind);
+    const input = { brief: current.brief, kind, title: plan?.title ?? "", live: current.live };
+    const { state } =
+      kind === "juego"
+        ? editing
+          ? await advanceGameEdit(stateOf(current), engineDeps, budgetMs)
+          : await advanceGameEngine(stateOf(current), input, engineDeps, budgetMs)
+        : editing
+          ? await advanceEdit(stateOf(current), engineDeps, budgetMs)
+          : await advanceEngine(stateOf(current), input, engineDeps, budgetMs);
     if (state.status === "failed") await failBuild(current, state.error ?? "El generador no pudo terminar.", deps);
     else if (state.step === "save") await (editing ? saveEditBuild : saveBuild)(current, state, deps);
     else await db.projectBuild.update({ where: { id }, data: { lockedUntil: null }, select: { id: true } });

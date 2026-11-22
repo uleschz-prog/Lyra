@@ -1,3 +1,5 @@
+import { gameConfigScript } from "@/lib/games/runtime";
+import { gameSpaceForTarget } from "@/lib/games/server";
 import { leadEndpointPath, leadRuntimeScript } from "@/lib/leads/runtime";
 import { liveApiPath } from "@/lib/liveapps/http";
 import { getPrisma } from "@/lib/prisma";
@@ -48,7 +50,14 @@ export async function GET(
           .appSpace.findUnique({ where: { projectId: target.projectId }, select: { status: true } })
           .catch(() => null)
       : null;
-  const liveApi = space ? `${origin}${liveApiPath(target.slug)}` : null;
+  // Juegos con ranking en línea: el juego recibe la dirección del ranking y puede conectarse solo ahí.
+  const gameSpace = target.kind === "juego" ? await gameSpaceForTarget(target).catch(() => null) : null;
+  const liveApi = space || gameSpace ? `${origin}${liveApiPath(target.slug)}` : null;
+  const headScript = gameSpace && liveApi
+    ? gameConfigScript({ api: liveApi, slug: target.slug })
+    : liveApi && space
+      ? liveConfigScript({ api: liveApi, slug: target.slug, status: space.status === "active" ? "active" : "paused" })
+      : "";
   const page = publishedPageHtml(
     html,
     {
@@ -57,11 +66,11 @@ export async function GET(
       url: `${origin}/s/${target.slug}`,
       indexable: target.indexable,
       appUrl: origin,
+      color: target.kind === "juego" ? "#7C3AED" : undefined,
     },
     endpoint ? leadRuntimeScript(endpoint) : "",
-    liveApi && space
-      ? liveConfigScript({ api: liveApi, slug: target.slug, status: space.status === "active" ? "active" : "paused" })
-      : "",
+    headScript,
+    { badge: target.kind === "juego" ? "game" : "default" },
   );
   return new Response(page, {
     status: 200,

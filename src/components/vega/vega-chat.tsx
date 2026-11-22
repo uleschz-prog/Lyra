@@ -6,6 +6,7 @@ import {
   Bot,
   Check,
   FileText,
+  Gamepad2,
   Globe,
   Link2,
   MessageSquarePlus,
@@ -111,6 +112,7 @@ const launches: { icon: LucideIcon; label: string; brief?: BriefKind; prompt?: s
   { icon: Smartphone, label: "App", brief: "app" },
   { icon: Globe, label: "Sitio", brief: "sitio" },
   { icon: Bot, label: "Agente", brief: "agente" },
+  { icon: Gamepad2, label: "Juego", brief: "juego" },
   { icon: Search, label: "Buscar", prompt: "Búscame ideas para crecer mi negocio esta semana" },
 ];
 
@@ -118,6 +120,7 @@ const briefIntro: Record<BriefKind, string> = {
   sitio: "¡Va! Para que tu sitio sea tuyo y no una plantilla, cuéntame lo esencial:",
   app: "¡Va! Antes de armar tu app, dime para qué es y qué datos maneja:",
   agente: "¡Va! Para que tu agente hable como tu negocio, necesito esto:",
+  juego: "¡Va! Para armar tu juego (se juega en celular y computadora), cuéntame:",
 };
 
 // Tipografía del chat: Inter (o la sans del sistema mientras carga), 16 px con interlineado 1.5.

@@ -76,10 +76,10 @@ async function paidTemplate(env: ReturnType<typeof setup>, price = 50) {
 }
 
 describe("Marketplace: plantillas oficiales", () => {
-  it("hay 2 sitios, 2 apps y 2 agentes, gratis y con vista previa", () => {
-    expect(officialTemplates).toHaveLength(6);
+  it("hay 2 sitios, 2 apps, 2 agentes y 1 juego, gratis y con vista previa", () => {
+    expect(officialTemplates).toHaveLength(7);
     const count = (kind: string) => officialTemplates.filter((template) => template.kind === kind).length;
-    expect([count("sitio"), count("app"), count("agente")]).toEqual([2, 2, 2]);
+    expect([count("sitio"), count("app"), count("agente"), count("juego")]).toEqual([2, 2, 2, 1]);
     for (const template of officialTemplates) {
       const text = JSON.stringify(template.files);
       expect(text, template.slug).not.toMatch(/lorem|ipsum/i);
@@ -89,6 +89,11 @@ describe("Marketplace: plantillas oficiales", () => {
         expect(template.agentConfig?.instructions.length).toBeGreaterThan(100);
         expect(template.files.some((file) => file.path === "index.html")).toBe(true);
         expect(template.files.some((file) => file.path === "agente.json")).toBe(true);
+      } else if (template.kind === "juego") {
+        expect(template.generator).toBe("vega-v2");
+        expect(template.previewHtml?.length).toBeGreaterThan(10_000);
+        expect(template.files.some((file) => file.path === "src/game.js")).toBe(true);
+        expect(template.files.some((file) => file.path === "lyra.game.json")).toBe(true);
       } else {
         expect(template.generator).toBe("vega-v2");
         expect(template.previewHtml?.length).toBeGreaterThan(10_000);
@@ -99,7 +104,7 @@ describe("Marketplace: plantillas oficiales", () => {
   });
 
   it("los sitios y apps oficiales pasan las reglas del generador y compilan con esbuild", async () => {
-    for (const template of officialTemplates.filter((item) => item.generator === "vega-v2")) {
+    for (const template of officialTemplates.filter((item) => item.generator === "vega-v2" && item.kind !== "juego")) {
       for (const file of template.files.filter((item) => /^src\/(components|pages)\/.+\.tsx$/.test(item.path))) {
         expect(checkGeneratedFile(file.path, file.content), `${template.slug} ${file.path}`).toEqual([]);
       }
@@ -108,14 +113,14 @@ describe("Marketplace: plantillas oficiales", () => {
     }
   }, 60_000);
 
-  it("la siembra es idempotente y deja las 6 aprobadas y gratis", async () => {
+  it("la siembra es idempotente y deja las 7 aprobadas y gratis", async () => {
     const { db, tables } = setup();
-    expect(await seedOfficialTemplates(db, officialTemplates)).toEqual({ inserted: 6 });
+    expect(await seedOfficialTemplates(db, officialTemplates)).toEqual({ inserted: 7 });
     expect(await seedOfficialTemplates(db, officialTemplates)).toEqual({ inserted: 0 });
     // Si falta una (p. ej. otra instancia sembró a medias), solo inserta la que falta.
     tables.marketplaceTemplate.rows.splice(0, 1);
     expect(await seedOfficialTemplates(db, officialTemplates)).toEqual({ inserted: 1 });
-    expect(tables.marketplaceTemplate.rows).toHaveLength(6);
+    expect(tables.marketplaceTemplate.rows).toHaveLength(7);
     expect(tables.marketplaceTemplate.rows.every((row) => row.status === "approved" && row.price === 0 && row.official === true && row.authorId === null)).toBe(true);
   });
 });
@@ -126,10 +131,11 @@ describe("Marketplace: catálogo", () => {
     await seedOfficialTemplates(env.db, officialTemplates);
     await paidTemplate(env);
     await env.tables.marketplaceTemplate.create({ data: { slug: "pendiente", kind: "app", title: "Pendiente", summary: "x", description: "x", price: 0, status: "pending", files: siteFiles } });
-    expect(await listTemplates(env.db)).toHaveLength(7);
+    expect(await listTemplates(env.db)).toHaveLength(8);
     expect((await listTemplates(env.db, { kind: "agente" })).map((card) => card.kind)).toEqual(["agente", "agente"]);
     expect(await listTemplates(env.db, { price: "paid" })).toHaveLength(1);
-    expect(await listTemplates(env.db, { price: "free" })).toHaveLength(6);
+    expect(await listTemplates(env.db, { price: "free" })).toHaveLength(7);
+    expect((await listTemplates(env.db, { kind: "juego" })).map((card) => card.slug)).toEqual(["oficial-juego-bloques-neon"]);
     expect((await listTemplates(env.db, { q: "crm" }))[0].slug).toBe("oficial-crm-kanban");
     expect((await listTemplates(env.db, { q: "whatsapp", kind: "agente" })).length).toBeGreaterThan(0);
     expect(catalogWhere({ kind: "nada" })).toEqual({ status: "approved" });

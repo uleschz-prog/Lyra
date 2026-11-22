@@ -20,7 +20,7 @@ export const metadata: Metadata = {
 const powers = [
   { title: "Atiende", text: "Responde en WhatsApp a cualquier hora con el tono de tu marca." },
   { title: "Vende", text: "Presenta tu oferta, resuelve dudas y envía la liga de pago." },
-  { title: "Crea", text: "Arma sitios, apps y agentes para tu negocio desde el chat." },
+  { title: "Crea", text: "Arma sitios, apps, agentes y juegos desde el chat." },
   { title: "Coordina", text: "Dirige a tus agentes para que cada cliente reciba seguimiento." },
 ];
 

@@ -47,9 +47,15 @@ export function headExtras(html: string, meta: PublishedMeta) {
   return tags.join("\n    ");
 }
 
-/** Sello pequeño y honesto; enlaza a LYRA en otra pestaña. */
-export function madeWithBadge(appUrl: string) {
-  const href = `${appUrl.replace(/\/$/, "")}/?ref=sitio`;
+/**
+ * Sello pequeño y honesto; enlaza a LYRA en otra pestaña. En juegos va abajo al centro, más
+ * chico y semitransparente, para no tapar los botones táctiles de las esquinas.
+ */
+export function madeWithBadge(appUrl: string, variant: "default" | "game" = "default") {
+  const href = `${appUrl.replace(/\/$/, "")}/?ref=${variant === "game" ? "juego" : "sitio"}`;
+  if (variant === "game") {
+    return `<a href="${escapeAttr(href)}" target="_blank" rel="noopener" aria-label="Hecho con LYRA" style="position:fixed;left:50%;transform:translateX(-50%);bottom:max(6px,env(safe-area-inset-bottom));z-index:2147483647;display:inline-flex;align-items:center;gap:5px;padding:4px 9px;border-radius:999px;background:rgba(17,16,24,.55);color:rgba(255,255,255,.85);font:600 10px/1 system-ui,-apple-system,'Segoe UI',sans-serif;text-decoration:none;opacity:.8">✦ Hecho con LYRA</a>`;
+  }
   return `<a href="${escapeAttr(href)}" target="_blank" rel="noopener" aria-label="Hecho con LYRA" style="position:fixed;right:12px;bottom:12px;z-index:2147483647;display:inline-flex;align-items:center;gap:6px;padding:6px 10px;border-radius:999px;background:rgba(17,16,24,.82);color:#fff;font:600 11px/1 system-ui,-apple-system,'Segoe UI',sans-serif;text-decoration:none;box-shadow:0 6px 20px rgba(0,0,0,.18);backdrop-filter:blur(6px)">✦ Hecho con LYRA</a>`;
 }
 
@@ -63,9 +69,9 @@ export function liveConfigScript(config: { api: string; slug: string; status: "a
 }
 
 /** Inserta metadatos (y `extraHead`) al inicio de <head> y el sello antes de </body>. */
-export function publishedPageHtml(html: string, meta: PublishedMeta, extraBody = "", extraHead = "") {
+export function publishedPageHtml(html: string, meta: PublishedMeta, extraBody = "", extraHead = "", options: { badge?: "default" | "game" } = {}) {
   const head = extraHead ? `${extraHead}\n    ${headExtras(html, meta)}` : headExtras(html, meta);
-  const body = `${madeWithBadge(meta.appUrl)}${extraBody}`;
+  const body = `${madeWithBadge(meta.appUrl, options.badge)}${extraBody}`;
   let out = /<head(?:\s[^>]*)?>/i.test(html) ? html.replace(/<head(?:\s[^>]*)?>/i, (tag) => `${tag}\n    ${head}`) : `<!doctype html><html lang="es-MX"><head>${head}</head><body>${html}</body></html>`;
   out = /<\/body>/i.test(out) ? out.replace(/<\/body>(?![\s\S]*<\/body>)/i, `${body}\n</body>`) : `${out}${body}`;
   return out;

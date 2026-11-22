@@ -2,6 +2,7 @@
 // (los que hizo con Vega y los que tomó del marketplace).
 import type { PrismaClient } from "@/generated/prisma/client";
 import { editableFiles, isEditableProject } from "@/lib/builder/edit";
+import { gameManifestFromFiles, isGameProject } from "@/lib/games/spec";
 import type { ProjectFile } from "@/lib/vega/build-project";
 
 export type ProjectToolDb = Pick<PrismaClient, "project" | "projectPublish">;
@@ -33,6 +34,13 @@ export function describeFiles(files: ProjectFile[]) {
   return { editable, paginas: routes, secciones: sections };
 }
 
+/** Juego: editable si trae src/game.js y su manifiesto (las «secciones» son el género y el ranking). */
+export function describeGame(files: ProjectFile[]) {
+  const map = Object.fromEntries(files.map((file) => [file.path, file.content]));
+  const manifest = gameManifestFromFiles(map);
+  return { editable: isGameProject(map), paginas: [] as string[], secciones: manifest ? [`juego ${manifest.genre}`, manifest.leaderboard ? "ranking en línea" : "sin ranking en línea"] : [] };
+}
+
 /** abrir_proyecto: sin texto lista los recientes; con id o nombre devuelve el detalle. */
 export async function openProjectTool(db: ProjectToolDb, load: LoadFiles, userId: string, query: string, appUrl: string) {
   const text = query.trim().slice(0, 120);
@@ -47,7 +55,7 @@ export async function openProjectTool(db: ProjectToolDb, load: LoadFiles, userId
   if (rows.length !== 1) {
     const recent = rows.length
       ? rows
-      : await db.project.findMany({ where: { userId, deletedAt: null, kind: { in: ["sitio", "app"] } }, orderBy: { updatedAt: "desc" }, take: 8, select: projectSelect });
+      : await db.project.findMany({ where: { userId, deletedAt: null, kind: { in: ["sitio", "app", "juego"] } }, orderBy: { updatedAt: "desc" }, take: 8, select: projectSelect });
     return {
       status: recent.length ? `Encontré ${recent.length} proyecto${recent.length === 1 ? "" : "s"}` : "Sin proyectos",
       response: {
@@ -56,13 +64,13 @@ export async function openProjectTool(db: ProjectToolDb, load: LoadFiles, userId
           ? text
             ? "Hay varios o ninguno exacto: pregúntale al socio cuál quiere (por nombre) antes de editar."
             : "Proyectos recientes del socio. Pregúntale cuál quiere abrir si no lo dijo."
-          : "El socio no tiene sitios ni apps en Proyectos.",
+          : "El socio no tiene sitios, apps ni juegos en Proyectos.",
       },
     };
   }
   const row = rows[0];
-  const files = row.kind === "sitio" || row.kind === "app" ? await load(userId, row.id).catch(() => null) : null;
-  const described = files ? describeFiles(files.files) : { editable: false, paginas: [], secciones: [] };
+  const files = row.kind === "sitio" || row.kind === "app" || row.kind === "juego" ? await load(userId, row.id).catch(() => null) : null;
+  const described = files ? (row.kind === "juego" ? describeGame(files.files) : describeFiles(files.files)) : { editable: false, paginas: [], secciones: [] };
   const publish = await db.projectPublish.findUnique({ where: { projectId: row.id }, select: { slug: true, status: true } }).catch(() => null);
   return {
     status: `Abrí «${row.title}»`,
@@ -73,9 +81,9 @@ export async function openProjectTool(db: ProjectToolDb, load: LoadFiles, userId
       se_puede_editar: described.editable,
       motivo: described.editable
         ? undefined
-        : row.kind === "sitio" || row.kind === "app"
+        : row.kind === "sitio" || row.kind === "app" || row.kind === "juego"
           ? "Se hizo con la versión básica; para cambiarlo hay que hacer uno nuevo con entregar_proyecto."
-          : "Solo se editan sitios y apps.",
+          : "Solo se editan sitios, apps y juegos.",
       paginas: described.paginas,
       secciones: described.secciones,
       publicado: publish?.status === "published" ? `${appUrl.replace(/\/$/, "")}/s/${publish.slug}` : null,

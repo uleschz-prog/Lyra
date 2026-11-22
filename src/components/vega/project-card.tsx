@@ -8,6 +8,7 @@ const labels: Record<ProjectDraft["kind"], string> = {
   app: "App",
   sitio: "Sitio web",
   agente: "Agente",
+  juego: "Juego",
 };
 
 function save(name: string, bytes: BlobPart, type: string) {

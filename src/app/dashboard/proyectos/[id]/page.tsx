@@ -4,6 +4,7 @@ import { headers } from "next/headers";
 import { notFound, redirect } from "next/navigation";
 import { ArrowLeft, Download, ExternalLink, FileCode2, Inbox, Sparkles, Store } from "lucide-react";
 
+import { GameLeaderboardPanel } from "@/components/projects/game-leaderboard-panel";
 import { LiveDataPanel } from "@/components/projects/live-data-panel";
 import { ProjectActions } from "@/components/projects/project-actions";
 import { PublishPanel } from "@/components/projects/publish-panel";
@@ -12,7 +13,9 @@ import { brand } from "@/config/brand";
 import { getCurrentUser } from "@/lib/auth/profile";
 import { hasReadySite } from "@/lib/projects/handoff";
 import { LIVE_APP_MONTHLY_FEE, liveAppsAvailable } from "@/lib/liveapps/config";
-import { spaceOverview } from "@/lib/liveapps/core";
+import { gameSpaceSchema, topScores } from "@/lib/games/leaderboard";
+import { gameManifestFromFiles } from "@/lib/games/spec";
+import { ownedSpace, spaceOverview } from "@/lib/liveapps/core";
 import { manifestFromFiles } from "@/lib/liveapps/project";
 import { getProject, getProjectVersionFiles, parseVersionParam } from "@/lib/projects/queries";
 import { getPrisma } from "@/lib/prisma";
@@ -21,6 +24,18 @@ import { countUnreadLeads } from "@/lib/leads/queries";
 import { formatProjectDate, projectKindLabels } from "@/lib/projects/store";
 
 export const metadata: Metadata = { title: "Proyecto" };
+
+async function gamePanelData(userId: string, projectId: string, versionNumber?: number) {
+  const db = getPrisma();
+  const [space, version] = await Promise.all([
+    ownedSpace(db, userId, projectId).catch(() => null),
+    getProjectVersionFiles(userId, projectId, versionNumber).catch(() => null),
+  ]);
+  const enabled = Boolean(gameManifestFromFiles(version?.files)?.leaderboard);
+  const active = Boolean(space && space.status === "active" && gameSpaceSchema(space.schema));
+  const top = active && space ? await topScores(db, space.id).catch(() => []) : [];
+  return { enabled, active, top };
+}
 
 function size(bytes: number) {
   return bytes >= 1024 * 1024 ? `${(bytes / (1024 * 1024)).toFixed(1)} MB` : `${Math.max(1, Math.round(bytes / 1024))} KB`;
@@ -45,6 +60,8 @@ export default async function ProjectPage({
   const liveOverview = project.kind === "app" ? await spaceOverview(getPrisma(), user.id, project.id).catch(() => null) : null;
   const liveVersion = project.kind === "app" && !liveOverview && liveAppsAvailable(user) ? await getProjectVersionFiles(user.id, project.id, publish?.versionNumber ?? undefined).catch(() => null) : null;
   const showLive = project.kind === "app" && (Boolean(liveOverview) || liveAppsAvailable(user));
+  // Juegos: ranking en línea (si la versión lo trae; se activa al publicar).
+  const game = project.kind === "juego" ? await gamePanelData(user.id, project.id, publish?.versionNumber ?? undefined) : null;
   const head = await headers();
   const host = head.get("host");
   const origin = process.env.NEXT_PUBLIC_APP_URL?.trim().replace(/\/$/, "") || (host ? `${head.get("x-forwarded-proto") ?? "https"}://${host}` : "");
@@ -81,7 +98,7 @@ export default async function ProjectPage({
               className={primary}
             >
               <Download className="size-3.5" />
-              Descargar sitio listo
+              {project.kind === "juego" ? "Descargar juego listo" : "Descargar sitio listo"}
             </a>
           ) : null}
           <a
@@ -135,6 +152,15 @@ export default async function ProjectPage({
         <div className="space-y-4">
           {hasReadySite(project.kind) ? (
             <PublishPanel projectId={project.id} title={project.title} versions={project.versions.map((version) => version.number)} initial={publish} origin={origin} />
+          ) : null}
+          {game ? (
+            <GameLeaderboardPanel
+              projectId={project.id}
+              enabled={game.enabled}
+              active={game.active && publish?.status === "published"}
+              top={game.top}
+              gameUrl={publish?.status === "published" ? `${origin}/s/${publish.slug}` : null}
+            />
           ) : null}
           {showLive ? (
             <LiveDataPanel

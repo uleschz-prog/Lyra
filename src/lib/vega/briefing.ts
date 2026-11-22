@@ -1,8 +1,8 @@
-// Briefing antes de crear: preguntas clave por tipo de pieza (sitio, app, agente).
+// Briefing antes de crear: preguntas clave por tipo de pieza (sitio, app, agente, juego).
 // Lo usan la tarjeta del chat (formulario guiado) y el servidor (las herramientas de creación
 // no arrancan ni cobran si faltan respuestas). Sin dependencias de servidor: se importa en el cliente.
 
-export type BriefKind = "sitio" | "app" | "agente";
+export type BriefKind = "sitio" | "app" | "agente" | "juego";
 
 export type BriefQuestion = {
   key: string;
@@ -21,6 +21,7 @@ export const briefKindLabels: Record<BriefKind, string> = {
   sitio: "sitio web",
   app: "app",
   agente: "agente",
+  juego: "juego",
 };
 
 export const briefQuestions: Record<BriefKind, BriefQuestion[]> = {
@@ -43,6 +44,13 @@ export const briefQuestions: Record<BriefKind, BriefQuestion[]> = {
     { key: "tono", label: "Tono", question: "¿Con qué tono habla?", options: ["Cálido y cercano", "Profesional", "Divertido", "Breve y directo"], required: true },
     { key: "conocimiento", label: "Conocimiento", question: "¿Qué debe saber? (servicios, precios, horarios, políticas)", options: [], required: true, placeholder: "Pega tus servicios, precios, horarios y reglas" },
     { key: "acciones", label: "Acciones", question: "¿Qué acciones puede hacer?", options: ["Responder dudas", "Agendar citas", "Tomar pedidos", "Capturar datos del cliente", "Pasar a una persona"], required: false, multi: true },
+  ],
+  juego: [
+    { key: "idea", label: "Idea", question: "¿De qué trata tu juego (tema, personaje y objetivo)?", options: [], required: true, placeholder: "Ej. un taco que esquiva chiles y junta limones; gana el que dure más" },
+    { key: "genero", label: "Tipo de juego", question: "¿Qué tipo de juego?", options: ["Arcade", "Plataformas 2D", "Puzzle", "Trivia / preguntas", "Cartas / memoria", "Runner", "3D sencillo"], required: true },
+    { key: "uso", label: "Para qué", question: "¿Para quién o para qué es?", options: ["Promocionar mi negocio", "Para mis clientes o un evento", "Niños", "Por diversión", "Concurso con premio"], required: false, multi: true },
+    { key: "estilo", label: "Estilo", question: "¿Qué estilo o colores quieres?", options: ["Neón", "Pixel art retro", "Caricatura colorida", "Minimalista", "Colores de mi marca"], required: false, multi: true, placeholder: "Ej. morado y amarillo, como mi logo" },
+    { key: "ranking", label: "Ranking", question: "¿Quieres ranking en línea (top 10 con nombre)?", options: ["Sí, con ranking en línea", "No, solo récord personal"], required: true },
   ],
 };
 
@@ -67,9 +75,17 @@ export function answered(value: unknown) {
 export function briefKindForTool(name: string, args: Record<string, unknown>): BriefKind | null {
   if (name === "entregar_proyecto") {
     const tipo = args.tipo;
-    return tipo === "sitio" || tipo === "app" || tipo === "agente" ? tipo : null;
+    return tipo === "sitio" || tipo === "app" || tipo === "agente" || tipo === "juego" ? tipo : null;
   }
   return null;
+}
+
+/** Juego con ranking en línea: el parámetro explícito o la respuesta «Sí…» del briefing. */
+export function wantsLeaderboard(args: Record<string, unknown>) {
+  if (args.ranking_en_linea === true) return true;
+  if (args.ranking_en_linea === false) return false;
+  const briefing = args.briefing && typeof args.briefing === "object" ? (args.briefing as Record<string, unknown>) : {};
+  return typeof briefing.ranking === "string" && /^\s*s[ií](?![a-záéíóúüñ])/i.test(briefing.ranking);
 }
 
 export function missingBrief(kind: BriefKind, briefing: unknown): BriefQuestion[] {

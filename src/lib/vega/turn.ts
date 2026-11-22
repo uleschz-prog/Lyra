@@ -30,10 +30,10 @@ import { conversationTitle, vegaSystemPrompt } from "@/lib/vega/prompt";
 import { connectDraft, freeTools, runVegaTool, vegaTools } from "@/lib/vega/tools";
 import { xStatusLabels } from "@/lib/vega/x/tools";
 import { saveDeliveredProject } from "@/lib/projects/store";
-import { briefGate } from "@/lib/vega/briefing";
+import { briefGate, wantsLeaderboard } from "@/lib/vega/briefing";
 import { builderEnabled, builderPrice } from "@/lib/builder/config";
 import { liveAppsAvailable } from "@/lib/liveapps/config";
-import { briefFromDelivery, startProjectBuild, startProjectEdit, type BuildView } from "@/lib/builder/runner";
+import { briefFromDelivery, buildCharge, startProjectBuild, startProjectEdit, type BuildView } from "@/lib/builder/runner";
 import { isUserToolkit, type UserToolkit } from "@/lib/vega/apps";
 import { HISTORY, SUMMARY_SLACK, scheduleSummary, summaryContext } from "@/lib/vega/summary";
 import { summarizeUsage, type ModelUsage } from "@/lib/vega/usage";
@@ -492,7 +492,7 @@ export async function runVegaTurn(turn: VegaTurn, emit: (event: VegaEvent) => vo
         // PR C: sitios y apps los construye el generador v2; su precio por trabajo ya incluye la herramienta.
         const editCall = call.name === "editar_proyecto";
         // Entrega 4: la edición cobra su propio precio (2 créditos) en startProjectEdit.
-        const builderCall = editCall || (call.name === "entregar_proyecto" && builderEnabled() && (call.args?.tipo === "sitio" || call.args?.tipo === "app"));
+        const builderCall = editCall || (call.name === "entregar_proyecto" && builderEnabled() && (call.args?.tipo === "sitio" || call.args?.tipo === "app" || call.args?.tipo === "juego"));
         if (!toolCharged && !freeTools.has(call.name) && !builderCall) {
           const extra = await chargeCredits(userId, creditPrices.vegaTool - creditPrices.vegaMessage, "Vega · herramienta", `${chargeKey}:tool`);
           if (!extra.ok) {
@@ -557,6 +557,7 @@ export async function runVegaTurn(turn: VegaTurn, emit: (event: VegaEvent) => vo
           actionIds.push(action.id);
           let build: BuildView | null = null;
           let builderNote = "";
+          let builtLive = false;
           let editError = "";
           if (outcome.action === "deliver_project" && editCall) {
             const draft = outcome.payload as { title?: string; edit?: { projectId: string; version: number | null; request: string } };
@@ -598,6 +599,11 @@ export async function runVegaTurn(turn: VegaTurn, emit: (event: VegaEvent) => vo
             }
           } else if (outcome.action === "deliver_project" && builderCall) {
             const draft = outcome.payload as { kind?: string; title?: string; summary?: string };
+            // Apps: datos en vivo. Juegos: ranking en línea (misma columna «live», sin migración).
+            builtLive =
+              draft.kind === "juego"
+                ? wantsLeaderboard(call.args ?? {})
+                : draft.kind === "app" && call.args?.datos_en_vivo === true && liveAppsAvailable(turn.capUser ?? null);
             const started = await startProjectBuild(
               {
                 user: turn.capUser ?? { id: userId, package: null },
@@ -605,7 +611,7 @@ export async function runVegaTurn(turn: VegaTurn, emit: (event: VegaEvent) => vo
                 actionId: action.id,
                 kind: String(draft.kind ?? ""),
                 brief: briefFromDelivery(call.args ?? {}, draft),
-                live: draft.kind === "app" && call.args?.datos_en_vivo === true && liveAppsAvailable(turn.capUser ?? null),
+                live: builtLive,
               },
               { db: prisma },
             ).catch((error: unknown) => {
@@ -618,7 +624,7 @@ export async function runVegaTurn(turn: VegaTurn, emit: (event: VegaEvent) => vo
                 where: { id: action.id },
                 data: {
                   status: "running",
-                  result: `Construyendo ${draft.kind === "app" ? "la app" : "el sitio"}: ${draft.title ?? ""}`.trim(),
+                  result: `Construyendo ${draft.kind === "app" ? "la app" : draft.kind === "juego" ? "el juego" : "el sitio"}: ${draft.title ?? ""}`.trim(),
                   payload: { ...(outcome.payload as object), build: { buildId: build.id, status: build.status } } as unknown as Prisma.InputJsonValue,
                 },
                 select: { id: true, kind: true, payload: true, status: true, result: true },
@@ -647,7 +653,7 @@ export async function runVegaTurn(turn: VegaTurn, emit: (event: VegaEvent) => vo
               ? "Aplicando los cambios…"
               : "No se pudo editar"
             : build
-              ? `Construyendo ${build.kind === "app" ? "tu app" : "tu sitio"} premium…`
+              ? `Construyendo ${build.kind === "app" ? "tu app" : build.kind === "juego" ? "tu juego" : "tu sitio"} premium…`
               : outcome.summary;
           statuses.push(summary);
           emit({ t: "status", v: summary });
@@ -661,7 +667,7 @@ export async function runVegaTurn(turn: VegaTurn, emit: (event: VegaEvent) => vo
             : build
             ? {
                 estado: "construyendo",
-                nota: `El socio ve una tarjeta con el avance del generador premium (plan, componentes, compilación); tarda unos 2 a 4 minutos y al terminar queda en Proyectos con vista previa y ZIP. Se cobraron ${builderPrice(build.kind)} créditos por el trabajo (se devuelven si falla). No digas que ya está listo ni pegues código: di en una frase qué vas a construir y que puede seguir platicando mientras tanto.`,
+                nota: `El socio ve una tarjeta con el avance del generador premium (plan, ${build.kind === "juego" ? "código del juego, revisión" : "componentes, compilación"}); tarda unos 2 a 4 minutos y al terminar queda en Proyectos con vista previa${build.kind === "juego" ? " jugable" : ""} y ZIP. Se cobraron ${buildCharge(build.kind, builtLive).price} créditos por el trabajo (se devuelven si falla).${build.kind === "juego" && builtLive ? " El ranking en línea funciona cuando publique el juego en LYRA (/s/…)." : ""} No digas que ya está listo ni pegues código: di en una frase qué vas a construir y que puede seguir platicando mientras tanto.`,
               }
             : { estado: "listo", nota: builderNote ? `${outcome.modelNote} Se entregó la versión básica porque: ${builderNote}` : outcome.modelNote };
         } else if (outcome.kind === "action") {

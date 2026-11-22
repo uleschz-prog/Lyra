@@ -1,6 +1,7 @@
 // Tipos compartidos del generador v2 (plan, secciones, entidades y archivos).
+import type { GameSpec } from "@/lib/games/spec";
 
-export type BuildKind = "sitio" | "app";
+export type BuildKind = "sitio" | "app" | "juego";
 
 export type Cta = { label: string; href: string };
 
@@ -111,6 +112,8 @@ export type BuildPlan = {
   entities: Entity[];
   /** Presente cuando la app usa datos en vivo (equipo con PIN, sucursales, sincronización). */
   live?: LivePlan;
+  /** Modo juego: especificación del juego (sin páginas ni entidades). */
+  game?: GameSpec;
   suggestions: string[];
   assumptions: string[];
 };

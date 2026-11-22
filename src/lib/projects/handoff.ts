@@ -5,9 +5,9 @@ import type { ProjectFile, ProjectKind } from "@/lib/vega/build-project";
 export const handoffFolder = "sitio-listo";
 export const handoffGuidePath = "COMO-PUBLICAR.md";
 
-/** Solo sitios y apps tienen un archivo publicable (un agente es una simulación). */
+/** Sitios, apps y juegos tienen un archivo publicable (un agente es una simulación). */
 export function hasReadySite(kind: ProjectKind) {
-  return kind === "sitio" || kind === "app";
+  return kind === "sitio" || kind === "app" || kind === "juego";
 }
 
 function baseName(title: string) {
@@ -32,6 +32,7 @@ export function hostingGuide(input: {
   number: number;
   generator: string;
 }) {
+  if (input.kind === "juego") return gameGuide(input);
   const app = input.kind === "app";
   const premium = input.generator === "vega-v2";
   return `# Cómo publicar «${input.title}» (versión ${input.number})
@@ -70,6 +71,30 @@ npm run build   # genera dist/ para cualquier hosting estático
 `
     : ""
 }
+---
+Hecho con LYRA.
+`;
+}
+
+function gameGuide(input: { title: string; number: number }) {
+  return `# Cómo publicar «${input.title}» (versión ${input.number})
+
+En \`${handoffFolder}/index.html\` está el juego completo en **un solo archivo** (motor LyraGame y código del juego). No usa archivos externos.
+
+## Opción rápida
+
+1. **Desde LYRA**: en Proyectos, botón «Publicar». Queda en una dirección /s/… y, si el juego tiene ranking en línea, ahí funciona el top 10.
+2. **Netlify Drop**: arrastra la carpeta \`${handoffFolder}\` a https://app.netlify.com/drop.
+3. **Tu hosting actual**: sube \`index.html\` a la carpeta pública.
+
+## Qué hace y qué no hace
+
+- Se juega en celular (táctil) y computadora (teclado y ratón). Se pausa si cambias de pestaña.
+- El sonido se genera en código; si el celular está en silencio, puede no oírse.
+- El récord personal se guarda en el navegador cuando el navegador lo permite.
+- El ranking en línea solo funciona publicado en LYRA; fuera de LYRA el juego funciona sin ranking.
+- No incluye multijugador en tiempo real, compras dentro del juego ni versión para tiendas de apps.
+
 ---
 Hecho con LYRA.
 `;

@@ -3,8 +3,8 @@ import { searchWeb, type WebResult } from "@/lib/ai/search";
 import { appToolNames, appTools, executeAppAction, runAppTool, type AppDraft } from "@/lib/vega/app-tools";
 import { commandAllowlist, findCommand, isSafeArgument } from "@/lib/vega/assistant-tools";
 import { listWorkspace, MAX_FILE_BYTES, readWorkspaceFile, searchWorkspace, writeWorkspaceFile } from "@/lib/vega/files";
-import { buildProject, type ProjectDraft } from "@/lib/vega/build-project";
-import { briefingSchema } from "@/lib/vega/briefing";
+import { buildProject, suggestionsFor, type ProjectDraft } from "@/lib/vega/build-project";
+import { briefingSchema, wantsLeaderboard } from "@/lib/vega/briefing";
 import { isUserToolkit, toolkitHints, toolkitLabels, userToolkits, type UserToolkit, type VegaConnections } from "@/lib/vega/apps";
 import type { FunctionDeclaration } from "@/lib/vega/gemini-stream";
 import { runXTool, xToolNames, xTools } from "@/lib/vega/x/tools";
@@ -246,22 +246,26 @@ export function vegaTools(connections: VegaConnections, webSearch: boolean): Fun
     {
       name: "entregar_proyecto",
       description:
-        "Entrega una pieza premium y específica: sitio web, app o especificación de agente. Los sitios y apps los construye el generador premium (proyecto React + Tailwind de varios archivos, con páginas o pantallas, sistema de diseño y vista previa compilada; tarda unos minutos y cobra su precio por trabajo); lo que mandes en secciones es el copy base y el respaldo. Usa nombres, oferta y tono del socio; no inventes precios, reseñas, certificaciones o resultados. Requiere «briefing» con las respuestas del socio (sitio: negocio, objetivo, público y contacto; app: propósito, usuarios y datos; agente: rol, canal, tono y conocimiento). Si faltan, responde needs_brief: no crea ni cobra, y debes preguntarlas. Nunca crees con contenido por defecto. Sitios: portada con propuesta de valor y CTA, servicios, diferenciadores/proceso, FAQ o testimonios sólo si hay datos, contacto y pie. Apps: una tarea principal completa y probada mediante agenda, herramienta CRUD local o contacto; incluye estados vacíos/confirmación/eliminación. Agentes: misión clara, 3+ reglas concretas, flujo de atención y 3+ ejemplos. Describe cada entrega con precisión y en positivo (la vista previa de agente simula con ejemplos); si el socio pidió un sistema más grande, propón la solución completa por fases y entrega esta como la primera, sin listar lo que no hace. Usa mínimo 5 secciones de valor para landing y 3–6 bloques para otras piezas; copy final, no texto placeholder.",
+        "Entrega una pieza premium y específica: sitio web, app, juego o especificación de agente. Juegos (tipo juego): un juego HTML5 de navegador en un solo archivo que se juega en celular (táctil) y computadora (teclado), hecho sobre el motor LyraGame (pantallas de inicio y fin, pausa, sonido generado, récord); géneros: arcade, plataformas 2D, puzzle, trivia, cartas, runner o 3D sencillo en canvas. Para juegos manda en «brief» el tema, mecánica, controles, personajes, estilo y dificultad que dijo el socio; no hacen falta secciones. Los sitios y apps los construye el generador premium (proyecto React + Tailwind de varios archivos, con páginas o pantallas, sistema de diseño y vista previa compilada; tarda unos minutos y cobra su precio por trabajo); lo que mandes en secciones es el copy base y el respaldo. Usa nombres, oferta y tono del socio; no inventes precios, reseñas, certificaciones o resultados. Requiere «briefing» con las respuestas del socio (sitio: negocio, objetivo, público y contacto; app: propósito, usuarios y datos; agente: rol, canal, tono y conocimiento). Si faltan, responde needs_brief: no crea ni cobra, y debes preguntarlas. Nunca crees con contenido por defecto. Sitios: portada con propuesta de valor y CTA, servicios, diferenciadores/proceso, FAQ o testimonios sólo si hay datos, contacto y pie. Apps: una tarea principal completa y probada mediante agenda, herramienta CRUD local o contacto; incluye estados vacíos/confirmación/eliminación. Agentes: misión clara, 3+ reglas concretas, flujo de atención y 3+ ejemplos. Describe cada entrega con precisión y en positivo (la vista previa de agente simula con ejemplos); si el socio pidió un sistema más grande, propón la solución completa por fases y entrega esta como la primera, sin listar lo que no hace. Usa mínimo 5 secciones de valor para landing y 3–6 bloques para otras piezas; copy final, no texto placeholder.",
       parameters: {
         type: "object",
         properties: {
           titulo: { type: "string" },
-          tipo: { type: "string", enum: ["app", "sitio", "agente"] },
+          tipo: { type: "string", enum: ["app", "sitio", "agente", "juego"] },
           resumen: { type: "string", description: "Una frase de qué hace." },
           brief: {
             type: "string",
             description:
               "Sitios y apps: encargo completo para el generador premium (negocio, ciudad, público, oferta, tono/estilo visual, páginas o pantallas, datos de contacto, entidades y campos de la app). Todo lo que dijo el socio, sin inventar.",
           },
-          briefing: briefingSchema(["sitio", "app", "agente"]),
+          briefing: briefingSchema(["sitio", "app", "agente", "juego"]),
           datos_en_vivo: {
             type: "boolean",
             description: "Solo apps y solo si tus instrucciones mencionan «Datos en vivo»: true cuando un equipo la usa a la vez (roles, sucursales, inventario, comandas). Guarda los datos en LYRA con PIN por persona.",
+          },
+          ranking_en_linea: {
+            type: "boolean",
+            description: `Solo juegos: true si el socio quiere un ranking en línea (top 10 con nombre, funciona publicado en LYRA). Cuesta ${builderPrice("juego_ranking")} créditos en vez de ${builderPrice("juego")}; confírmalo con el socio.`,
           },
           supuestos: {
             type: "string",
@@ -279,7 +283,7 @@ export function vegaTools(connections: VegaConnections, webSearch: boolean): Fun
             description: "Dos o tres siguientes pasos concretos, por ejemplo una página nueva, un agente o un mensaje de WhatsApp.",
           },
         },
-        required: ["titulo", "tipo", "resumen", "secciones"],
+        required: ["titulo", "tipo", "resumen"],
       },
     },
     {
@@ -293,7 +297,7 @@ export function vegaTools(connections: VegaConnections, webSearch: boolean): Fun
     },
     {
       name: "editar_proyecto",
-      description: `Cambia un sitio o app que ya existe en Proyectos: textos, precios, horarios, datos de contacto, colores, tipografía o el diseño de secciones que ya tiene. Guarda una versión nueva (la anterior queda intacta y se puede restaurar). Cobra ${builderPrice("edit")} créditos por edición y se devuelven si falla. Primero usa abrir_proyecto para tener el proyecto_id y confirma con el socio qué cambiar. No agrega páginas nuevas, servidores, pagos, correos ni bases de datos: para eso hace falta un proyecto nuevo. No inventes datos: usa los que dio el socio.`,
+      description: `Cambia un sitio, app o juego que ya existe en Proyectos. Sitios y apps: textos, precios, horarios, datos de contacto, colores, tipografía o el diseño de secciones que ya tiene. Juegos: velocidad, dificultad, colores, controles, textos, puntuación, enemigos o poderes del mismo juego. Guarda una versión nueva (la anterior queda intacta y se puede restaurar). Cobra ${builderPrice("edit")} créditos por edición y se devuelven si falla. Primero usa abrir_proyecto para tener el proyecto_id y confirma con el socio qué cambiar. No agrega páginas nuevas, servidores, pagos, correos ni bases de datos: para eso hace falta un proyecto nuevo. No inventes datos: usa los que dio el socio.`,
       parameters: {
         type: "object",
         properties: {
@@ -795,7 +799,7 @@ export async function runVegaTool(userId: string, name: string, args: Record<str
     const { getPrisma } = await import("@/lib/prisma");
     const project = await getPrisma().project.findFirst({ where: { id: projectId, userId, deletedAt: null }, select: { id: true, kind: true, title: true, summary: true } });
     if (!project) return { kind: "invalid", response: { error: "No encontré ese proyecto en Proyectos del socio. Usa abrir_proyecto." } };
-    if (project.kind !== "sitio" && project.kind !== "app") return { kind: "invalid", response: { error: "Solo se pueden editar sitios y apps." } };
+    if (project.kind !== "sitio" && project.kind !== "app" && project.kind !== "juego") return { kind: "invalid", response: { error: "Solo se pueden editar sitios, apps y juegos." } };
     const version = typeof args.version === "number" && Number.isInteger(args.version) && args.version > 0 ? args.version : undefined;
     const draft: ProjectDraft & { edit: { projectId: string; version: number | null; request: string } } = {
       title: project.title,
@@ -811,6 +815,23 @@ export async function runVegaTool(userId: string, name: string, args: Record<str
       payload: draft,
       summary: `Cambios a ${project.title}`,
       modelNote: "",
+    };
+  }
+
+  if (name === "entregar_proyecto" && args.tipo === "juego") {
+    // Juego: el generador premium (modo juego) lo construye; esto es la versión básica de respaldo.
+    const title = text(args.titulo, 80);
+    const summary = text(args.resumen, 280);
+    if (title.length < 3 || summary.length < 8) return { kind: "invalid", response: { error: "Faltan el título o el resumen." } };
+    const { basicGameDraft } = await import("@/lib/games/basic");
+    const draft = basicGameDraft({ title, summary, color: text(args.color, 7), leaderboard: wantsLeaderboard(args), suggestions: suggestionsFor("juego", title, args.sugerencias) });
+    return {
+      kind: "delivery",
+      action: "deliver_project",
+      payload: draft,
+      summary: `Juego base listo: ${draft.title}`,
+      modelNote:
+        "Se entregó la versión básica del juego: el juego base de LYRA (un rompebloques) con su título y color, no el juego que pidió. Dilo así en una frase, sin adornar, y ofrece intentarlo de nuevo con el generador. No pegues código.",
     };
   }
 

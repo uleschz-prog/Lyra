@@ -92,7 +92,7 @@ export function BuildCard({
                   ? `Cambios listos en ${build.title ?? project.title}: versión ${build.versionNumber ?? ""}. La anterior sigue en Proyectos.`
                   : `No pude aplicar los cambios${build.error ? ` (${build.error})` : ""}. Tu proyecto quedó como estaba y te devolvimos los créditos.`
                 : build.status === "done"
-                  ? `${build.kind === "app" ? "App" : "Sitio"} listo: ${build.title ?? project.title}. Ya está en Proyectos con vista previa y ZIP.`
+                  ? `${build.kind === "app" ? "App" : build.kind === "juego" ? "Juego" : "Sitio"} listo: ${build.title ?? project.title}. Ya está en Proyectos con vista previa y ZIP.`
                   : "El generador premium no pudo terminar: te dejé la versión básica y te devolvimos los créditos.",
             payload: {
               ...(action.payload as object),
@@ -135,7 +135,7 @@ export function BuildCard({
           <LoaderCircle className="size-5 shrink-0 animate-spin text-[#7C3AED]" />
           <div className="min-w-0 flex-1">
             <p className="truncate text-sm font-medium text-[#252525]">
-              {editing ? "Aplicando cambios" : `Construyendo ${project.kind === "app" ? "tu app" : "tu sitio"} premium`} · {view?.title ?? project.title}
+              {editing ? "Aplicando cambios" : `Construyendo ${project.kind === "app" ? "tu app" : project.kind === "juego" ? "tu juego" : "tu sitio"} premium`} · {view?.title ?? project.title}
             </p>
             <p className="text-xs text-[#8A8680]">
               {(editing ? editLabels[view?.step ?? "plan"] : view?.label) ?? "En cola"}
@@ -175,7 +175,7 @@ export function BuildCard({
       <div className="flex flex-wrap items-center justify-between gap-3 border-b border-[#F0ECE6] px-4 py-2.5">
         <p className="flex items-center gap-1.5 text-xs font-medium text-[#5C5854]">
           {premium ? <Sparkles className="size-3.5 text-[#7C3AED]" /> : null}
-          {project.kind === "app" ? "App" : "Sitio web"} · {ref.title ?? project.title}
+          {project.kind === "app" ? "App" : project.kind === "juego" ? "Juego" : "Sitio web"} · {ref.title ?? project.title}
           {premium && ref.designSystem ? ` · ${systemLabels[ref.designSystem] ?? ref.designSystem}` : ""}
           {!premium ? " · versión básica" : ""}
           {editing && ref.versionNumber ? ` · versión ${ref.versionNumber} con tus cambios` : ""}

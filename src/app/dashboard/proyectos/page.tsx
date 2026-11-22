@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { AppWindow, Bot, Download, Globe, Sparkles } from "lucide-react";
+import { AppWindow, Bot, Download, Gamepad2, Globe, Sparkles } from "lucide-react";
 
 import { PageHeader } from "@/components/dashboard/page-header";
 import { ProjectActions } from "@/components/projects/project-actions";
@@ -14,7 +14,7 @@ import type { ProjectKind } from "@/lib/vega/build-project";
 
 export const metadata: Metadata = { title: "Proyectos" };
 
-const kindIcons: Record<ProjectKind, typeof Globe> = { sitio: Globe, app: AppWindow, agente: Bot };
+const kindIcons: Record<ProjectKind, typeof Globe> = { sitio: Globe, app: AppWindow, agente: Bot, juego: Gamepad2 };
 
 export default async function ProjectsPage() {
   const user = await getCurrentUser();
@@ -29,7 +29,7 @@ export default async function ProjectsPage() {
       <PageHeader
         eyebrow="Crear"
         title="Proyectos"
-        description="Los sitios web, apps y agentes que Vega crea para ti quedan aquí, con todas sus versiones."
+        description="Los sitios web, apps, agentes y juegos que Vega crea para ti quedan aquí, con todas sus versiones."
       />
 
       {projects.length === 0 ? (
