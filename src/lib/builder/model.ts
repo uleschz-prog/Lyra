@@ -1,12 +1,18 @@
-// Llamadas del generador v2 al modelo por la puerta de la Fase 3 (Gemini y respaldo OpenRouter).
+// Llamadas del generador v2 (sitios, apps, juegos y ediciones) por la capa única de modelos: nivel «fuerte».
 import { builderLimits, builderModels } from "@/lib/builder/config";
 import type { GenerationOptions } from "@/lib/vega/gemini-stream";
+import type { ModelTier } from "@/lib/ai/models";
 import { openVegaStream } from "@/lib/vega/model-gateway";
 import type { ModelUsage } from "@/lib/vega/usage";
 
 export type BuilderCall = { ok: true; text: string; usage: ModelUsage } | { ok: false; error: string; usage: ModelUsage | null };
 
 export type BuilderModel = (input: { system: string; user: string; json?: boolean; maxOutputTokens?: number; timeoutMs?: number; purpose: "plan" | "file" | "repair" }) => Promise<BuilderCall>;
+
+/** VEGA_BUILDER_TIER=rapido baja el generador al nivel rápido (por defecto, fuerte). */
+export function builderTier(env: Record<string, string | undefined> = process.env): ModelTier {
+  return env.VEGA_BUILDER_TIER?.trim().toLowerCase() === "rapido" ? "rapido" : "fuerte";
+}
 
 export const gatewayBuilderModel: BuilderModel = async (input) => {
   const generation: GenerationOptions = {
@@ -18,6 +24,8 @@ export const gatewayBuilderModel: BuilderModel = async (input) => {
   const opened = await openVegaStream(input.system, [{ role: "user", parts: [{ text: input.user }] }], [], {
     timeoutMs: input.timeoutMs ?? builderLimits.modelTimeoutMs,
     models: builderModels(),
+    tier: builderTier(),
+    label: `generador:${input.purpose}`,
     generation,
   });
   if (!opened.ok) return { ok: false, error: opened.error, usage: null };

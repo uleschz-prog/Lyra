@@ -38,6 +38,7 @@ import { isUserToolkit, type UserToolkit } from "@/lib/vega/apps";
 import { HISTORY, SUMMARY_SLACK, scheduleSummary, summaryContext } from "@/lib/vega/summary";
 import { summarizeUsage, type ModelUsage } from "@/lib/vega/usage";
 import { geminiCredentials } from "@/lib/ai/generate";
+import { chatTier, saturatedMessage, type ModelTier } from "@/lib/ai/models";
 import { capReachedMessage, costStatus, degradedModels, meterView, recordUsage, type UsageSource } from "@/lib/vega/cost-cap";
 import type { ModelOverride } from "@/lib/vega/model-gateway";
 
@@ -127,6 +128,10 @@ export type VegaTurn = {
   source?: UsageSource;
   /** Modelos más baratos si el socio está cerca de su tope de costo. */
   models?: ModelOverride | null;
+  /** Nivel de modelo del primer paso (AI Gateway). Tras usar herramientas se sube a «fuerte». */
+  tier?: ModelTier;
+  /** true si el socio está cerca del tope: todo el turno usa el nivel «rápido». */
+  degraded?: boolean;
   /** USD que le quedan al socio este mes (null = sin tope). */
   costRemainingUsd?: number | null;
   /** Datos del socio para recalcular su medidor al terminar. */
@@ -207,6 +212,8 @@ export async function prepareVegaTurn(
     return { ok: false, status: 429, error: capReachedMessage(cost), capped: true, ...(conversation ? { conversationId: conversation.id } : {}) };
   }
   const models = cost?.degrade ? degradedModels(geminiCredentials().model) : null;
+  const degraded = Boolean(cost?.degrade);
+  const tier: ModelTier = degraded ? "rapido" : chatTier({ message: input.message, attachments: input.attachments?.length ?? 0, source: input.source ?? "chat" });
 
   const chargeKey = `vega:${user.id}:${input.requestId}`;
   const charge = await chargeCredits(user.id, creditPrices.vegaMessage, "Vega · mensaje", chargeKey);
@@ -285,10 +292,11 @@ export async function prepareVegaTurn(
   const base = vegaLimits();
   const limits = input.timeBudgetMs ? { ...base, timeBudgetMs: Math.max(10_000, Math.min(base.timeBudgetMs, input.timeBudgetMs)) } : base;
   const budget = createTurnBudget(limits, startedAt);
-  const first = await openVegaStream(system, contents, tools, { timeoutMs: budget.modelTimeoutMs(), models, generation: chatGeneration });
+  const first = await openVegaStream(system, contents, tools, { timeoutMs: budget.modelTimeoutMs(), models, generation: chatGeneration, tier, label: `turno:${input.source ?? "chat"}` });
   if (!first.ok) {
+    // `first.error` ya es un texto para el socio («Vega está saturada…»); el detalle quedó en los logs.
     await refundCharge(charge.chargeId, "Reembolso: Vega no pudo responder");
-    return { ok: false, status: 502, error: first.error, conversationId: chatId };
+    return { ok: false, status: first.error === saturatedMessage ? 503 : 502, error: first.error, conversationId: chatId };
   }
   return {
     ok: true,
@@ -311,6 +319,8 @@ export async function prepareVegaTurn(
       first,
       source: input.source ?? "chat",
       models,
+      tier,
+      degraded,
       costRemainingUsd: cost?.remainingUsd ?? null,
       capUser,
     },
@@ -326,6 +336,7 @@ export async function runVegaTurn(turn: VegaTurn, emit: (event: VegaEvent) => vo
 
   let reply = "";
   let failed = false;
+  let saturated = false;
   let toolCharged = false;
   let toolChargeId: string | null = null;
   let paidToolSucceeded = false;
@@ -420,7 +431,7 @@ export async function runVegaTurn(turn: VegaTurn, emit: (event: VegaEvent) => vo
         }
       } finally {
         usage.push(current.usage);
-        models.add(`${current.provider}:${current.model}`);
+        models.add(`${current.provider}:${current.usage.model || current.model}`);
       }
       flush();
       endText();
@@ -707,10 +718,18 @@ export async function runVegaTurn(turn: VegaTurn, emit: (event: VegaEvent) => vo
         stopReason = stillRoom.reason;
         break;
       }
-      const next = await openVegaStream(system, contents, tools, { timeoutMs: budget.modelTimeoutMs(), models: turn.models ?? null, generation: chatGeneration });
+      // Varios pasos con herramientas: nivel fuerte (salvo que el socio esté cerca de su tope).
+      const next = await openVegaStream(system, contents, tools, {
+        timeoutMs: budget.modelTimeoutMs(),
+        models: turn.models ?? null,
+        generation: chatGeneration,
+        tier: turn.degraded ? "rapido" : "fuerte",
+        label: `turno:${turn.source ?? "chat"}:paso${modelCalls + 1}`,
+      });
       modelCalls += 1;
       if (!next.ok) {
         failed = true;
+        saturated = next.error === saturatedMessage;
         break;
       }
       current = next;
@@ -776,7 +795,7 @@ export async function runVegaTurn(turn: VegaTurn, emit: (event: VegaEvent) => vo
     if (!reply.trim()) emit({ t: "text", v: content });
   } else if (!content) {
     await refundCharge(turn.chargeId, "Reembolso: Vega no pudo responder");
-    emit({ t: "error", v: "Vega no alcanzó a responder. No se descontó el crédito; intenta de nuevo." });
+    emit({ t: "error", v: saturated ? `${saturatedMessage} No se descontó el crédito.` : "Vega no alcanzó a responder. No se descontó el crédito; intenta de nuevo." });
   }
   await prisma.vegaConversation.update({ where: { id: chatId }, data: { updatedAt: new Date() } });
   if (content && persist) scheduleSummary(chatId);

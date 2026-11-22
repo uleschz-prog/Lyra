@@ -21,6 +21,13 @@ export const builtinModelPrices: Record<string, ModelPrice> = {
   "gemini-3.1-pro-preview": { input: 2, output: 12 }, // prompts ≤200k tokens
   "gemini-3.6-flash": { input: 1.5, output: 7.5 }, // $0.75/$3.75 hasta el 31-dic-2026; se usa el precio de 2027
   "gemini-3.8-flash": { input: 1.5, output: 7.5 }, // ídem (OpenRouter hoy: $0.825/$4.125)
+  // Vercel AI Gateway (niveles «fuerte» y «rápido»), precios de https://ai-gateway.vercel.sh/v1/models
+  // revisados el 2026-11-21 (prompts ≤200k tokens; sin descuento por caché, conservador).
+  "grok-4.7": { input: 2, output: 6 },
+  "claude-sonnet-5.5": { input: 2, output: 10 },
+  "gpt-5.6-terra": { input: 2, output: 12 },
+  "claude-haiku-5.5": { input: 0.1, output: 0.5 },
+  "gpt-5.6-luna": { input: 0.2, output: 1.2 },
   // Respaldos comunes en OpenRouter.
   "gpt-4o-mini": { input: 0.15, output: 0.6 },
 };

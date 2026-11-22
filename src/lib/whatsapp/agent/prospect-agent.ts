@@ -1,4 +1,5 @@
-import { openGeminiStream, type FunctionDeclaration, type GeminiContent, type GeminiPart } from "@/lib/vega/gemini-stream";
+import type { FunctionDeclaration, GeminiContent, GeminiPart } from "@/lib/vega/gemini-stream";
+import { openVegaStream } from "@/lib/vega/model-gateway";
 
 export const leadStages = ["nuevo", "interesado", "calificado", "cita", "cliente", "perdido"] as const;
 export type LeadStage = (typeof leadStages)[number];
@@ -21,7 +22,13 @@ export type AgentContext = {
   followupStep?: number;
 };
 
-export type AgentGenerate = typeof openGeminiStream;
+export type AgentGenerate = (system: string, contents: GeminiContent[], tools: FunctionDeclaration[]) => Promise<
+  { ok: true; parts: AsyncIterable<GeminiPart> } | { ok: false; error: string }
+>;
+
+/** Agente de prospectos por la capa única de modelos (nivel «rápido»: respuestas cortas con 2-3 herramientas). */
+export const prospectGenerate: AgentGenerate = (system, contents, tools) =>
+  openVegaStream(system, contents, tools, { timeoutMs: 25_000, tier: "rapido", label: "whatsapp-prospectos" });
 
 const tools: FunctionDeclaration[] = [
   {
@@ -123,7 +130,7 @@ export function plainText(text: string) {
 }
 
 /** Genera la respuesta del agente. Las herramientas solo producen efectos; el backend decide qué aplicar. */
-export async function runProspectAgent(context: AgentContext, generate: AgentGenerate = openGeminiStream) {
+export async function runProspectAgent(context: AgentContext, generate: AgentGenerate = prospectGenerate) {
   const system = systemPrompt(context);
   const conversation = contents(context);
   const toolset = context.mode === "reply" ? tools : [];

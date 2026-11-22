@@ -117,15 +117,15 @@ describe("puerta de modelos de Vega", () => {
     expect(result.ok && result.provider).toBe("openrouter");
   });
 
-  it("sin respaldo configurado devuelve el error de Gemini", async () => {
+  it("sin respaldo configurado devuelve el aviso amable (el texto del proveedor solo en detail)", async () => {
     const result = await openVegaStream("sys", contents, [], {
       timeoutMs: 10_000,
       deps: { primary: async () => ({ ok: false, status: 503, error: "caído" }), fallback: null },
     });
-    expect(result).toEqual({ ok: false, status: 503, error: "caído" });
+    expect(result).toEqual({ ok: false, status: 503, error: "Vega está saturada en este momento, intenta en unos minutos.", detail: "503: caído" });
   });
 
-  it("si fallan los dos, devuelve el error original", async () => {
+  it("si fallan los dos, el socio ve el aviso amable y el detalle guarda ambos errores", async () => {
     const result = await openVegaStream("sys", contents, [], {
       timeoutMs: 10_000,
       deps: {
@@ -133,7 +133,12 @@ describe("puerta de modelos de Vega", () => {
         fallback: async () => ({ ok: false, status: 502, error: "openrouter falló" }),
       },
     });
-    expect(result).toEqual({ ok: false, status: 502, error: "gemini falló" });
+    expect(result).toEqual({
+      ok: false,
+      status: 502,
+      error: "Vega está saturada en este momento, intenta en unos minutos.",
+      detail: "500: gemini falló | 502: openrouter falló",
+    });
   });
 
   it("marca la respuesta como truncada si se acaba el tiempo a media respuesta", async () => {

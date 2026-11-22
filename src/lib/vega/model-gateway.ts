@@ -1,8 +1,17 @@
 /**
- * Puerta de modelos de Vega: usa Gemini y, si falla (error, límite de uso,
- * tiempo agotado o respuesta vacía), repite la llamada con OpenRouter.
- * Sin OPENROUTER_API_KEY el respaldo queda apagado.
+ * Puerta única de modelos de Vega y del generador.
+ *
+ * - Con Vercel AI Gateway activo (ver `gatewayMode`): una petición al Gateway con el modelo del
+ *   nivel («fuerte» o «rápido») y sus respaldos de otros proveedores. Si el Gateway entero falla,
+ *   se intenta la ruta anterior (Gemini directo y luego OpenRouter) si tiene clave.
+ * - Sin Gateway: Gemini y, si falla (error, límite de uso, tiempo agotado o respuesta vacía),
+ *   OpenRouter. Sin OPENROUTER_API_KEY ese respaldo queda apagado.
+ *
+ * Si nadie responde, el socio solo ve `saturatedMessage`; el detalle del proveedor va a los logs.
  */
+import { geminiCredentials } from "@/lib/ai/models";
+import { openGatewayStream } from "@/lib/ai/gateway";
+import { gatewayMode, orderForInputs, saturatedMessage, tierModels, unconfiguredMessage, type ModelTier } from "@/lib/ai/models";
 import { providerError, readJson } from "@/lib/ai/providers";
 import {
   openGeminiStream,
@@ -12,22 +21,28 @@ import {
   type GeminiPart,
   type StreamOptions,
 } from "@/lib/vega/gemini-stream";
-import type { ModelUsage } from "@/lib/vega/usage";
+import type { ModelProvider, ModelUsage } from "@/lib/vega/usage";
+import { fromOpenRouterResponse, toOpenRouterMessages, type OpenRouterResponse } from "@/lib/ai/chat-format";
+
+export { fromOpenRouterResponse, toOpenRouterMessages } from "@/lib/ai/chat-format";
 
 export const defaultOpenRouterModel = "google/gemini-2.5-flash";
-/** Si Gemini no manda nada en este tiempo, se pasa al respaldo. */
+/** Si el modelo no manda nada en este tiempo, se pasa al respaldo. */
 const firstPartTimeoutMs = 20_000;
+/** Los modelos del Gateway razonan antes de escribir: se les da más margen para la primera parte. */
+export const gatewayFirstPartTimeoutMs = 30_000;
 
 export type ModelStream = {
   ok: true;
-  provider: "gemini" | "openrouter";
+  provider: ModelProvider;
   model: string;
   usage: ModelUsage;
   parts: AsyncIterable<GeminiPart>;
   /** true si se cortó por tiempo antes de terminar. */
   state: { truncated: boolean; fallbackReason: string | null };
 };
-export type ModelFailure = { ok: false; status: number; error: string };
+/** `error` siempre es un texto apto para el socio; `detail` (solo logs) trae lo que dijo el proveedor. */
+export type ModelFailure = { ok: false; status: number; error: string; detail?: string };
 
 type Opener = (
   system: string,
@@ -35,16 +50,18 @@ type Opener = (
   tools: FunctionDeclaration[],
   options: StreamOptions,
 ) => Promise<
-  | { ok: true; provider: "gemini" | "openrouter"; model: string; usage: ModelUsage; parts: AsyncIterable<GeminiPart> }
+  | { ok: true; provider: ModelProvider; model: string; usage: ModelUsage; parts: AsyncIterable<GeminiPart> }
   | { ok: false; status: number; error: string }
 >;
 
-/** Modelos a usar en lugar de los configurados (ahorro cerca del tope de costo). */
+/** Modelos a usar en lugar de los configurados en la ruta Gemini (ahorro cerca del tope, generador). */
 export type ModelOverride = { gemini: string; openrouter: string };
 
 export type GatewayDeps = {
   primary: Opener;
   fallback: Opener | null;
+  /** Más respaldos después de `fallback`, en orden. */
+  more?: Opener[];
   firstPartTimeoutMs?: number;
 };
 
@@ -54,14 +71,29 @@ export function openRouterConfig(env: Record<string, string | undefined> = proce
   return { apiKey: disabled ? "" : apiKey, model: env.OPENROUTER_MODEL?.trim() || defaultOpenRouterModel };
 }
 
-function defaultDeps(): GatewayDeps {
-  const { apiKey, model } = openRouterConfig();
-  return {
-    primary: openGeminiStream,
-    fallback: apiKey
-      ? (system, contents, tools, options) => openOpenRouter(apiKey, options.model?.trim() || model, system, contents, tools, options)
-      : null,
-  };
+function hasPdf(contents: GeminiContent[]) {
+  return contents.some((content) => content.parts.some((part) => part.inlineData?.mimeType === "application/pdf"));
+}
+
+/** Openers en orden según la configuración: Gateway (si está activo) y luego Gemini y OpenRouter. */
+export function defaultDeps(
+  input: { tier: ModelTier; contents: GeminiContent[]; models: ModelOverride | null },
+  env: Record<string, string | undefined> = process.env,
+): GatewayDeps {
+  const { apiKey, model } = openRouterConfig(env);
+  const override = input.models;
+  const gemini: Opener = override ? (s, c, t, o) => openGeminiStream(s, c, t, { ...o, model: override.gemini }) : openGeminiStream;
+  const openrouter: Opener | null = apiKey
+    ? (s, c, t, o) => openOpenRouter(apiKey, override?.openrouter || o.model?.trim() || model, s, c, t, o)
+    : null;
+
+  const mode = gatewayMode(env);
+  if (!mode.enabled) return { primary: gemini, fallback: openrouter };
+
+  const models = orderForInputs(tierModels(input.tier, env), hasPdf(input.contents));
+  const gateway: Opener = (s, c, t, o) => openGatewayStream(mode, models, s, c, t, o);
+  const legacy = [geminiCredentials().apiKey ? gemini : null, openrouter].filter((opener): opener is Opener => Boolean(opener));
+  return { primary: gateway, fallback: legacy[0] ?? null, more: legacy.slice(1), firstPartTimeoutMs: gatewayFirstPartTimeoutMs };
 }
 
 class FirstPartTimeout extends Error {
@@ -77,37 +109,54 @@ function withTimeout<T>(promise: Promise<T>, ms: number) {
 }
 
 /**
- * Abre una respuesta del modelo con un tiempo máximo (`timeoutMs`). Si el
- * proveedor principal falla antes de mandar la primera parte, prueba el respaldo.
+ * Abre una respuesta del modelo con un tiempo máximo (`timeoutMs`). Si el proveedor falla antes de
+ * mandar la primera parte (cuota, 429, 5xx, red, tiempo o respuesta vacía), prueba el siguiente.
+ * `tier` elige el nivel en AI Gateway; `models` solo cambia los modelos de la ruta Gemini.
  */
 export async function openVegaStream(
   system: string,
   contents: GeminiContent[],
   tools: FunctionDeclaration[],
-  options: { timeoutMs: number; deps?: GatewayDeps; models?: ModelOverride | null; generation?: GenerationOptions },
+  options: { timeoutMs: number; deps?: GatewayDeps; models?: ModelOverride | null; generation?: GenerationOptions; tier?: ModelTier; label?: string },
 ): Promise<ModelStream | ModelFailure> {
-  const base = options.deps ?? defaultDeps();
-  const models = options.models ?? null;
-  const deps: GatewayDeps = models
-    ? {
-        ...base,
-        primary: (s, c, t, o) => base.primary(s, c, t, { ...o, model: models.gemini }),
-        fallback: base.fallback ? (s, c, t, o) => base.fallback!(s, c, t, { ...o, model: models.openrouter }) : null,
-      }
-    : base;
+  const deps = options.deps ?? defaultDeps({ tier: options.tier ?? "fuerte", contents, models: options.models ?? null });
+  const openers = [deps.primary, ...(deps.fallback ? [deps.fallback] : []), ...(deps.more ?? [])];
   const startedAt = Date.now();
-  const primary = await attempt(deps.primary, system, contents, tools, options.timeoutMs, deps.firstPartTimeoutMs ?? firstPartTimeoutMs, options.generation);
-  if (primary.ok || !deps.fallback) return primary;
+  const failures: { status: number; error: string }[] = [];
 
-  const left = options.timeoutMs - (Date.now() - startedAt);
-  if (left < 3_000) return primary;
-  console.warn("[Vega gateway] usando respaldo", { status: primary.status });
-  const fallback = await attempt(deps.fallback, system, contents, tools, left, left, options.generation);
-  if (fallback.ok) {
-    fallback.state.fallbackReason = primary.status ? `status ${primary.status}` : primary.error;
-    return fallback;
+  for (const [index, open] of openers.entries()) {
+    const left = options.timeoutMs - (Date.now() - startedAt);
+    if (index > 0 && left < 3_000) break;
+    const firstMs = index === 0 ? (deps.firstPartTimeoutMs ?? firstPartTimeoutMs) : left;
+    const result = await attempt(open, system, contents, tools, left, firstMs, options.generation);
+    if (result.ok) {
+      if (failures.length) {
+        const previous = failures[failures.length - 1];
+        result.state.fallbackReason = previous.status ? `status ${previous.status}` : previous.error;
+      }
+      return result;
+    }
+    failures.push({ status: result.status, error: result.error });
+    // Solo en logs del servidor: estado y texto del proveedor (nunca claves ni el prompt).
+    console.warn("[Vega models] falló un proveedor", {
+      label: options.label ?? "vega",
+      tier: options.tier ?? "fuerte",
+      attempt: index + 1,
+      of: openers.length,
+      status: result.status,
+      detail: result.error.slice(0, 300),
+    });
   }
-  return { ok: false, status: fallback.status, error: primary.error };
+
+  const first = failures[0] ?? { status: 0, error: unconfiguredMessage };
+  const last = failures[failures.length - 1] ?? first;
+  const unconfigured = failures.length > 0 && failures.every((failure) => failure.error === unconfiguredMessage);
+  return {
+    ok: false,
+    status: last.status,
+    error: unconfigured ? unconfiguredMessage : saturatedMessage,
+    detail: failures.map((failure) => `${failure.status || "-"}: ${failure.error}`).join(" | ").slice(0, 600),
+  };
 }
 
 async function attempt(
@@ -166,97 +215,6 @@ async function attempt(
 }
 
 /* ---------------------------- OpenRouter ---------------------------- */
-
-type ChatContentPart =
-  | { type: "text"; text: string }
-  | { type: "image_url"; image_url: { url: string } }
-  | { type: "file"; file: { filename: string; file_data: string } };
-
-type ChatMessage =
-  | { role: "system"; content: string }
-  | { role: "user"; content: string | ChatContentPart[] }
-  | {
-      role: "assistant";
-      content: string | null;
-      tool_calls?: { id: string; type: "function"; function: { name: string; arguments: string } }[];
-    }
-  | { role: "tool"; tool_call_id: string; content: string };
-
-/** Convierte el historial de Gemini al formato de chat de OpenRouter (estilo OpenAI). */
-export function toOpenRouterMessages(system: string, contents: GeminiContent[]): ChatMessage[] {
-  const messages: ChatMessage[] = [{ role: "system", content: system }];
-  let pending: { id: string; name: string }[] = [];
-  let counter = 0;
-
-  for (const content of contents) {
-    if (content.role === "model") {
-      const text = content.parts
-        .filter((part) => part.text && !part.thought)
-        .map((part) => part.text)
-        .join("");
-      const calls = content.parts
-        .filter((part) => part.functionCall)
-        .map((part) => ({
-          id: `call_${(counter += 1)}`,
-          type: "function" as const,
-          function: { name: part.functionCall!.name, arguments: JSON.stringify(part.functionCall!.args ?? {}) },
-        }));
-      pending = calls.map((call) => ({ id: call.id, name: call.function.name }));
-      messages.push({ role: "assistant", content: text || null, ...(calls.length ? { tool_calls: calls } : {}) });
-      continue;
-    }
-
-    const userParts: ChatContentPart[] = [];
-    for (const part of content.parts) {
-      if (part.functionResponse) {
-        const index = pending.findIndex((call) => call.name === part.functionResponse!.name);
-        const match = index >= 0 ? pending.splice(index, 1)[0] : { id: `call_${(counter += 1)}` };
-        messages.push({ role: "tool", tool_call_id: match.id, content: JSON.stringify(part.functionResponse.response) });
-      } else if (part.text) {
-        userParts.push({ type: "text", text: part.text });
-      } else if (part.inlineData) {
-        const url = `data:${part.inlineData.mimeType};base64,${part.inlineData.data}`;
-        if (part.inlineData.mimeType.startsWith("image/")) userParts.push({ type: "image_url", image_url: { url } });
-        else if (part.inlineData.mimeType === "application/pdf") userParts.push({ type: "file", file: { filename: "adjunto.pdf", file_data: url } });
-        else userParts.push({ type: "text", text: `(Adjunto ${part.inlineData.mimeType} no disponible en el modelo de respaldo.)` });
-      }
-    }
-    if (userParts.length === 1 && userParts[0].type === "text") messages.push({ role: "user", content: userParts[0].text });
-    else if (userParts.length > 0) messages.push({ role: "user", content: userParts });
-  }
-  return messages;
-}
-
-type OpenRouterResponse = {
-  model?: string;
-  choices?: {
-    message?: {
-      content?: string | null;
-      tool_calls?: { function?: { name?: string; arguments?: string } }[];
-    };
-  }[];
-  usage?: { prompt_tokens?: number; completion_tokens?: number; cost?: number };
-};
-
-/** Convierte la respuesta de OpenRouter en partes estilo Gemini. */
-export function fromOpenRouterResponse(payload: OpenRouterResponse): GeminiPart[] {
-  const message = payload.choices?.[0]?.message;
-  const parts: GeminiPart[] = [];
-  if (typeof message?.content === "string" && message.content) parts.push({ text: message.content });
-  for (const call of message?.tool_calls ?? []) {
-    const name = call.function?.name;
-    if (!name) continue;
-    let args: Record<string, unknown> = {};
-    try {
-      const parsed = JSON.parse(call.function?.arguments || "{}") as unknown;
-      if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) args = parsed as Record<string, unknown>;
-    } catch {
-      args = {};
-    }
-    parts.push({ functionCall: { name, args } });
-  }
-  return parts;
-}
 
 export async function openOpenRouter(
   apiKey: string,
