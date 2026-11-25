@@ -52,6 +52,8 @@ const internalTools = new Set([
   "entregar_proyecto",
   "editar_proyecto",
   "configurar_monitor_x",
+  // Imagen dentro de LYRA (Blob privado); cobra créditos como entregar_proyecto y no sale a nadie.
+  "generar_imagen",
 ]);
 
 /** Herramientas que preparan algo para una app externa (su riesgo final depende del borrador). */
@@ -101,7 +103,7 @@ export function classifyAction(kind: string, payload: unknown): RiskClass {
     return "send"; // whatsapp_send, social_post, payment_link y lo que se agregue después.
   }
   if (kind === "run_command") return "write";
-  if (kind === "create_image" || kind === "create_video" || kind === "deliver_project" || kind === "connect_app" || kind === "background_job") return "internal";
+  if (kind === "create_image" || kind === "create_video" || kind === "deliver_project" || kind === "connect_app" || kind === "background_job" || kind === "image_generation") return "internal";
   return "send";
 }
 

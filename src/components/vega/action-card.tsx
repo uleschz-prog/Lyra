@@ -21,6 +21,7 @@ import { toast } from "sonner";
 
 import { connectVegaApp, decideVegaAction } from "@/app/dashboard/super-agent/actions";
 import { BuildCard, buildRefOf } from "@/components/vega/build-card";
+import { ImageCard } from "@/components/vega/image-card";
 import { JobCard } from "@/components/vega/job-card";
 import { ProjectCard } from "@/components/vega/project-card";
 import type { AppOp } from "@/lib/vega/app-tools";
@@ -131,6 +132,7 @@ export function ActionCard({
 }) {
   if (action.kind === "background_job") return <JobCard action={action} onChange={onChange} />;
   if (action.kind === "connect_app") return <ConnectCard draft={action.payload as ConnectDraft} />;
+  if (action.kind === "image_generation") return <ImageCard action={action} onChange={onChange} />;
   if (action.kind === "whatsapp_message") return <WhatsappCard action={action} onChange={onChange} />;
   if (action.kind === "deliver_project") {
     // PR C: generador v2. Si falló sin respaldo guardado, se muestra la versión v1 del chat.

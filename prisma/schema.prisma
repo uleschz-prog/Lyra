@@ -185,6 +185,7 @@ model User {
   vegaXCalls                   VegaXCall[]
   projects                     Project[]
   projectBuilds                ProjectBuild[]
+  vegaImageGenerations         VegaImageGeneration[]
   marketplaceTemplates         MarketplaceTemplate[]
   marketplacePurchases         MarketplacePurchase[]
   vegaWhatsappBlocks           VegaWhatsappBlock[]
@@ -1355,6 +1356,59 @@ model ProjectBuild {
 
   @@index([userId, createdAt])
   @@index([status, updatedAt])
+}
+
+/// Imágenes de Vega (flyers y posts, 2026-11-25). Una fila por imagen pedida: costo, cobro y Blob.
+/// No reutiliza MediaPiece/VideoGeneration (retirados en P1): esta tabla es solo de la herramienta de Vega.
+model VegaImageGeneration {
+  id               String    @id @default(cuid())
+  userId           String
+  conversationId   String?
+  /// Entrega de Vega (VegaAction) que muestra la imagen; única.
+  actionId         String?   @unique
+  /// Descripción visual que escribió Vega
+  prompt           String    @db.Text
+  /// Texto literal que debe aparecer (español, tal cual)
+  exactText        String?   @db.Text
+  /// 1:1 | 2:3 | 3:2
+  aspectRatio      String
+  quality          String
+  /// gateway | openai
+  provider         String
+  /// Modelo pedido y modelo que respondió
+  model            String
+  servedModel      String?
+  /// queued | running | done | failed
+  status           String    @default("queued")
+  attempts         Int       @default(0)
+  /// policy | timeout | rate_limit | quota | auth | invalid | provider | storage | empty | cap
+  errorKind        String?
+  error            String?
+  credits          Int       @default(0)
+  chargeId         String?
+  refunded         Boolean   @default(false)
+  /// Costo estimado antes de generar (cuenta para el tope mensual) y costo reportado por el proveedor
+  estimatedCostUsd Float     @default(0)
+  costUsd          Float?
+  inputTokens      Int?
+  outputTokens     Int?
+  /// Blob privado de la imagen final y de las referencias
+  blobUrl          String?
+  mediaType        String?
+  bytes            Int?
+  referenceUrls    String[]  @default([])
+  /// Resultado de la lectura opcional del texto ({ ok, faltan[] })
+  textCheck        Json?
+  lockedUntil      DateTime?
+  finishedAt       DateTime?
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, createdAt])
+  @@index([status, updatedAt])
+  @@index([createdAt])
 }
 
 // PR H: Marketplace de plantillas (sitios, apps y agentes). Cada plantilla guarda una copia fija

@@ -1,0 +1,44 @@
+# Desarrollo local: app (next dev) + Postgres. Producción NO usa esto: sigue en Vercel.
+# 1. cp .env.example .env.local y llena lo que necesites (para imágenes: AI_GATEWAY_API_KEY y
+#    BLOB_READ_WRITE_TOKEN de un Blob store propio de desarrollo; sin ellos la herramienta no aparece).
+# 2. docker compose up --build
+# 3. La primera vez: docker compose exec app npx prisma db push   (crea las tablas en la base local vacía)
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: lyra
+      POSTGRES_PASSWORD: lyra
+      POSTGRES_DB: lyra
+    ports:
+      - "5433:5432"
+    volumes:
+      - lyra-db:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U lyra -d lyra"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  app:
+    build:
+      context: .
+      target: dev
+    env_file:
+      - path: .env.local
+        required: false
+    environment:
+      DATABASE_URL: postgresql://lyra:lyra@db:5432/lyra
+      NEXT_PUBLIC_APP_URL: http://localhost:3000
+    ports:
+      - "3000:3000"
+    depends_on:
+      db:
+        condition: service_healthy
+    volumes:
+      - .:/app
+      - /app/node_modules
+      - /app/.next
+
+volumes:
+  lyra-db:

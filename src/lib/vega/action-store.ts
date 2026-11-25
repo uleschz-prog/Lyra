@@ -88,7 +88,7 @@ export type ActionLogEntry = {
 /** Bitácora de acciones del socio (más recientes primero). */
 export async function actionLog(userId: string, take = 50): Promise<ActionLogEntry[]> {
   const rows = await getPrisma().vegaAction.findMany({
-    where: { userId, kind: { notIn: ["create_image", "create_video", "deliver_project", "connect_app"] } },
+    where: { userId, kind: { notIn: ["create_image", "create_video", "deliver_project", "connect_app", "image_generation"] } },
     orderBy: { createdAt: "desc" },
     take,
     select: { id: true, kind: true, payload: true, status: true, riskClass: true, executedBy: true, result: true, createdAt: true, decidedAt: true },

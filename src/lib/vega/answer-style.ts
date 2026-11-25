@@ -42,6 +42,7 @@ export const toolLabels: Record<string, string> = {
   editar_proyecto: "editar el proyecto",
   entregar_proyecto: "armar el proyecto",
   escribir_archivo: "guardarlo en tus Archivos",
+  generar_imagen: "crear la imagen",
   leer_archivo: "leer el archivo",
   leer_correos: "leer tus correos",
   leer_hoja: "leer la hoja",
