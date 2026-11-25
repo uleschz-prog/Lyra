@@ -106,9 +106,15 @@ export default async function AdminPage() {
       <PageHeader
         eyebrow="Administración"
         title="Panel admin"
-        description="Cierra el mes, valida inscripciones, cambia patrocinios, ajusta créditos, cambia paquetes, administra wallets USDT, corta comisiones, edita datos de acceso, suspende o borra cuentas y descarga el respaldo de socios."
+        description="Revisa los ingresos de la empresa, cierra el mes, valida inscripciones, cambia patrocinios, ajusta créditos, cambia paquetes, administra wallets USDT, corta comisiones, edita datos de acceso, suspende o borra cuentas y descarga el respaldo de socios."
       />
       <CloseMonth />
+      <Link
+        href="/dashboard/admin/ingresos"
+        className="mt-5 mr-2 inline-flex rounded-full border border-[#C4B5FD] bg-[#F5F3FF] px-4 py-2 text-sm font-medium text-[#7C3AED] hover:border-[#7C3AED]"
+      >
+        Ingresos de la empresa
+      </Link>
       <Link
         href="/dashboard/marketplace/moderacion"
         className="mt-5 inline-flex rounded-full border border-[#E7E2DA] bg-white px-4 py-2 text-sm font-medium text-[#1E1E24] hover:border-[#C4B5FD]"
