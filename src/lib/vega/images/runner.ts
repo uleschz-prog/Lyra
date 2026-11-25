@@ -10,19 +10,20 @@ import type { PrismaClient } from "@/generated/prisma/client";
 import { Prisma } from "@/generated/prisma/client";
 import { builderDayStart } from "@/lib/builder/config";
 import {
+  asAspectRatio,
   type AspectRatio,
   blobConfigured,
   estimateImageCostUsd,
   type ImageQuality,
-  imageModel,
   imageProvider,
   imageQuality,
+  imageRoute,
   imageSettings,
   MAX_REFERENCES,
 } from "@/lib/vega/images/config";
 import { classifyImageError, friendlyImageError, type ImageErrorKind, ImageProviderError, retryable } from "@/lib/vega/images/errors";
 import { buildImagePrompt } from "@/lib/vega/images/prompt";
-import { type ImageProvider, selectImageProvider } from "@/lib/vega/images/providers";
+import { createImageProvider, type ImageProvider } from "@/lib/vega/images/providers";
 import { blobImageStore, extensionFor, type ImageStore, isImageBlobUrl } from "@/lib/vega/images/storage";
 import { checkImageText, type TextCheck } from "@/lib/vega/images/text-check";
 import { DEFAULT_TIMEZONE, zonedParts, zonedToUtc } from "@/lib/vega/schedule";
@@ -35,7 +36,7 @@ export type ImageDeps = {
   db: ImagesDb;
   env?: Env;
   now?: () => Date;
-  /** null = sin proveedor configurado. Por defecto, el de VEGA_IMAGE_PROVIDER. */
+  /** null = sin proveedor configurado. Por defecto, el que se guardó en la fila (según su formato). */
   provider?: ImageProvider | null;
   store?: ImageStore;
   charge?: (userId: string, amount: number, description: string, key: string) => Promise<Charge>;
@@ -113,7 +114,7 @@ type Row = {
 const json = (value: unknown) => value as Prisma.InputJsonValue;
 
 function asAspect(value: string): AspectRatio {
-  return value === "2:3" || value === "3:2" ? value : "1:1";
+  return asAspectRatio(value) ?? "1:1";
 }
 
 function asStatus(value: string): ImageStatus {
@@ -224,7 +225,9 @@ export async function startImageGeneration(
   if (lastHour >= settings.perHour) return { ok: false, reason: "limit", message: `Llegaste al límite de ${settings.perHour} imágenes por hora. Intenta un poco más tarde.` };
   if (today >= settings.perDay) return { ok: false, reason: "limit", message: `Llegaste al límite de ${settings.perDay} imágenes por día. Mañana se reinicia (hora CDMX).` };
 
-  const model = imageModel(providerId, env);
+  const route = imageRoute(input.aspect, env);
+  if (!route) return { ok: false, reason: "invalid", message: `El formato ${input.aspect} no está disponible por ahora. Usa 1:1, 2:3 o 3:2.` };
+  const model = route.model;
   const quality: ImageQuality = imageQuality(env);
   const estimate = estimateImageCostUsd(model, input.aspect, quality, env);
   const spent = await monthSpendUsd(db, now);
@@ -261,7 +264,7 @@ export async function startImageGeneration(
         exactText: input.exactText?.slice(0, 1000) || null,
         aspectRatio: input.aspect,
         quality,
-        provider: providerId,
+        provider: route.provider,
         model,
         credits: settings.priceCredits,
         chargeId: charge.chargeId,
@@ -270,7 +273,7 @@ export async function startImageGeneration(
       },
       select,
     });
-    log.info("[Vega imágenes] en cola", { id: row.id, provider: providerId, model, aspect: input.aspect, quality, references: referenceUrls.length, estimatedCostUsd: estimate });
+    log.info("[Vega imágenes] en cola", { id: row.id, provider: route.provider, model, aspect: input.aspect, quality, references: referenceUrls.length, estimatedCostUsd: estimate });
     return { ok: true, image: imageView(row as Row), duplicate: false };
   } catch (error) {
     const again = await db.vegaImageGeneration.findUnique({ where: { actionId: input.actionId }, select });
@@ -329,7 +332,7 @@ export async function advanceImageGeneration(id: string, deps: ImageDeps): Promi
   if (claimed.count !== 1) return imageView(row);
   const attempt = row.attempts + 1;
 
-  const provider = deps.provider === undefined ? selectImageProvider(env) : deps.provider;
+  const provider = deps.provider === undefined ? createImageProvider(row.provider, row.model, env) : deps.provider;
   if (!provider) return fail(db, row, "auth", "sin proveedor configurado", deps, now);
   const store = deps.store ?? blobImageStore;
   const started = Date.now();

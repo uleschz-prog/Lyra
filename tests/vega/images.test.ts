@@ -1,11 +1,11 @@
 import { describe, expect, it, vi } from "vitest";
 
-import { estimateImageCostUsd, imageModel, imageProvider, imageSettings, imagesEnabled } from "@/lib/vega/images/config";
+import { availableAspectRatios, estimateImageCostUsd, geminiImageSize, imageModel, imageProvider, imageQuality, imageRoute, imageSettings, imagesEnabled } from "@/lib/vega/images/config";
 import { startImageFromDelivery, turnImageInputs } from "@/lib/vega/images/delivery";
 import { classifyImageError, friendlyImageError, ImageProviderError, retryable } from "@/lib/vega/images/errors";
 import { buildImagePrompt, missingLines, textLines } from "@/lib/vega/images/prompt";
 import { createGatewayImageProvider, gatewayCost } from "@/lib/vega/images/providers/gateway";
-import { selectImageProvider } from "@/lib/vega/images/providers";
+import { createImageProvider, selectImageProvider } from "@/lib/vega/images/providers";
 import { createOpenAIImageProvider } from "@/lib/vega/images/providers/openai";
 import type { ImageProvider, ImageRequest } from "@/lib/vega/images/providers/types";
 import { advanceImageGeneration, getImageForUser, type ImagesDb, monthSpendUsd, readImageFile, startImageGeneration } from "@/lib/vega/images/runner";
@@ -104,12 +104,79 @@ describe("configuración de imágenes", () => {
     expect(selectImageProvider(env)?.id).toBe("gateway");
   });
 
-  it("estima con la tabla publicada de gpt-image-2 y usa el respaldo para otros modelos", () => {
-    expect(estimateImageCostUsd("openai/gpt-image-2", "1:1", "medium")).toBeCloseTo(0.063);
+  it("calidad high por defecto; medium y low solo si se piden", () => {
+    expect(imageQuality({})).toBe("high");
+    expect(imageQuality({ VEGA_IMAGE_QUALITY: "medium" })).toBe("medium");
+    expect(imageQuality({ VEGA_IMAGE_QUALITY: "rara" })).toBe("high");
+  });
+
+  it("estima con las tablas publicadas (GPT Image 2 y Gemini) y usa el respaldo para otros modelos", () => {
+    expect(estimateImageCostUsd("openai/gpt-image-2", "1:1", "high")).toBeCloseTo(0.221);
     expect(estimateImageCostUsd("openai/gpt-image-2", "2:3", "high")).toBeCloseTo(0.175);
+    expect(estimateImageCostUsd("openai/gpt-image-2", "3:2", "medium")).toBeCloseTo(0.051);
+    expect(estimateImageCostUsd("google/gemini-3-pro-image", "9:16", "high")).toBeCloseTo(0.144);
+    expect(estimateImageCostUsd("google/gemini-nano-banana-2.1", "4:5", "high")).toBeCloseTo(0.0436);
     expect(estimateImageCostUsd("bfl/flux-3-image", "1:1", "medium", { VEGA_IMAGE_EST_COST_USD: "0.05" })).toBe(0.05);
+    expect(estimateImageCostUsd("bfl/flux-3-image", "1:1", "high", {})).toBe(0.25);
     expect(imageSettings({}).priceCredits).toBe(2);
     expect(imageSettings({ VEGA_IMAGE_TIMEOUT_MS: "999999" }).timeoutMs).toBe(55_000);
+  });
+});
+
+describe("formatos 9:16 y 4:5 (Gemini por el Gateway)", () => {
+  it("1:1, 2:3 y 3:2 siguen en gpt-image-2; 9:16 y 4:5 van a Gemini 3 Pro Image", () => {
+    expect(imageRoute("1:1", env)).toEqual({ provider: "gateway", model: "openai/gpt-image-2" });
+    expect(imageRoute("9:16", env)).toEqual({ provider: "gateway", model: "google/gemini-3-pro-image" });
+    expect(imageRoute("4:5", env)).toEqual({ provider: "gateway", model: "google/gemini-3-pro-image" });
+    expect(imageRoute("9:16", { ...env, VEGA_IMAGE_STORY_MODEL: "google/gemini-nano-banana-2.1" })?.model).toBe("google/gemini-nano-banana-2.1");
+    // GPT Image no tiene esos tamaños: se ignora y queda el de fábrica.
+    expect(imageRoute("9:16", { ...env, VEGA_IMAGE_STORY_MODEL: "openai/gpt-image-2" })?.model).toBe("google/gemini-3-pro-image");
+    expect(availableAspectRatios(env)).toEqual(["1:1", "2:3", "3:2", "9:16", "4:5"]);
+  });
+
+  it("sin Gateway (OpenAI directo) o con VEGA_IMAGE_STORY_MODEL=off no se ofrecen", () => {
+    const openai = { VEGA_IMAGE_PROVIDER: "openai", OPENAI_API_KEY: "sk-test", BLOB_READ_WRITE_TOKEN: "b" };
+    expect(imageRoute("9:16", openai)).toBeNull();
+    expect(imageRoute("1:1", openai)).toEqual({ provider: "openai", model: "gpt-image-2" });
+    expect(availableAspectRatios(openai)).toEqual(["1:1", "2:3", "3:2"]);
+    expect(availableAspectRatios({ ...env, VEGA_IMAGE_STORY_MODEL: "off" })).toEqual(["1:1", "2:3", "3:2"]);
+    expect((imageToolDeclaration(openai).parameters as { properties: Record<string, unknown> }).properties.formato).toMatchObject({ enum: ["1:1", "2:3", "3:2"] });
+    expect((imageToolDeclaration(env).parameters as { properties: Record<string, unknown> }).properties.formato).toMatchObject({ enum: ["1:1", "2:3", "3:2", "9:16", "4:5"] });
+  });
+
+  it("Gemini 3 Pro Image se pide en 2K (mismo precio que 1K) con el formato", async () => {
+    expect(geminiImageSize("google/gemini-3-pro-image")).toBe("2K");
+    expect(geminiImageSize("google/gemini-nano-banana-2.1")).toBe("1K");
+    const generateText = vi.fn(async () => ({ files: [{ uint8Array: png, mediaType: "image/png" }], response: {}, usage: {}, providerMetadata: {} }));
+    const provider = createGatewayImageProvider("google/gemini-3-pro-image", { generateText: generateText as never });
+    await provider.generate(request({ aspect: "9:16" }));
+    const args = (generateText.mock.calls[0] as unknown[])[0] as { providerOptions: unknown };
+    expect(args.providerOptions).toEqual({ google: { responseModalities: ["IMAGE"], imageConfig: { aspectRatio: "9:16", imageSize: "2K" } } });
+    expect(buildImagePrompt({ description: "Historia", aspect: "9:16" })).toMatch(/historia o Reel/);
+  });
+
+  it("GPT Image rechaza 9:16 sin llamar al proveedor", async () => {
+    const generateImage = vi.fn();
+    const gateway = createGatewayImageProvider("openai/gpt-image-2", { generateImage: generateImage as never });
+    await expect(gateway.generate(request({ aspect: "4:5" }))).rejects.toMatchObject({ kind: "invalid" });
+    expect(generateImage).not.toHaveBeenCalled();
+    const fetcher = vi.fn();
+    await expect(createOpenAIImageProvider("gpt-image-2", "sk", fetcher as never).generate(request({ aspect: "9:16" }))).rejects.toMatchObject({ kind: "invalid" });
+    expect(fetcher).not.toHaveBeenCalled();
+  });
+
+  it("la fila guarda el modelo de su formato y la generación usa ese modelo", async () => {
+    const ctx = setup();
+    const started = await start(ctx, "act-story", { aspect: "9:16" });
+    expect(started.ok).toBe(true);
+    expect(ctx.vegaImageGeneration.rows[0]).toMatchObject({ provider: "gateway", model: "google/gemini-3-pro-image", quality: "high", aspectRatio: "9:16", estimatedCostUsd: 0.144 });
+    expect(createImageProvider("gateway", "google/gemini-3-pro-image", env)?.model).toBe("google/gemini-3-pro-image");
+    expect(createImageProvider("gateway", "google/gemini-3-pro-image", { BLOB_READ_WRITE_TOKEN: "b" })).toBeNull();
+    expect(parseImageArgs({ descripcion: "Historia de promoción", formato: "4:5" })).toMatchObject({ ok: true, draft: { aspectRatio: "4:5" } });
+
+    const openai = setup({ env: { VEGA_IMAGE_PROVIDER: "openai", OPENAI_API_KEY: "sk-test", AI_GATEWAY_API_KEY: "" } });
+    expect(await start(openai, "act-x", { aspect: "9:16" })).toMatchObject({ ok: false, reason: "invalid" });
+    expect(openai.charge).not.toHaveBeenCalled();
   });
 });
 
@@ -183,7 +250,7 @@ describe("proveedor Gateway (AI SDK simulado)", () => {
     const provider = createGatewayImageProvider("google/gemini-3.1-flash-image", { generateText: generateText as never });
     const result = await provider.generate(request({ aspect: "1:1" }));
     const args = (generateText.mock.calls[0] as unknown[])[0] as { providerOptions: unknown };
-    expect(args.providerOptions).toEqual({ google: { responseModalities: ["IMAGE"], imageConfig: { aspectRatio: "1:1" } } });
+    expect(args.providerOptions).toEqual({ google: { responseModalities: ["IMAGE"], imageConfig: { aspectRatio: "1:1", imageSize: "1K" } } });
     expect(result.data).toBe(png);
   });
 

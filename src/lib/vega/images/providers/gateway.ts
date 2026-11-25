@@ -3,7 +3,7 @@
 // - Modelos multimodales de Google (google/gemini-*-image): generateText y la imagen llega en `files`.
 import { generateImage, generateText } from "ai";
 
-import { sizeFor } from "@/lib/vega/images/config";
+import { geminiImageSize, isStoryAspect, sizeFor } from "@/lib/vega/images/config";
 import { ImageProviderError } from "@/lib/vega/images/errors";
 import type { ImageProvider, ImageRequest, ImageResult } from "@/lib/vega/images/providers/types";
 
@@ -37,11 +37,13 @@ export function createGatewayImageProvider(
   const runText = deps.generateText ?? generateText;
 
   async function viaImageModel(request: ImageRequest): Promise<ImageResult> {
+    const aspect = request.aspect;
+    if (usesSize(model) && isStoryAspect(aspect)) throw new ImageProviderError("invalid", `${model} no tiene el formato ${aspect}`);
     const result = await runImage({
       model,
       prompt: request.references.length ? { text: request.prompt, images: request.references.map((item) => item.data) } : request.prompt,
       n: 1,
-      ...(usesSize(model) ? { size: sizeFor[request.aspect] } : { aspectRatio: request.aspect }),
+      ...(usesSize(model) && !isStoryAspect(aspect) ? { size: sizeFor[aspect] } : { aspectRatio: aspect }),
       // Calidad de GPT Image; otros modelos la ignoran (llega como advertencia, no como error).
       providerOptions: usesSize(model) ? { openai: { quality: request.quality } } : undefined,
       maxRetries: 0,
@@ -61,6 +63,8 @@ export function createGatewayImageProvider(
     };
   }
 
+  const imageSize = geminiImageSize(model);
+
   async function viaMultimodal(request: ImageRequest): Promise<ImageResult> {
     const result = await runText({
       model,
@@ -73,7 +77,9 @@ export function createGatewayImageProvider(
           ],
         },
       ],
-      providerOptions: { google: { responseModalities: ["IMAGE"], imageConfig: { aspectRatio: request.aspect } } },
+      providerOptions: {
+        google: { responseModalities: ["IMAGE"], imageConfig: { aspectRatio: request.aspect, ...(imageSize ? { imageSize } : {}) } },
+      },
       maxRetries: 0,
       abortSignal: request.abortSignal,
     });

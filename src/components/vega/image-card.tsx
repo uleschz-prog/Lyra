@@ -13,7 +13,13 @@ export function imageRefFrom(payload: unknown): ImageRef | null {
   return image as ImageRef;
 }
 
-const aspectClass: Record<string, string> = { "1:1": "aspect-square", "2:3": "aspect-[2/3]", "3:2": "aspect-[3/2]" };
+const aspectClass: Record<string, string> = {
+  "1:1": "aspect-square",
+  "2:3": "aspect-[2/3]",
+  "3:2": "aspect-[3/2]",
+  "9:16": "aspect-[9/16]",
+  "4:5": "aspect-[4/5]",
+};
 
 /** Tarjeta de generar_imagen: pide la generación (≤ 60 s) y muestra la imagen con su botón de descarga. */
 export function ImageCard({ action, onChange }: { action: VegaActionView; onChange: (action: VegaActionView, message: string) => void }) {

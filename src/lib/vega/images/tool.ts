@@ -1,6 +1,6 @@
 // Herramienta de Vega «generar_imagen»: declaración y validación de argumentos.
 import type { FunctionDeclaration } from "@/lib/vega/gemini-stream";
-import { type AspectRatio, aspectRatios, imageSettings, MAX_REFERENCES } from "@/lib/vega/images/config";
+import { asAspectRatio, type AspectRatio, availableAspectRatios, imageSettings, isStoryAspect, MAX_REFERENCES } from "@/lib/vega/images/config";
 import { MAX_DESCRIPTION, MAX_EXACT_TEXT } from "@/lib/vega/images/prompt";
 
 export const imageToolName = "generar_imagen";
@@ -16,6 +16,13 @@ export type ImageDraft = {
 
 export function imageToolDeclaration(env: Record<string, string | undefined> = process.env): FunctionDeclaration {
   const price = imageSettings(env).priceCredits;
+  const formats = availableAspectRatios(env);
+  const formatHelp = [
+    "1:1 = post cuadrado (Instagram/Facebook)",
+    "2:3 = vertical (flyer o cartel)",
+    "3:2 = horizontal (portada o banner)",
+    ...(formats.some(isStoryAspect) ? ["9:16 = historia o Reel (pantalla completa del celular)", "4:5 = post vertical de Instagram/Facebook"] : []),
+  ].join("; ");
   return {
     name: imageToolName,
     description: `Crea una imagen (flyer, post para redes, invitación, cartel o portada) y la muestra en el chat. Cuesta ${price} crédito${price === 1 ? "" : "s"} por imagen (se devuelven si falla) y tarda de 20 a 60 segundos. Si la imagen lleva texto (títulos, precios, fechas, teléfono), pásalo COMPLETO y literal en texto_exacto, tal como lo dijo el socio, en español con acentos y ñ; no inventes datos (precio, fecha, dirección o teléfono): si faltan y el socio los quiere, pregúntalos antes. Para cambiar una imagen que ya creaste o usar un logo o foto que el socio adjuntó, usa referencias. No la uses para videos (todavía no están disponibles).`,
@@ -32,8 +39,8 @@ export function imageToolDeclaration(env: Record<string, string | undefined> = p
         },
         formato: {
           type: "string",
-          enum: aspectRatios,
-          description: "1:1 = post cuadrado (Instagram/Facebook); 2:3 = vertical (flyer, cartel, historia); 3:2 = horizontal (portada, banner).",
+          enum: formats,
+          description: `${formatHelp}.`,
         },
         referencias: {
           type: "array",
@@ -56,7 +63,7 @@ export function parseImageArgs(args: Record<string, unknown>): { ok: true; draft
   const exactText = clean(args.texto_exacto, MAX_EXACT_TEXT + 1);
   if (exactText.length > MAX_EXACT_TEXT) return { ok: false, error: `El texto de la imagen es muy largo (máximo ${MAX_EXACT_TEXT} caracteres). Resúmelo con el socio.` };
   const format = clean(args.formato, 8);
-  const aspectRatio = (aspectRatios as string[]).includes(format) ? (format as AspectRatio) : "1:1";
+  const aspectRatio: AspectRatio = asAspectRatio(format) ?? "1:1";
   const raw = Array.isArray(args.referencias) ? args.referencias : [];
   const references = raw
     .map((item) => clean(item, 60))

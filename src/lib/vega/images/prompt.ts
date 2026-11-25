@@ -5,6 +5,8 @@ const formatHints: Record<AspectRatio, string> = {
   "1:1": "Formato cuadrado (post de Instagram o Facebook).",
   "2:3": "Formato vertical (flyer, cartel o historia).",
   "3:2": "Formato horizontal (portada, banner o presentación).",
+  "9:16": "Formato vertical alto 9:16 (historia o Reel). Deja libres el 14 % superior e inferior (ahí van los controles de la app): el texto importante va en la zona central.",
+  "4:5": "Formato vertical 4:5 (post vertical de Instagram o Facebook).",
 };
 
 export const MAX_DESCRIPTION = 1500;

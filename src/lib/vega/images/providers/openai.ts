@@ -1,6 +1,6 @@
 // Alternativa: API de imágenes de OpenAI directa (OPENAI_API_KEY). Otra factura y otra llave que el Gateway.
 // Usa POST /v1/images/generations (sin referencias) o /v1/images/edits (con referencias, multipart).
-import { sizeFor } from "@/lib/vega/images/config";
+import { isStoryAspect, sizeFor } from "@/lib/vega/images/config";
 import { ImageProviderError } from "@/lib/vega/images/errors";
 import type { ImageProvider, ImageRequest, ImageResult } from "@/lib/vega/images/providers/types";
 
@@ -14,19 +14,21 @@ const baseUrl = "https://api.openai.com/v1/images";
 
 export function createOpenAIImageProvider(model: string, apiKey: string, fetcher: typeof fetch = fetch): ImageProvider {
   async function call(request: ImageRequest): Promise<Response> {
+    if (isStoryAspect(request.aspect)) throw new ImageProviderError("invalid", `OpenAI no tiene el formato ${request.aspect}`);
+    const size = sizeFor[request.aspect];
     const headers = { Authorization: `Bearer ${apiKey}` };
     if (!request.references.length) {
       return fetcher(`${baseUrl}/generations`, {
         method: "POST",
         headers: { ...headers, "Content-Type": "application/json" },
-        body: JSON.stringify({ model, prompt: request.prompt, size: sizeFor[request.aspect], quality: request.quality, n: 1 }),
+        body: JSON.stringify({ model, prompt: request.prompt, size, quality: request.quality, n: 1 }),
         signal: request.abortSignal,
       });
     }
     const form = new FormData();
     form.set("model", model);
     form.set("prompt", request.prompt);
-    form.set("size", sizeFor[request.aspect]);
+    form.set("size", size);
     form.set("quality", request.quality);
     request.references.forEach((item, index) => {
       const extension = item.mediaType.split("/")[1] ?? "png";
