@@ -27,7 +27,9 @@ import { asItems, listMemories } from "@/lib/vega/memory";
 import { selectMemoriesForPrompt } from "@/lib/vega/memory-logic";
 import { getVegaProfile } from "@/lib/vega/profile";
 import { conversationTitle, vegaSystemPrompt } from "@/lib/vega/prompt";
-import { connectDraft, freeTools, runVegaTool, vegaTools } from "@/lib/vega/tools";
+import { connectDraft, freeTools, runVegaTool, vegaTools, type ImageGenerationDraft } from "@/lib/vega/tools";
+import { startImageFromDelivery, turnImageInputs, type TurnImageInput } from "@/lib/vega/images/delivery";
+import { imageToolName } from "@/lib/vega/images/tool";
 import { xStatusLabels } from "@/lib/vega/x/tools";
 import { saveDeliveredProject } from "@/lib/projects/store";
 import { briefGate, wantsLeaderboard } from "@/lib/vega/briefing";
@@ -75,6 +77,7 @@ export function statusLabel(name: string) {
   const app = appStatusLabel(name);
   if (app) return app;
   if (name === "preparar_whatsapp") return "Preparando el mensaje de WhatsApp…";
+  if (name === "generar_imagen") return "Preparando la imagen…";
   if (name === "programar_rutina") return "Programando la rutina…";
   if (name === "ver_rutinas") return "Revisando tus rutinas…";
   if (name === "pausar_rutina") return "Pausando la rutina…";
@@ -146,6 +149,8 @@ export type VegaTurn = {
   jobId?: string;
   /** Trabajos en segundo plano que este turno dejó en cola. */
   startedJobs?: string[];
+  /** Imágenes adjuntas en este mensaje (referencias para generar_imagen). */
+  imageInputs?: TurnImageInput[];
 };
 
 type Prepared =
@@ -255,6 +260,8 @@ export async function prepareVegaTurn(
   const connections = composioConfigured() ? await userConnections(user.id).catch(() => noConnections) : noConnections;
   const webSearch = Boolean(process.env.EXA_API_KEY);
   const excluded = new Set(input.excludeTools ?? []);
+  // La imagen la genera la tarjeta del chat: WhatsApp, rutinas y trabajos no la ofrecen.
+  if ((input.source ?? "chat") !== "chat") excluded.add(imageToolName);
   const teammates = excluded.has(delegateTool) ? [] : await listTeammates(user.id, agent.id);
   const tools = [...vegaTools(connections, webSearch), ...(teammates.length ? [delegateDeclaration(teammates)] : [])].filter((tool) => !excluded.has(tool.name));
   const allMemories = await listMemories(user.id, scope).catch(() => []);
@@ -323,6 +330,7 @@ export async function prepareVegaTurn(
       degraded,
       costRemainingUsd: cost?.remainingUsd ?? null,
       capUser,
+      imageInputs: turnImageInputs(attachments),
     },
   };
 }
@@ -504,7 +512,9 @@ export async function runVegaTurn(turn: VegaTurn, emit: (event: VegaEvent) => vo
         const editCall = call.name === "editar_proyecto";
         // Entrega 4: la edición cobra su propio precio (2 créditos) en startProjectEdit.
         const builderCall = editCall || (call.name === "entregar_proyecto" && builderEnabled() && (call.args?.tipo === "sitio" || call.args?.tipo === "app" || call.args?.tipo === "juego"));
-        if (!toolCharged && !freeTools.has(call.name) && !builderCall) {
+        // Imágenes: cobran su propio precio por imagen en startImageGeneration (se devuelve si falla).
+        const imageCall = call.name === imageToolName;
+        if (!toolCharged && !freeTools.has(call.name) && !builderCall && !imageCall) {
           const extra = await chargeCredits(userId, creditPrices.vegaTool - creditPrices.vegaMessage, "Vega · herramienta", `${chargeKey}:tool`);
           if (!extra.ok) {
             responses.push({
@@ -531,7 +541,7 @@ export async function runVegaTurn(turn: VegaTurn, emit: (event: VegaEvent) => vo
             response: { error: "La herramienta falló. Intenta de otra forma o avisa al socio." },
           };
         });
-        if (!freeTools.has(call.name) && outcome.kind !== "invalid") paidToolSucceeded = true;
+        if (!freeTools.has(call.name) && !imageCall && outcome.kind !== "invalid") paidToolSucceeded = true;
 
         if (outcome.kind === "result") {
           statuses.push(outcome.status);
@@ -566,6 +576,33 @@ export async function runVegaTurn(turn: VegaTurn, emit: (event: VegaEvent) => vo
             select: { id: true, kind: true, payload: true, status: true, result: true },
           });
           actionIds.push(action.id);
+          if (outcome.action === "image_generation") {
+            const started = await startImageFromDelivery(
+              { userId, chatId, actionId: action.id, draft: outcome.payload as ImageGenerationDraft, inputs: turn.imageInputs ?? [] },
+              { db: prisma },
+            ).catch((error: unknown) => {
+              console.error("[Vega imágenes] no se pudo iniciar", { errorType: error instanceof Error ? error.name : typeof error });
+              return { ok: false as const, message: "No se pudo preparar la imagen. Intenta de nuevo en unos minutos.", response: { estado: "no_se_pudo", error: "No se pudo preparar la imagen." } };
+            });
+            action = await prisma.vegaAction.update({
+              where: { id: action.id },
+              data: started.ok
+                ? {
+                    status: "running",
+                    result: "Creando la imagen…",
+                    payload: { ...(outcome.payload as object), image: { generationId: started.image.id, status: started.image.status } } as unknown as Prisma.InputJsonValue,
+                  }
+                : { status: "done", result: started.message, payload: { ...(outcome.payload as object), imageError: started.message } as unknown as Prisma.InputJsonValue },
+              select: { id: true, kind: true, payload: true, status: true, result: true },
+            });
+            if (started.ok && !started.duplicate) emit({ t: "credits", v: await currentCredits(userId) });
+            emit({ t: "action", v: actionView(action) });
+            const summary = started.ok ? "Creando la imagen…" : "No se pudo crear la imagen";
+            statuses.push(summary);
+            emit({ t: "status", v: summary });
+            responses.push({ functionResponse: { name: call.name, response: started.response } });
+            continue;
+          }
           let build: BuildView | null = null;
           let builderNote = "";
           let builtLive = false;

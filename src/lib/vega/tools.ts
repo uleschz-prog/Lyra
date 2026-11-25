@@ -30,6 +30,9 @@ export type { VegaConnections } from "@/lib/vega/apps";
 export type { AppDraft } from "@/lib/vega/app-tools";
 import { backgroundJobDeclaration, type JobDraft } from "@/lib/vega/jobs-core";
 import { builderEnabled, builderPrice } from "@/lib/builder/config";
+import { imagesEnabled } from "@/lib/vega/images/config";
+import { imageToolDeclaration, imageToolName, parseImageArgs, type ImageDraft as ImageGenerationDraft } from "@/lib/vega/images/tool";
+export type { ImageGenerationDraft };
 
 export type ActionKind =
   | "send_email"
@@ -43,8 +46,10 @@ export type ActionKind =
   | "deliver_project"
   | "connect_app"
   /** Vega v2: tarjeta con el avance de un trabajo en segundo plano. */
-  | "background_job";
-export type ActionPayload = EmailDraft | EventDraft | WhatsappDraft | AppDraft | CommandDraft | ImageDraft | VideoDraft | ProjectDraft | ConnectDraft | JobDraft;
+  | "background_job"
+  /** 2026-11-25: imagen de la herramienta generar_imagen (flyers y posts). */
+  | "image_generation";
+export type ActionPayload = EmailDraft | EventDraft | WhatsappDraft | AppDraft | CommandDraft | ImageDraft | VideoDraft | ProjectDraft | ConnectDraft | JobDraft | ImageGenerationDraft;
 
 /** Tarjeta para conectar (o reconectar) una app del socio. No ejecuta nada por sí sola. */
 export type ConnectDraft = { toolkit: UserToolkit; label: string; reason: string; reconnect: boolean };
@@ -409,6 +414,8 @@ export function vegaTools(connections: VegaConnections, webSearch: boolean): Fun
   tools.push(...xTools());
   const missing = userToolkits.filter((toolkit) => !connections[toolkit]);
   tools.push(backgroundJobDeclaration);
+  // Imágenes (flyers y posts): solo con proveedor y Blob configurados.
+  if (imagesEnabled()) tools.push(imageToolDeclaration());
   if (missing.length) {
     tools.push({
       name: "pedir_conexion",
@@ -815,6 +822,19 @@ export async function runVegaTool(userId: string, name: string, args: Record<str
       payload: draft,
       summary: `Cambios a ${project.title}`,
       modelNote: "",
+    };
+  }
+
+  if (name === imageToolName) {
+    const parsed = parseImageArgs(args);
+    if (!parsed.ok) return { kind: "invalid", response: { error: parsed.error } };
+    return {
+      kind: "delivery",
+      action: "image_generation",
+      payload: parsed.draft,
+      summary: "Creando la imagen…",
+      modelNote: "",
+      status: "running",
     };
   }
 
