@@ -105,6 +105,53 @@ model UsdtOrder {
   @@index([status])
 }
 
+/// Ingreso capturado a mano por la administración (efectivo, transferencia u otro pago fuera de la plataforma).
+/// Solo es un registro contable: no toca créditos, wallet ni comisiones. Se guarda el nombre y correo del
+/// socio al capturarlo para que el registro sobreviva si la cuenta se borra.
+model AdminIncomeEntry {
+  id            String   @id @default(cuid())
+  userId        String?
+  userName      String
+  userEmail     String
+  type          String // inscripcion | recarga | recompra | upgrade | otro
+  method        String // efectivo | transferencia | usdt | mercadopago | otro
+  currency      String   @default("USD")
+  amount        Decimal  @db.Decimal(12, 2) // Monto original capturado (los cambios van en AdminIncomeEdit).
+  receivedAt    DateTime
+  reference     String?
+  note          String?  @db.Text
+  createdById   String
+  createdByName String
+  createdAt     DateTime @default(now())
+
+  user User? @relation("AdminIncomeUser", fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([receivedAt])
+  @@index([userId, receivedAt])
+}
+
+/// Bitácora de cambios al monto de un ingreso (pago de la plataforma o captura manual).
+/// El pago original nunca se sobrescribe: el monto vigente es el `newAmount` del cambio más reciente.
+/// Sin llaves foráneas a propósito: la bitácora se conserva aunque se borre el pago o la cuenta.
+model AdminIncomeEdit {
+  id             String   @id @default(cuid())
+  source         String // pago (Transaction) | manual (AdminIncomeEntry)
+  transactionId  String?
+  entryId        String?
+  originalAmount Decimal  @db.Decimal(12, 2)
+  previousAmount Decimal  @db.Decimal(12, 2)
+  newAmount      Decimal  @db.Decimal(12, 2)
+  reason         String   @db.Text
+  editedById     String
+  editedByName   String
+  editedByEmail  String
+  createdAt      DateTime @default(now())
+
+  @@index([transactionId, createdAt])
+  @@index([entryId, createdAt])
+  @@index([createdAt])
+}
+
 /// Cierre de la red: cada fila une a un afiliado con un ancestro y la distancia entre ambos.
 model NetworkRelation {
   id         String @id @default(cuid())
@@ -197,6 +244,7 @@ model User {
   vegaAutonomy                 VegaAutonomy?
   whatsappConnection           WhatsappConnection?
   usdtOrders                   UsdtOrder[]
+  adminIncomeEntries           AdminIncomeEntry[]          @relation("AdminIncomeUser")
   promoCreated                 PromoCode[]                 @relation("PromoOwner")
   promoUses                    PromoCodeUse[]              @relation("PromoUser")
   creatorAccount               CreatorAccount?
