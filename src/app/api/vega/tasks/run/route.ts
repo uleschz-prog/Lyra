@@ -12,5 +12,5 @@ export const dynamic = "force-dynamic";
 const DAILY_HORIZON_MS = 90 * 60_000;
 
 export function GET(request: Request) {
-  return handleDispatch(request, { horizonMs: DAILY_HORIZON_MS, releaseEarnings: true });
+  return handleDispatch(request, { horizonMs: DAILY_HORIZON_MS, releaseEarnings: true, label: "vega-daily" });
 }

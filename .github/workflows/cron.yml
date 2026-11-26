@@ -1,0 +1,66 @@
+# Disparador cada 5 minutos para Vercel Hobby (sus crons solo pueden ser diarios).
+#
+# Llama a los despachadores de Lyra con `Authorization: Bearer $CRON_SECRET`:
+#   - /api/vega/routines/dispatch  → rutinas y recordatorios de Vega (responde 202 y trabaja en segundo plano)
+#   - /api/whatsapp/scheduled/run  → mensajes de WhatsApp programados que ya vencieron
+#
+# Ojo: GitHub Actions no corre más seguido que cada 5 minutos y los `schedule` pueden
+# retrasarse varios minutos (o saltarse en momentos de mucha carga). No garantiza
+# puntualidad. Si se necesita cada minuto, usa un pinger externo (p. ej. cron-job.org)
+# con el mismo header; los endpoints son idempotentes, así que pueden convivir.
+#
+# Secrets del repositorio (Settings → Secrets and variables → Actions):
+#   CRON_SECRET    (obligatorio, el mismo valor que CRON_SECRET en Vercel)
+#   LYRA_BASE_URL  (opcional, por defecto https://lyyra.vercel.app)
+name: Lyra cron (cada 5 min)
+
+on:
+  schedule:
+    - cron: "*/5 * * * *"
+  workflow_dispatch:
+
+permissions: {}
+
+concurrency:
+  group: lyra-cron
+  cancel-in-progress: false
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    env:
+      CRON_SECRET: ${{ secrets.CRON_SECRET }}
+      LYRA_BASE_URL: ${{ secrets.LYRA_BASE_URL }}
+    steps:
+      - name: Verificar configuración
+        id: check
+        run: |
+          if [ -z "$CRON_SECRET" ]; then
+            echo "::error::Falta el secret CRON_SECRET en el repositorio."
+            exit 1
+          fi
+
+      - name: Rutinas de Vega
+        if: ${{ !cancelled() && steps.check.outcome == 'success' }}
+        run: |
+          base="${LYRA_BASE_URL:-https://lyyra.vercel.app}"
+          rm -f response.txt
+          code=$(curl -sS -o response.txt -w "%{http_code}" -X POST \
+            --max-time 30 --retry 2 --retry-delay 5 --retry-all-errors \
+            -H "Authorization: Bearer ${CRON_SECRET}" \
+            "${base%/}/api/vega/routines/dispatch") || code="000"
+          echo "HTTP $code"; head -c 500 response.txt 2>/dev/null || true; echo
+          case "$code" in 2??) ;; *) echo "::error::/api/vega/routines/dispatch respondió $code"; exit 1 ;; esac
+
+      - name: WhatsApp programados
+        if: ${{ !cancelled() && steps.check.outcome == 'success' }}
+        run: |
+          base="${LYRA_BASE_URL:-https://lyyra.vercel.app}"
+          rm -f response.txt
+          code=$(curl -sS -o response.txt -w "%{http_code}" -X POST \
+            --max-time 75 --retry 1 --retry-delay 10 --retry-all-errors \
+            -H "Authorization: Bearer ${CRON_SECRET}" \
+            "${base%/}/api/whatsapp/scheduled/run") || code="000"
+          echo "HTTP $code"; head -c 500 response.txt 2>/dev/null || true; echo
+          case "$code" in 2??) ;; *) echo "::error::/api/whatsapp/scheduled/run respondió $code"; exit 1 ;; esac

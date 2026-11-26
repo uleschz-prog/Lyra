@@ -46,6 +46,56 @@ El catálogo de creadores se presenta como un feed vertical con vista previa aut
 
 El creador de cursos guía el flujo desde los datos del curso hasta módulos y lecciones. Las lecciones aceptan enlaces de YouTube/Vimeo o videos MP4 y WebM de hasta 120 MB, que se suben directamente a Vercel Blob; requiere `BLOB_READ_WRITE_TOKEN`.
 
+## Crons
+
+Vercel Hobby solo permite crons diarios. `vercel.json` declara dos:
+- `/api/commissions/close`: día 1 de cada mes.
+- `/api/vega/tasks/run`: diario, rutinas con 90 min de adelanto y liberación de ganancias del Marketplace.
+
+Lo que necesita correr seguido lo dispara **GitHub Actions** con `.github/workflows/cron.yml` cada 5 minutos:
+
+| Endpoint | Qué hace |
+|---|---|
+| `GET\|POST /api/vega/routines/dispatch` | Rutinas y recordatorios de Vega. Responde `202` y trabaja en segundo plano. Con `?wait=1` espera y devuelve el resumen. |
+| `GET\|POST /api/whatsapp/scheduled/run` | Envía los mensajes de WhatsApp programados que ya vencieron y devuelve el resumen. |
+
+**Autorización:** todos los endpoints de cron exigen `Authorization: Bearer $CRON_SECRET`:
+- La comparación es en tiempo constante.
+- Responden `401` si el header falta o no coincide, y `500` si `CRON_SECRET` no está configurado en el servidor.
+- Los logs llevan el prefijo `[cron:<nombre>]`: inicio, conteos, duración y errores. Nunca registran el secreto.
+
+**Idempotencia:** cada rutina y cada mensaje se reclama con un `updateMany` condicional (rutinas: `runAt` + fila única `(taskId, scheduledFor)`; WhatsApp: `scheduled → sending`). Dos disparos solapados no procesan lo mismo dos veces. Por eso pueden convivir el cron diario, GitHub Actions y un pinger externo.
+
+**Limitaciones honestas:**
+- GitHub Actions no permite intervalos menores a 5 minutos.
+- Los `schedule` pueden retrasarse varios minutos, o saltarse en horas de mucha carga. No hay garantía de puntualidad.
+- El `schedule` solo corre desde la rama por defecto (`main`).
+- GitHub desactiva los workflows programados de repos públicos sin actividad durante 60 días.
+
+Si hace falta cada minuto, usa un pinger externo gratuito, por ejemplo [cron-job.org](https://cron-job.org), con estos datos:
+- **Método:** `POST`.
+- **Header:** `Authorization: Bearer <CRON_SECRET>`.
+- **URL:** `https://lyyra.vercel.app/api/vega/routines/dispatch` y otra tarea para `/api/whatsapp/scheduled/run`.
+
+### Configurar el secreto
+1. Genera un valor: `openssl rand -hex 32`.
+2. En Vercel → Project → Settings → Environment Variables, crea `CRON_SECRET` (Production) con ese valor y vuelve a desplegar. Vercel Cron manda el mismo header automáticamente.
+3. En GitHub → Settings → Secrets and variables → Actions → *New repository secret*:
+   - `CRON_SECRET` con **el mismo valor**.
+   - Opcional: `LYRA_BASE_URL`. Si no existe, se usa `https://lyyra.vercel.app`.
+
+### Probar
+- **GitHub:** pestaña *Actions* → «Lyra cron (cada 5 min)» → *Run workflow* (`workflow_dispatch`). El job falla si algún endpoint no responde `2xx`.
+- **curl:**
+
+```bash
+export CRON_SECRET=...   # el mismo valor que en Vercel
+curl -i -X POST -H "Authorization: Bearer $CRON_SECRET" https://lyyra.vercel.app/api/vega/routines/dispatch           # 202
+curl -i -X POST -H "Authorization: Bearer $CRON_SECRET" "https://lyyra.vercel.app/api/vega/routines/dispatch?wait=1"  # 200 + resumen
+curl -i -X POST -H "Authorization: Bearer $CRON_SECRET" https://lyyra.vercel.app/api/whatsapp/scheduled/run            # 200 + resumen
+curl -i -X POST https://lyyra.vercel.app/api/whatsapp/scheduled/run                                                     # 401
+```
+
 ## Vega
 
 Vega genera sitios responsivos, prototipos interactivos de apps y especificaciones descargables de agentes. Las apps guardan sus registros sólo en el navegador; los formularios no envían solicitudes a un negocio. La demostración del agente responde con ejemplos predefinidos y `agente.json` sirve como base para conectarlo a un modelo, pero no es un agente de IA activo. Para operar con clientes o usuarios reales hace falta implementar backend, almacenamiento seguro e integraciones.
@@ -60,13 +110,7 @@ Los socios piden a Vega recordatorios a hora exacta y rutinas recurrentes (diari
 
 El despachador es `GET|POST /api/vega/routines/dispatch` con `Authorization: Bearer $CRON_SECRET`. Reclama cada ocurrencia con un `updateMany` condicional y una fila única `(taskId, scheduledFor)`, así que dos disparos simultáneos no la ejecutan dos veces; las corridas colgadas más de 10 minutos se marcan como fallidas sin reintento. Responde `202` y trabaja con `after()`; `?wait=1` espera y devuelve el resumen. Límites: `VEGA_MAX_ROUTINES` (20 por socio), `VEGA_ROUTINE_RUNS_PER_HOUR` (8 por socio), `VEGA_ROUTINE_CONCURRENCY` (3 turnos en paralelo por invocación, nunca dos del mismo socio) y 15 minutos mínimos entre ejecuciones.
 
-En Hobby, Vercel solo permite cron diarios, así que `vercel.json` no cambia: el cron diario `/api/vega/tasks/run` (7:00 CDMX, con ±59 min de holgura) llama al mismo despachador y adelanta lo que vence en los siguientes 90 minutos. Sin pinger, las demás horas exactas se entregan hasta el siguiente disparo diario. Para horas exactas, programa un pinger externo cada 5 minutos con el header anterior, por ejemplo en cron-job.org o un Render Cron Job:
-
-```bash
-curl -fsS -X POST -H "Authorization: Bearer $CRON_SECRET" "$LYRA_URL/api/vega/routines/dispatch"
-```
-
-Con Vercel Pro basta agregar `{ "path": "/api/vega/routines/dispatch", "schedule": "*/5 * * * *" }` a `vercel.json`. Con un disparo cada 5 minutos caben unas 36 tareas con turno completo por hora; lo demás espera en cola al siguiente disparo.
+En Hobby, Vercel solo permite cron diarios. El cron diario `/api/vega/tasks/run` (7:00 CDMX, con ±59 min de holgura) llama al mismo despachador y adelanta lo que vence en los siguientes 90 minutos. Para horas exactas, el workflow de GitHub Actions lo dispara cada 5 minutos (ver [Crons](#crons)). Con Vercel Pro bastaría agregar `{ "path": "/api/vega/routines/dispatch", "schedule": "*/5 * * * *" }` a `vercel.json`. Con un disparo cada 5 minutos caben unas 36 tareas con turno completo por hora; lo demás espera en cola al siguiente disparo.
 
 ### Tope de costo de IA de Vega
 
