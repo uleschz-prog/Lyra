@@ -1,6 +1,6 @@
-import { timingSafeEqual } from "node:crypto";
-
 import { after, NextResponse } from "next/server";
+
+import { checkCronAuth, cronAuthError, cronErrorMessage } from "@/lib/cron/auth";
 
 import { dispatchRoutines } from "@/lib/vega/routine-runner";
 
@@ -18,11 +18,26 @@ async function releaseMarketplaceEarnings() {
   return releaseDueEarnings(marketDb(), ledgerCredits, { take: 200 });
 }
 
+/** `true` si el request trae `Authorization: Bearer $CRON_SECRET` (comparación en tiempo constante). */
 export function authorizedCron(request: Request, secret = process.env.CRON_SECRET) {
-  if (!secret) return false;
-  const given = Buffer.from(request.headers.get("authorization") ?? "");
-  const expected = Buffer.from(`Bearer ${secret}`);
-  return given.length === expected.length && timingSafeEqual(given, expected);
+  return checkCronAuth(request, secret).ok;
+}
+
+/** Resumen corto para logs: solo contadores y mensajes de error, nunca contenido de rutinas. */
+function logSummary(result: Record<string, unknown>) {
+  const parts: string[] = [];
+  for (const [key, value] of Object.entries(result)) {
+    if (typeof value === "number") parts.push(`${key}=${value}`);
+    else if (value && typeof value === "object") {
+      const inner = value as Record<string, unknown>;
+      if (typeof inner.error === "string") parts.push(`${key}.error=${JSON.stringify(inner.error.slice(0, 200))}`);
+      else {
+        const counts = Object.entries(inner).filter(([, v]) => typeof v === "number").map(([k, v]) => `${k}:${v}`);
+        if (counts.length) parts.push(`${key}={${counts.join(",")}}`);
+      }
+    } else if (key === "error" && typeof value === "string") parts.push(`error=${JSON.stringify(value.slice(0, 200))}`);
+  }
+  return parts.join(" ");
 }
 
 /**
@@ -31,9 +46,13 @@ export function authorizedCron(request: Request, secret = process.env.CRON_SECRE
  * Por defecto responde 202 de inmediato y trabaja en segundo plano con `after()`;
  * con `?wait=1` espera y devuelve el resumen.
  */
-export async function handleDispatch(request: Request, options: { horizonMs?: number; releaseEarnings?: boolean } = {}) {
+export async function handleDispatch(request: Request, options: { horizonMs?: number; releaseEarnings?: boolean; label?: string } = {}) {
   const started = Date.now();
-  if (!authorizedCron(request)) return NextResponse.json({ error: "No autorizado." }, { status: 401 });
+  const label = options.label ?? "vega-routines";
+  const denied = cronAuthError(request, label);
+  if (denied) return denied;
+  const wait = new URL(request.url).searchParams.get("wait") === "1";
+  console.info(`[cron:${label}] inicio (${request.method}${wait ? ", wait=1" : ""})`);
   const run = async () => {
     const dispatched = await dispatchRoutines({ budgetMs: DISPATCH_BUDGET_MS - (Date.now() - started), horizonMs: options.horizonMs });
     const routines = options.releaseEarnings
@@ -57,12 +76,22 @@ export async function handleDispatch(request: Request, options: { horizonMs?: nu
     const jobs = await resumeJobs({ budgetMs: rest - 5_000 }).catch((error: unknown) => ({ error: error instanceof Error ? error.message : "jobs failed" }));
     return { ...routines, builds, jobs };
   };
-  if (new URL(request.url).searchParams.get("wait") === "1") {
-    return NextResponse.json(await run());
+  const runLogged = async () => {
+    try {
+      const result = (await run()) as Record<string, unknown>;
+      console.info(`[cron:${label}] fin en ${Date.now() - started} ms · ${logSummary(result)}`);
+      return { ok: true as const, result };
+    } catch (error) {
+      console.error(`[cron:${label}] error tras ${Date.now() - started} ms: ${cronErrorMessage(error)}`);
+      return { ok: false as const, error: "El despachador falló; revisa los logs." };
+    }
+  };
+  if (wait) {
+    const outcome = await runLogged();
+    return outcome.ok ? NextResponse.json(outcome.result) : NextResponse.json({ error: outcome.error }, { status: 500 });
   }
   after(async () => {
-    const result = await run().catch((error: unknown) => ({ error: error instanceof Error ? error.message : "dispatch failed" }));
-    console.info("[vega-routines] dispatch", JSON.stringify(result));
+    await runLogged();
   });
   return NextResponse.json({ accepted: true }, { status: 202 });
 }

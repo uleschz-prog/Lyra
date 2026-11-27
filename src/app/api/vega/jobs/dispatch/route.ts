@@ -1,6 +1,6 @@
 import { after, NextResponse } from "next/server";
 
-import { authorizedCron } from "@/lib/vega/dispatch-http";
+import { cronAuthError } from "@/lib/cron/auth";
 import { defaultJobDeps, kickJobDispatch, resumeJobs } from "@/lib/vega/jobs";
 import { isActive, runJob } from "@/lib/vega/jobs-core";
 
@@ -16,7 +16,8 @@ const BUDGET_MS = 55_000;
  */
 export async function POST(request: Request) {
   const started = Date.now();
-  if (!authorizedCron(request)) return NextResponse.json({ error: "No autorizado." }, { status: 401 });
+  const denied = cronAuthError(request, "vega-jobs");
+  if (denied) return denied;
   const url = new URL(request.url);
   const jobId = url.searchParams.get("job");
   after(async () => {

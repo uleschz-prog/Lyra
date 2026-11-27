@@ -1,15 +1,14 @@
 import { NextResponse } from "next/server";
 
+import { cronAuthError } from "@/lib/cron/auth";
 import { monthFromKey } from "@/lib/compensation/activity";
 import { closeMonth } from "@/lib/compensation/close";
 
 export const maxDuration = 60;
 
 export async function GET(request: Request) {
-  const secret = process.env.CRON_SECRET;
-  if (!secret || request.headers.get("authorization") !== `Bearer ${secret}`) {
-    return NextResponse.json({ error: "No autorizado." }, { status: 401 });
-  }
+  const denied = cronAuthError(request, "commissions-close");
+  if (denied) return denied;
 
   const requested = new URL(request.url).searchParams.get("mes");
   const now = new Date();
